@@ -1,4 +1,4 @@
-import { InputHandler, Camera, Entity, getCachedImage } from './utils.js';
+import { InputHandler, Camera, Entity, getCachedImage, filterInPlace } from './utils.js';
 import { Map } from './map.js';
 import { Player } from './player.js';
 import { Enemy, Slime, Bat, Goblin, SkeletonArcher, Ghost, Boss, Chest, Statue, BloodAltar, ShopNPC, WoodCrate, SpikeTrap } from './entities.js';
@@ -907,7 +907,7 @@ class Game {
             }
             if (a.update) a.update(dt);
         });
-        this.animations = this.animations.filter(a => a.life > 0);
+        filterInPlace(this.animations, a => a.life > 0);
 
         // Interpolate Special Camera States
         const zoomFactor = 3.0 * dt; // Doubled zoom speed (was 1.5)
@@ -1030,7 +1030,7 @@ class Game {
                 }
                 if (a.update) a.update(dt);
             });
-            this.animations = this.animations.filter(a => a.life > 0);
+            filterInPlace(this.animations, a => a.life > 0);
 
             return; // Pause other game updates (enemies, player input, etc)
         }
@@ -1289,7 +1289,7 @@ class Game {
 
         const hadBoss = this.enemies.some(e => e.isBoss);
         this.enemies.forEach(enemy => enemy.update(dt));
-        this.enemies = this.enemies.filter(e => !e.markedForDeletion);
+        filterInPlace(this.enemies, e => !e.markedForDeletion);
 
         if (hadBoss && !this.enemies.some(e => e.isBoss)) {
             // Boss was just defeated
@@ -1300,7 +1300,7 @@ class Game {
 
         // --- Update Enemy Projectiles (Global) ---
         this.enemyProjectiles.forEach(p => p.update(dt, this));
-        this.enemyProjectiles = this.enemyProjectiles.filter(p => p.life > 0);
+        filterInPlace(this.enemyProjectiles, p => p.life > 0);
 
         // Update Chests (Interaction)
         this.chests.forEach(chest => {
@@ -1406,7 +1406,7 @@ class Game {
 
         // Update Generic Entities (e.g., Drops)
         this.entities.forEach(e => e.update(dt));
-        this.entities = this.entities.filter(e => !e.markedForDeletion);
+        filterInPlace(this.entities, e => !e.markedForDeletion);
 
         // Update Animations (Removed from here - now at the top of update)
         // No change needed here if already removed or just cleaning up.
@@ -1538,7 +1538,7 @@ class Game {
                 }
             }
         });
-        this.projectiles = this.projectiles.filter(p => p.life > 0);
+        filterInPlace(this.projectiles, p => p.life > 0);
 
 
         const hp = Math.ceil(this.player.hp);

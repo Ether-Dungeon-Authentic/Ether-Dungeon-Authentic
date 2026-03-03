@@ -334,3 +334,21 @@ export class Entity {
         }
     }
 }
+
+/**
+ * Modifies an array in-place, keeping only elements for which the condition returns true.
+ * This completely avoids memory allocation (garbage collection) compared to Array.prototype.filter().
+ */
+export function filterInPlace(array, condition) {
+    let writeIdx = 0;
+    for (let readIdx = 0; readIdx < array.length; readIdx++) {
+        if (condition(array[readIdx])) {
+            if (writeIdx !== readIdx) {
+                array[writeIdx] = array[readIdx];
+            }
+            writeIdx++;
+        }
+    }
+    array.length = writeIdx;
+    return array;
+}
