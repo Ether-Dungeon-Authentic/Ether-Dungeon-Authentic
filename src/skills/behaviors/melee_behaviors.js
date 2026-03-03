@@ -41,7 +41,18 @@ export const meleeBehaviors = {
                 hit.y < enemy.y + enemy.height && hit.y + hit.h > enemy.y) {
                 const isCrit = params.critChance > 0 && Math.random() < params.critChance;
                 const finalDamage = isCrit ? params.damage * (params.critMultiplier || 2.0) : params.damage;
-                enemy.takeDamage(finalDamage, params.damageColor, params.aetherCharge, isCrit);
+
+                // Knockback
+                let kx = 0, ky = 0;
+                if (params.knockback) {
+                    const dx = (enemy.x + enemy.width / 2) - (user.x + user.width / 2);
+                    const dy = (enemy.y + enemy.height / 2) - (user.y + user.height / 2);
+                    const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+                    kx = (dx / dist) * params.knockback;
+                    ky = (dy / dist) * params.knockback;
+                }
+
+                enemy.takeDamage(finalDamage, params.damageColor, params.aetherCharge, isCrit, kx, ky);
                 const particleColor = isCrit ? '#FFD700' : 'red';
                 game.spawnParticles(enemy.x + enemy.width / 2, enemy.y + enemy.height / 2, isCrit ? 10 : 5, particleColor);
             }

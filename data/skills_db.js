@@ -3,21 +3,22 @@ export const skillsDB = [
         id: 'flame_fan',
         name: 'フレイムファン', // Flame Fan
         type: 'normal',
-        icon: 'assets/icon_flame_fan.png', // Dedicated icon
+        icon: 'assets/skills/icons/icon_flame_fan.png', // Dedicated icon
         cooldown: 0.8,
         behavior: 'fan_projectile',
-        description: '前方に扇状の炎を撒き散らす。',
+        description: '前方に扇状の炎を撒き散らす。わずかに敵を押し戻す。',
         params: {
+            knockback: 50,
             count: 6, // Number of pellets
             angleSpread: 45, // Spread in degrees
-            damage: 4,
+            damage: 6,
             speed: 600,
             randomSpeed: 150, // Variation in speed
             life: 0.3, // Short range (increased from 0.233)
             width: 14,
             height: 14,
             // shape: 'orb', // REMOVE procedural shape
-            spriteSheet: 'assets/flame_fan.png', // Use the new pixel art
+            spriteSheet: 'assets/skills/vfx/flame_fan.png', // Use the new pixel art
             frames: 1, // Single frame for now
             fixedOrientation: true, // Don't rotate sprite automatically (unless round)
 
@@ -36,12 +37,13 @@ export const skillsDB = [
         id: 'slash',
         name: 'スラッシュ', // Restore original name if needed, or keep backup if user preferred
         type: 'normal',
-        icon: 'assets/icon_slash.png',
+        icon: 'assets/skills/icons/icon_slash.png',
         cooldown: 0.5,
         behavior: 'crimson_slash_single',
-        description: '前方に鋭い斬撃を放つ。クリティカル率が非常に高い。',
+        description: '前方に鋭い斬撃を放つ。クリティカル率が高く、敵をノックバックさせる。',
         params: {
-            damage: 7,
+            knockback: 150,
+            damage: 10,
             speed: 0,
             life: 0.12, // Reduced from 0.2 for faster animation
             width: 120, // Crimson Cross scale
@@ -62,12 +64,12 @@ export const skillsDB = [
         id: 'crimson_cross',
         name: 'クリムゾン・クロス', // Crimson Cross
         type: 'normal',
-        icon: 'assets/icon_blood_scythe.png',
+        icon: 'assets/skills/icons/icon_blood_scythe.png',
         cooldown: 0.3,
         behavior: 'crimson_cross',
         description: '前方に十文字の斬撃を放ち、敵を出血させる。',
         params: {
-            damage: 2.5,
+            damage: 4,
             speed: 0,
             life: 0.2, // Adjusted to 0.2s
             width: 120, // Match visual span/thickness better
@@ -91,17 +93,21 @@ export const skillsDB = [
         id: 'ice_signal',
         name: 'アイスシグナル', // Ice Signal
         type: 'normal',
-        icon: 'assets/icon_ice.png', // Placeholder
-        cooldown: 0.045, // Increased from 0.035
+        icon: 'assets/skills/icons/icon_ice.png', // Placeholder
+        cooldown: 0.09, // 2x slower (was 0.045)
         behavior: 'projectile',
         description: '目の前に氷の針を一瞬だけ出現させる超高速の突き攻撃。',
         params: {
-            damage: 2,
+            damage: 3,
             speed: 600, // 2x Speed
             width: 14,
             height: 50,
-            life: 0.1, // Slightly longer visible life
-            spriteSheet: 'assets/ice_spike.png',
+            life: 0.15, // Slightly longer visible life
+            pierce: 2,
+            statusEffect: 'slow',
+            statusChance: 0.3,
+            statusDuration: 2.0,
+            spriteSheet: 'assets/skills/vfx/ice_spike.png',
             frames: 1,
             rotationOffset: Math.PI / 2, // 90 degrees to point Right
             fixedOrientation: true, // Prevent auto-swap of W/H
@@ -119,7 +125,7 @@ export const skillsDB = [
         id: 'lightning_needle',
         name: 'ライトニングニードル', // Lightning Needle
         type: 'normal',
-        icon: 'assets/icon_needle.png',
+        icon: 'assets/skills/icons/icon_needle.png',
         cooldown: 0.3,
         behavior: 'projectile',
         description: '前方に極細の電気の針を飛ばす。弾速が非常に速い。',
@@ -134,7 +140,7 @@ export const skillsDB = [
             life: 0.17, // 1/3 Life (Same range)
             color: '#FFFFFF', // White
             shape: 'triangle', // Sharp needle shape
-            // spriteSheet: 'assets/lightning_part_01.png', // REMOVED: Use shape for needle
+            // spriteSheet: 'assets/skills/vfx/lightning_part_01.png', // REMOVED: Use shape for needle
             crackle: true, // Asset Lightning Effect enabled
             crackleColor: '#FFFF00', // Yellow
             noTrail: true, // Disable orange trail
@@ -149,11 +155,12 @@ export const skillsDB = [
         id: 'fireball',
         name: 'ファイアボール', // Fireball
         type: 'primary',
-        icon: 'assets/icon_fireball.png',
+        icon: 'assets/skills/icons/icon_fireball.png',
         cooldown: 1.0,
         behavior: 'projectile',
-        description: '前方に火の玉を発射する。射程が長く、威力も高い。',
+        description: '前方に火の玉を発射する。着弾時に爆発し、敵を大きく吹き飛ばす。',
         params: {
+            knockback: 250,
             damage: 20,
             speed: 550,
             width: 64, // 32 * 2
@@ -166,8 +173,8 @@ export const skillsDB = [
             onHitEffect: 'explosion', // Grand Explosion Effect
             shakeIntensity: 0.8,
             noShake: true,
-            spriteSheet: 'assets/fireball_sheet.png',
-            spriteData: 'assets/fireball_sheet.json',
+            spriteSheet: 'assets/skills/vfx/fireball_sheet.png',
+            spriteData: 'assets/skills/vfx/fireball_sheet.json',
             frames: 4,
             frameRate: 0.05, // 0.1 / 2 (2x Speed)
             // Charge Params
@@ -189,11 +196,12 @@ export const skillsDB = [
         id: 'thunder_burst',
         name: 'サンダーバースト', // Thunder Burst
         type: 'primary',
-        icon: 'assets/icon_thunder_burst.png',
+        icon: 'assets/skills/icons/icon_thunder_burst.png',
         cooldown: 6.0,
         behavior: 'area_blast',
-        description: '周囲に電撃を帯びた爆発を起こす。',
+        description: '周囲に電撃を帯びた爆発を起こし、敵を弾き飛ばす。',
         params: {
+            knockback: 180,
             damage: 5, // Increased damage (3 -> 5)
             range: 100, // +25% range (was 80)
             duration: 1.0, // Lasts 1 second
@@ -203,7 +211,7 @@ export const skillsDB = [
             particleColor: '#ffff00', // Yellow sparks
             damageColor: '#ffff00', // Yellow (Electric)
             // Visual Animation
-            spriteSheet: 'assets/thunder_burst.png',
+            spriteSheet: 'assets/skills/vfx/thunder_burst.png',
             spriteData: null, // No JSON for single image
             width: 200, // Match range * 2
             height: 200,
@@ -220,7 +228,7 @@ export const skillsDB = [
         id: 'bounce_spark',
         name: 'バウンスパーク', // Bounce Spark
         type: 'primary',
-        icon: 'assets/icon_bounce.png', // Placeholder
+        icon: 'assets/skills/icons/icon_bounce.png', // Placeholder
         cooldown: 5.0,
         behavior: 'bouncing_projectile',
         description: '壁に反射する電気の弾を前方に5発扇状に発射する。',
@@ -252,7 +260,7 @@ export const skillsDB = [
         id: 'ember_strike',
         name: 'エンバーストライク', // Ember Strike
         type: 'ultimate',
-        icon: 'assets/icon_ember_strike.png',
+        icon: 'assets/skills/icons/icon_ember_strike.png',
         cooldown: 10.0,
         behavior: 'barrage',
         description: '８つの火の玉を連射する奥義。',
@@ -274,8 +282,8 @@ export const skillsDB = [
             onHitEffect: 'explosion', // Grand Explosion Effect
             shakeIntensity: 0.3,
             noShake: true,
-            spriteSheet: 'assets/fireball_sheet.png',
-            spriteData: 'assets/fireball_sheet.json',
+            spriteSheet: 'assets/skills/vfx/fireball_sheet.png',
+            spriteData: 'assets/skills/vfx/fireball_sheet.json',
             frames: 4,
             frameRate: 0.1,
             statusEffect: 'burn',
@@ -291,7 +299,7 @@ export const skillsDB = [
         id: 'blood_scythe',
         name: 'ブラッドサイス', // Blood Scythe
         type: 'primary',
-        icon: 'assets/icon_blood_scythe.png', // Updated icon path
+        icon: 'assets/skills/icons/icon_blood_scythe.png', // Updated icon path
         cooldown: 2.0,
         behavior: 'blood_scythe',
         description: '血濡れた鎌を投げ、加速しながら前進し続ける。触れた敵に連続ダメージ。',
@@ -306,14 +314,14 @@ export const skillsDB = [
             color: '#ff0000', // Red
             trailColor: 'rgba(255, 0, 0, 0.5)',
             rotationSpeed: -45, // Reversed and 3x Speed
-            spriteSheet: 'assets/blood_scythe.png',
+            spriteSheet: 'assets/skills/vfx/blood_scythe.png',
             frames: 1,
             pierce: 999, // Infinite pierce
             tickInterval: 0.1, // Damage every 0.1s
             statusEffect: 'bleed',
             statusChance: 0.3, // 30% chance per tick
             damageColor: '#880000', // Dark Red (Blood)
-            aetherCharge: 2.0, // Calculated: 5.0 / (5 ticks / 2.0s)
+            aetherCharge: 0.5, // Calculated: 5.0 / (5 ticks / 2.0s)
             critChance: 0.12,      // 12% - 鎌は中クリ率
             critMultiplier: 3.0    // ブラッドクリティカルは超高倍率
         }
@@ -322,7 +330,7 @@ export const skillsDB = [
         id: 'ice_spike',
         name: 'アイススパイク', // Ice Spike
         type: 'primary',
-        icon: 'assets/icon_ice_spike.png', // Updated icon path
+        icon: 'assets/skills/icons/icon_ice_spike.png', // Updated icon path
         // actually, let's use a placeholder or the sprite sheet as icon if logic allows, but usually icon is separate.
         // For now, null is fine or we can reuse `icon_ice.png` if it exists (from ice_signal).
         // icon: 'assets/icon_ice_spike.png', // Placeholder name
@@ -337,7 +345,7 @@ export const skillsDB = [
             spacing: 30, // Much wider spacing per user request
             width: 20, // 10 * 2
             height: 92, // 46 * 2
-            spriteSheet: 'assets/ice_spike.png',
+            spriteSheet: 'assets/skills/vfx/ice_spike.png',
             frames: 1,
             damageColor: '#00ffff', // Cyan (Ice)
             pierce: 999,
@@ -350,7 +358,7 @@ export const skillsDB = [
         id: 'ice_garden',
         name: 'アイスガーデン', // Ice Garden
         type: 'ultimate',
-        icon: 'assets/icon_ice_garden.png', // Placeholder
+        icon: 'assets/skills/icons/icon_ice_garden.png', // Placeholder
         cooldown: 10.0,
         behavior: 'ice_garden',
         description: '範囲内の敵を減速させ、足元から氷の棘で攻撃するエリアを展開する。',
@@ -372,10 +380,10 @@ export const skillsDB = [
         id: 'tornado',
         name: 'トルネード', // Tornado
         type: 'primary',
-        icon: 'assets/icon_wind.png', // Placeholder or use generic
+        icon: 'assets/skills/icons/icon_wind.png', // Placeholder or use generic
         cooldown: 8.0,
         behavior: 'tornado',
-        description: '前方に竜巻を発生させる。竜巻はゆっくり進み、触れた敵を連続ヒットさせながら少しノックバックさせる。',
+        description: '前方に竜巻を発生させる。触れた敵を連続ヒットさせながら継続的にノックバックさせる。',
         params: {
             damage: 5, // Low damage per tick
             tickInterval: 0.2, // 5 hits per second
@@ -396,7 +404,7 @@ export const skillsDB = [
         id: 'chain_lightning',
         name: 'チェーンライトニング', // Chain Lightning
         type: 'primary',
-        icon: 'assets/icon_chain.png',
+        icon: 'assets/skills/icons/icon_chain.png',
         cooldown: 5.0,
         behavior: 'chain_lightning',
         description: '敵から敵へと連鎖する雷撃を放つ。',
@@ -422,7 +430,7 @@ export const skillsDB = [
         id: 'thunderfall',
         name: 'サンダーフォール', // Thunderfall
         type: 'primary', // Active skill
-        icon: 'assets/icon_thunder_fall.png', // Placeholder
+        icon: 'assets/skills/icons/icon_thunder_fall.png', // Placeholder
         cooldown: 8.0,
         behavior: 'thunderfall_storm',
         description: '一定時間、周囲の敵に対してランダムに落雷を発生させる。',
@@ -442,7 +450,7 @@ export const skillsDB = [
         id: 'thunder_god_wrath',
         name: 'サンダー・ラス', // Thunder Wrath
         type: 'ultimate',
-        icon: 'assets/icon_thunder_god.png', // Placeholder
+        icon: 'assets/skills/icons/icon_thunder_god.png', // Placeholder
         cooldown: 15.0,
         behavior: 'global_strike',
         description: '上下左右の4方向に、3連続の雷槌を落とす。',
@@ -460,7 +468,7 @@ export const skillsDB = [
         id: 'glacial_lotus',
         name: 'グラシアル・ロータス', // Glacial Lotus
         type: 'ultimate',
-        icon: 'assets/icon_glacial_lotus.png',
+        icon: 'assets/skills/icons/icon_glacial_lotus.png',
         cooldown: 15.0,
         behavior: 'glacial_lotus',
         description: '周囲に巨大な氷の蓮を展開し、一斉に射出する奥義。',
@@ -473,7 +481,7 @@ export const skillsDB = [
             burstLife: 1.2,
             width: 18,
             height: 45,
-            spriteSheet: 'assets/ice_spike.png',
+            spriteSheet: 'assets/skills/vfx/ice_spike.png',
             damageColor: '#00ffff', // Cyan (Ice)
             fixedOrientation: true,
             rotationOffset: Math.PI / 2,
@@ -487,7 +495,7 @@ export const skillsDB = [
         id: 'lunatic_snicker',
         name: 'ルナティックスニッカー', // Lunatic Snicker
         type: 'ultimate',
-        icon: 'assets/icon_blood_scythe.png', // Temporary, same as crimson_cross
+        icon: 'assets/skills/icons/icon_blood_scythe.png', // Temporary, same as crimson_cross
         cooldown: 15.0,
         behavior: 'lunatic_snicker_strike',
         description: '画面内の全ての敵をターゲットし、狂気の如き深紅の十文字を刻み込む奥義。',
@@ -514,11 +522,12 @@ export const skillsDB = [
         id: 'phoenix_dive',
         name: 'フェニックス・ダイブ', // Phoenix Dive
         type: 'primary',
-        icon: 'assets/icon_phoenix_dive.png',
+        icon: 'assets/skills/icons/icon_phoenix_dive.png',
         cooldown: 8.0,
         behavior: 'phoenix_dive',
-        description: '炎の鳥となって突撃する。このスキルで敵を倒すとクールダウンが即座に解消される。',
+        description: '炎の鳥となって突撃し、進路上の敵を激しく弾き飛ばす。敵を倒すと即座に再使用可能。',
         params: {
+            knockback: 400,
             speed: 1200,
             duration: 0.4,
             damage: 25,
@@ -526,8 +535,8 @@ export const skillsDB = [
             puddleInterval: 0.01,
             puddleDamage: 5,
             puddleLife: 3.0,
-            spriteSheet: 'assets/phoenix_aura.png',
-            spriteData: 'assets/phoenix_aura.json',
+            spriteSheet: 'assets/skills/vfx/phoenix_aura.png',
+            spriteData: 'assets/skills/vfx/phoenix_aura.json',
             frames: 4
         }
     },
@@ -535,11 +544,12 @@ export const skillsDB = [
         id: 'magma_spear',
         name: 'マグマスピア', // Magma Spear
         type: 'primary',
-        icon: 'assets/icon_magma_spear.png',
+        icon: 'assets/skills/icons/icon_magma_spear.png',
         cooldown: 6.0,
         behavior: 'magma_spear',
-        description: '敵や壁に着弾すると大爆発を起こし、周囲に複数の噴火を発生させるマグマの槍を放つ。',
+        description: '着弾時に大爆発を起こす槍を放ち、敵を力強くノックバックさせる。',
         params: {
+            knockback: 300,
             damage: 20, // Increased direct damage since it no longer pierces/bounces
             speed: 900, // Slightly faster for impact feel
             life: 2.0,
@@ -548,7 +558,7 @@ export const skillsDB = [
             puddleInterval: 0.2,
             slowMultiplier: 0.5,
             width: 128, // Visually bigger
-            spriteSheet: 'assets/magma_spear.png',
+            spriteSheet: 'assets/skills/vfx/magma_spear.png',
             color: '#ff4400',
             trailColor: '#ffbb00',
             aetherCharge: 3.0,
@@ -563,7 +573,7 @@ export const skillsDB = [
         id: 'magma_core',
         name: 'マグマコア', // Magma Core
         type: 'ultimate',
-        icon: 'assets/icon_magma_core.png',
+        icon: 'assets/skills/icons/icon_magma_core.png',
         cooldown: 10.0,
         behavior: 'magma_core',
         description: '自身の周囲を回転する２つのマグマの核を生成する。核が敵に触れるとその足元に激しい噴火を引き起こし、周囲を焼き尽くす。',
@@ -573,7 +583,7 @@ export const skillsDB = [
             orbitRadius: 80,
             coreRadius: 18,
             rotationSpeed: 7.0,
-            spriteSheet: 'assets/magma_core.png',
+            spriteSheet: 'assets/skills/vfx/magma_core.png',
             puddleDamage: 3,
             puddleLife: 3.0,
             damageColor: '#ff4400',
@@ -590,7 +600,7 @@ export const skillsDB = [
         id: 'volt_drive',
         name: 'ボルト・ドライブ', // Volt Drive
         type: 'ultimate',
-        icon: 'assets/icon_volt_drive.png', // Placeholder
+        icon: 'assets/skills/icons/icon_volt_drive.png', // Placeholder
         cooldown: 20.0,
         behavior: 'volt_drive',
         description: '一定時間、雷光と化して戦場を疾駆する奥義。移動速度が大幅に上昇し、ダッシュで敵を貫き、周囲に自動で雷撃を放つ。',
@@ -613,7 +623,7 @@ export const skillsDB = [
         id: 'starfall',
         name: 'スターフォール',
         type: 'ultimate',
-        icon: 'assets/icon_starfall.png',
+        icon: 'assets/skills/icons/icon_starfall.png',
         cooldown: 20.0,
         behavior: 'starfall_storm',
         description: '広範囲に巨大な隕石を大量に降らせる奥義。着弾地点で大爆発と噴火を引き起こす。',
@@ -629,7 +639,7 @@ export const skillsDB = [
             starLife: 0.6,
             statusEffect: 'burn',
             statusChance: 0.8,
-            spriteSheet: 'assets/meteor_rock.png', // User will generate this (Rock only)
+            spriteSheet: 'assets/skills/vfx/meteor_rock1.png', // Corrected path
             width: 48,
             height: 96,
             color: '#ff4400',

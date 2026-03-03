@@ -5,10 +5,24 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Aether Dungeon</title>
-    <link rel="stylesheet" href="css/style.css">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="css/ui.css">
+    <link rel="stylesheet" href="css/title.css">
+    <link rel="stylesheet" href="css/modals.css">
+    <link rel="stylesheet" href="css/dialogue.css">
+    <link rel="stylesheet" href="css/circuit.css">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+
+    <!-- Firebase SDK (Modular via CDN) -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
+        import { getFirestore, collection, addDoc, getDocs, query, orderBy, limit, serverTimestamp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
+
+        // Expose to window for firebase_manager.js
+        window.firebaseApp = { initializeApp };
+        window.firebaseFirestore = { getFirestore, collection, addDoc, getDocs, query, orderBy, limit, serverTimestamp };
+    </script>
 </head>
 
 <body>
@@ -30,21 +44,123 @@
     <div id="game-container">
         <canvas id="gameCanvas" width="800" height="600"></canvas>
 
-        <!-- Title Screen -->
-        <div id="title-screen">
-            <video id="title-video" autoplay loop muted playsinline>
-                <source src="assets/title_bg.mp4" type="video/mp4">
-            </video>
-            <div class="title-container">
-                <h1 class="game-title">Aether Dungeon</h1>
-                <p class="game-subtitle">~ エーテル・ダンジョン ~</p>
-                <div class="title-menu">
-                    <button id="btn-start-game" class="title-btn">冒険を始める</button>
-                    <button id="btn-open-collection" class="title-btn secondary">図鑑を見る</button>
+        <div id="game-ui-wrapper">
+            <!-- Title Screen -->
+            <div id="title-screen">
+
+                <div class="title-container">
+                    <div class="title-header">
+                        <h1 class="game-title">Aether Dungeon</h1>
+                        <p class="game-subtitle">~ エーテル・ダンジョン ~</p>
+                    </div>
+
+                    <div id="title-highscore-container">
+                        <div id="title-highscore"
+                            style="color: #ffd700; font-family: 'Press Start 2P', cursive; font-size: 12px; text-shadow: 0 0 10px rgba(255, 215, 0, 0.5);">
+                            HIGH SCORE: <span id="title-highscore-value">0</span></div>
+                    </div>
+
+                    <div class="title-menu">
+                        <button id="btn-start-game" class="title-btn">冒険を始める</button>
+                        <button id="btn-open-ranking" class="title-btn secondary">ランキング</button>
+                        <button id="btn-open-collection" class="title-btn secondary">図鑑を見る</button>
+                    </div>
+
+                    <!-- Stage Settings (Redesigned) -->
+                    <div id="stage-settings-modal" class="stage-settings-container" style="display: none;">
+                        <div class="stage-overhaul-layout">
+                            <!-- Left Side: Player Focus + Start Button -->
+                            <div class="stage-left-column">
+                                <div class="player-focus-area">
+                                    <!-- Area for camera view -->
+                                </div>
+                                <div class="stage-actions-area">
+                                    <button id="btn-start-adventure" class="title-btn">出発する</button>
+                                    <button id="btn-back-to-title" class="title-btn secondary">キャンセル</button>
+                                </div>
+                            </div>
+
+                            <!-- Right Side: Tabbed Settings -->
+                            <div class="stage-right-column">
+                                <div class="stage-tabs">
+                                    <button class="stage-tab-btn active" data-tab="skills">スキル選択</button>
+                                    <button class="stage-tab-btn" data-tab="circuits">エーテル回路</button>
+                                    <button class="stage-tab-btn" data-tab="difficulty">難易度</button>
+                                </div>
+
+                                <div class="stage-tab-content active" id="tab-skills">
+                                    <div class="skill-selection-horizontal-layout">
+                                        <!-- Left Side: Selected Skill Focus -->
+                                        <div id="selected-skill-focus">
+                                            <div class="focus-label">選択中</div>
+                                            <img id="current-skill-icon" src="assets/skills/icons/icon_slash.png">
+                                            <div id="current-skill-name">スラッシュ</div>
+                                            <div id="current-skill-desc">前方に鋭い斬撃を放つ。</div>
+                                        </div>
+
+                                        <!-- Right Side: Permanent Grid -->
+                                        <div class="skill-grid-container">
+                                            <div class="grid-label">スキル一覧</div>
+                                            <div id="start-skill-list" class="start-skill-list">
+                                                <!-- Skills injected here by JS -->
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="stage-tab-content" id="tab-circuits" style="display: none;">
+                                    <div class="circuit-layout">
+                                        <div class="circuit-header">
+                                            <div class="capacity-gauge-container">
+                                                <span>容量出力: <span id="circuit-capacity-used">0</span> / <span
+                                                        id="circuit-capacity-max">20</span></span>
+                                                <div class="capacity-bar-track">
+                                                    <div id="circuit-capacity-fill" class="capacity-bar-fill"></div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="circuit-main">
+                                            <div class="chip-slots-area">
+                                                <div class="grid-label">回路スロット</div>
+                                                <div id="chip-slots" class="chip-slots">
+                                                    <!-- 6 slots -->
+                                                </div>
+                                                <div id="chip-detail-panel" class="chip-detail-panel">
+                                                    <div class="detail-placeholder">チップを選択して詳細を表示</div>
+                                                </div>
+                                            </div>
+                                            <div class="chip-inventory-area">
+                                                <div class="grid-label">所持チップ</div>
+                                                <div id="chip-list" class="chip-list">
+                                                    <!-- Chips -->
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="stage-tab-content" id="tab-difficulty" style="display: none;">
+                                    <div class="settings-section no-box">
+                                        <h3 style="text-align: center; font-size: 14px; margin-bottom: 20px;">難易度を選択
+                                        </h3>
+                                        <div class="difficulty-options">
+                                            <label class="diff-option active" data-difficulty="normal">
+                                                <div class="diff-name">ノーマル</div>
+                                            </label>
+                                            <label class="diff-option" data-difficulty="hard">
+                                                <div class="diff-name">ハード</div>
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
                 </div>
-            </div>
-            <div class="title-footer">
-                v1.2.0 | &copy; 2024 Aether Team
+                <div class="title-footer">
+                    v1.2.0 | created by simmer
+                </div>
             </div>
         </div>
 
@@ -76,7 +192,8 @@
                 <div id="health-bar-label">HP</div>
                 <div id="health-bar-track">
                     <div id="health-bar-fill"></div>
-                    <div id="health-bar-text"><span id="hp-value">100</span> / <span id="hp-max">100</span></div>
+                    <div id="health-bar-text"><span id="hp-value">100</span> / <span id="hp-max">100</span>
+                    </div>
                 </div>
             </div>
             <div id="aether-gauge-container">
@@ -84,8 +201,13 @@
             </div>
 
             <div id="currency-display">
-                <img src="assets/aether_shard.png" alt="Currency" class="currency-icon">
+                <img src="assets/ui/aether_shard.png" alt="Currency" class="currency-icon">
                 <span id="currency-value">0</span>
+            </div>
+
+            <div id="score-display">
+                <span id="score-label">SCORE</span>
+                <span id="score-value">0</span>
             </div>
 
             <div id="floor-display">
@@ -102,7 +224,7 @@
 
         <!-- Settings Modal -->
         <div id="settings-modal"
-            style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 2000; justify-content: center; align-items: center;">
+            style="display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 2000; justify-content: center; align-items: center;">
             <div
                 style="background: #222; padding: 20px; border: 2px solid #555; border-radius: 10px; text-align: center; color: white; min-width: 300px;">
                 <h2 style="margin-top: 0;">設定</h2>
@@ -114,9 +236,23 @@
                     <label>BGM音量</label>
                     <input type="range" id="music-volume" min="0" max="1" step="0.1" value="0.5">
                 </div>
-                <button id="btn-close-settings">閉じる</button>
+                <!-- Cheat Menu (Hidden by default, shown in debugMode) -->
+                <div id="cheat-menu-container"
+                    style="display: none; border-top: 1px solid #444; margin-top: 15px; padding-top: 15px;">
+                    <h3 style="margin-top: 0; font-size: 16px; color: #ffcc00;">チートメニュー</h3>
+                    <div style="display: flex; flex-direction: column; gap: 10px;">
+                        <button id="btn-cheat-teleport-boss" class="title-btn"
+                            style="font-size: 10px; padding: 10px;">ボス部屋へテレポート</button>
+                        <button id="btn-cheat-teleport-portal" class="title-btn"
+                            style="font-size: 10px; padding: 10px;">ポータルへテレポート</button>
+                        <button id="btn-cheat-invincible" class="title-btn" style="font-size: 10px; padding: 10px;">無敵:
+                            OFF</button>
+                    </div>
+                </div>
+                <button id="btn-close-settings" style="margin-top: 15px;">閉じる</button>
             </div>
         </div>
+
 
 
         <!-- Skill Selection Modal -->
@@ -135,6 +271,31 @@
                 <h2>女神の祝福</h2>
                 <div id="blessing-selection-cards" style="display: flex; justify-content: center; gap: 20px;">
                     <!-- Cards injected by JS -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Ranking Board Modal -->
+        <div id="ranking-modal" style="display: none;">
+            <div class="collection-container ranking-board">
+                <h2 class="collection-title">世界ランキング</h2>
+                <div id="ranking-list" class="ranking-list">
+                    <div class="loading-spinner">通信中...</div>
+                </div>
+                <div class="collection-footer">
+                    <button id="btn-close-ranking" class="title-btn secondary" style="width: 200px;">閉じる</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Nickname Input Modal -->
+        <div id="nickname-modal" style="display: none;">
+            <div class="nickname-container">
+                <h3>新記録！名前を入力して登録</h3>
+                <input type="text" id="nickname-input" maxlength="10" placeholder="なまえ（10文字以内）">
+                <div class="nickname-btns">
+                    <button id="btn-submit-nickname" class="title-btn">登録する</button>
+                    <button id="btn-cancel-nickname" class="title-btn secondary">登録しない</button>
                 </div>
             </div>
         </div>
@@ -255,6 +416,7 @@
                 <div id="dialogue-prompt">[SPACE] で次へ</div>
             </div>
         </div>
+    </div>
     </div>
     <script type="module" src="src/main.js"></script>
 </body>

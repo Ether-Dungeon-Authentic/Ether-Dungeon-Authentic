@@ -3,16 +3,17 @@ import { Entity, getCachedImage, getCachedJson } from '../utils.js';
 
 export class SkeletonArcher extends Enemy {
     constructor(game, x, y) {
-        super(game, x, y, 40, 48, '#ffffff', 45, 120, 'skeleton_archer');
+        super(game, x, y, 40, 48, '#ffffff', 45, 120, 'skeleton_archer', 120);
 
         // Sprite Sheet Assets
-        this.fullSheet = getCachedImage('assets/skeleton_archer_full.png');
+        this.fullSheet = getCachedImage('assets/enemies/skeleton_archer_full.png');
         this.walkFrames = [];
         this.attackFrames = [];
         this.walkData = null;
         this.animTimer = 0;
-        this.shootTimer = 2.0;
-        this.damage = 0; // Remove contact damage
+        const initialShootDelay = 1.0 + Math.random() * 2.0;
+        this.shootTimer = game.difficulty === 'hard' ? initialShootDelay * 0.5 : initialShootDelay;
+        this.damage = 5; // Re-enable contact damage
 
         // Wander AI state
         this.wanderTimer = 0;
@@ -20,7 +21,7 @@ export class SkeletonArcher extends Enemy {
         this.wanderVy = 0;
 
         // Referencing the correct JSON provided by user
-        getCachedJson('assets/sprites_data (4).json').then(data => {
+        getCachedJson('assets/enemies/sprites_data (4).json').then(data => {
             if (data) {
                 this.walkData = data;
                 const keys = Object.keys(data.frames).sort();
@@ -30,6 +31,7 @@ export class SkeletonArcher extends Enemy {
         });
 
         this.targetAimPos = { x: 0, y: 0 };
+        this.displayName = 'スケルトンアーチャー';
     }
 
     update(dt) {
@@ -42,8 +44,6 @@ export class SkeletonArcher extends Enemy {
 
         if (this.flashTimer > 0) {
             this.flashTimer -= dt;
-            this.vx = 0;
-            this.vy = 0;
         }
 
         if (this.isTelegraphing) {
@@ -61,7 +61,7 @@ export class SkeletonArcher extends Enemy {
                 this.isTelegraphing = false;
                 this.executeAttack();
             }
-        } else if (this.flashTimer <= 0) {
+        } else {
             const dx = this.game.player.x - this.x;
             const dy = this.game.player.y - this.y;
             const dist = Math.sqrt(dx * dx + dy * dy);
@@ -105,7 +105,8 @@ export class SkeletonArcher extends Enemy {
             if (hasLOS && dist < approachDist + 100) {
                 this.shootTimer -= dt;
                 if (this.shootTimer <= 0) {
-                    this.startTelegraph(1.0);
+                    const duration = this.game.difficulty === 'hard' ? 0.5 : 1.0;
+                    this.startTelegraph(duration);
                 }
             }
         }
@@ -251,10 +252,21 @@ export class SkeletonArcher extends Enemy {
 
         this.drawStatusIcons(ctx);
         if (this.hp < this.maxHp) {
+            const barY = Math.floor(this.y - 35);
             ctx.fillStyle = 'red';
-            ctx.fillRect(Math.floor(this.x), Math.floor(this.y - 35), this.width, 4);
+            ctx.fillRect(Math.floor(this.x), barY, this.width, 4);
             ctx.fillStyle = 'green';
-            ctx.fillRect(Math.floor(this.x), Math.floor(this.y - 35), this.width * (this.hp / this.maxHp), 4);
+            ctx.fillRect(Math.floor(this.x), barY, this.width * (this.hp / this.maxHp), 4);
+
+            // Draw Name
+            ctx.fillStyle = 'white';
+            ctx.font = 'bold 10px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.shadowColor = 'black';
+            ctx.shadowBlur = 4;
+            ctx.fillText(this.displayName, this.x + this.width / 2, barY - 4);
+            ctx.shadowBlur = 0;
+            ctx.textAlign = 'start';
         }
     }
 
@@ -275,7 +287,7 @@ export class SkeletonArcher extends Enemy {
                 angle: angle,
                 damage: 12,
                 life: 3.0,
-                image: getCachedImage('assets/projectile_arrow.png'),
+                image: getCachedImage('assets/skills/vfx/projectile_arrow.png'),
                 update: function (dt, game) {
                     this.x += this.vx * dt;
                     this.y += this.vy * dt;
@@ -306,7 +318,8 @@ export class SkeletonArcher extends Enemy {
                 }
             });
         }
-        this.attackCooldown = 3.0;
-        this.shootTimer = 2.0 + Math.random();
+        this.attackCooldown = 3.0; // Contact damage cooldown
+        const nextShootDelay = 2.0 + Math.random() * 1.5;
+        this.shootTimer = this.game.difficulty === 'hard' ? nextShootDelay * 0.5 : nextShootDelay;
     }
 }

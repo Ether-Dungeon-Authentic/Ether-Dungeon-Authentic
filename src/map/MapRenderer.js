@@ -9,6 +9,27 @@ export class MapRenderer {
         const endX = startX + Math.ceil(camera.width / this.map.tileSize) + 1;
         const endY = startY + Math.ceil(camera.height / this.map.tileSize) + 1;
 
+        const ts = this.map.tileSize;
+        const rimSize = 10;
+
+        // Pre-create gradient patterns relative to origin (0,0)
+        // These will be translated per-tile to avoid object creation in the nested loop
+        const gradN = ctx.createLinearGradient(0, 0, 0, rimSize);
+        gradN.addColorStop(0, '#555');
+        gradN.addColorStop(1, '#000');
+
+        const gradS = ctx.createLinearGradient(0, -rimSize, 0, 0);
+        gradS.addColorStop(0, '#000');
+        gradS.addColorStop(1, '#555');
+
+        const gradW = ctx.createLinearGradient(0, 0, rimSize, 0);
+        gradW.addColorStop(0, '#555');
+        gradW.addColorStop(1, '#000');
+
+        const gradE = ctx.createLinearGradient(ts, 0, ts - rimSize, 0);
+        gradE.addColorStop(0, '#555');
+        gradE.addColorStop(1, '#000');
+
         for (let y = Math.max(0, startY); y < Math.min(this.map.height, endY); y++) {
             for (let x = Math.max(0, startX); x < Math.min(this.map.width, endX); x++) {
                 if (this.map.tiles[y][x] === 1 || this.map.tiles[y][x] === 2) {
@@ -51,66 +72,66 @@ export class MapRenderer {
                     // North rim (Mitered) - Highlight/Thickness for the top edge
                     if (isFloorN) {
                         // Back-facing wall (Floor is to the North) - Draw inside
-                        const grad = ctx.createLinearGradient(tx, ty, tx, ty + rimSize);
-                        grad.addColorStop(0, '#555');
-                        grad.addColorStop(1, '#000');
-                        ctx.fillStyle = grad;
+                        ctx.save();
+                        ctx.translate(tx, ty);
+                        ctx.fillStyle = gradN;
 
                         const offsetW = hasWestRim ? rimSize : 0;
                         const offsetE = hasEastRim ? rimSize : 0;
 
                         ctx.beginPath();
-                        ctx.moveTo(tx, ty);
-                        ctx.lineTo(tx + ts, ty);
-                        ctx.lineTo(tx + ts - offsetE, ty + rimSize);
-                        ctx.lineTo(tx + offsetW, ty + rimSize);
+                        ctx.moveTo(0, 0);
+                        ctx.lineTo(ts, 0);
+                        ctx.lineTo(ts - offsetE, rimSize);
+                        ctx.lineTo(offsetW, rimSize);
                         ctx.closePath();
                         ctx.fill();
+                        ctx.restore();
                     } else if (isFloorS) {
                         // Front-facing wall (Floor to the South) - Draw ABOVE the tile for thickness
-                        const grad = ctx.createLinearGradient(tx, ty - rimSize, tx, ty);
-                        grad.addColorStop(0, '#000'); // Darkest at the very top edge
-                        grad.addColorStop(1, '#555'); // Brighter at the wall face junction
-                        ctx.fillStyle = grad;
+                        ctx.save();
+                        ctx.translate(tx, ty);
+                        ctx.fillStyle = gradS;
 
                         // No side miters needed as side rims are suppressed on standard front walls
-                        ctx.fillRect(tx, ty - rimSize, ts, rimSize);
+                        ctx.fillRect(0, -rimSize, ts, rimSize);
+                        ctx.restore();
                     }
 
                     // West rim (Mitered)
                     if (hasWestRim) {
-                        const grad = ctx.createLinearGradient(tx, ty, tx + rimSize, ty);
-                        grad.addColorStop(0, '#555');
-                        grad.addColorStop(1, '#000');
-                        ctx.fillStyle = grad;
+                        ctx.save();
+                        ctx.translate(tx, ty);
+                        ctx.fillStyle = gradW;
 
                         const offsetN = isFloorN ? rimSize : 0;
 
                         ctx.beginPath();
-                        ctx.moveTo(tx, ty);
-                        ctx.lineTo(tx + rimSize, ty + offsetN);
-                        ctx.lineTo(tx + rimSize, ty + ts);
-                        ctx.lineTo(tx, ty + ts);
+                        ctx.moveTo(0, 0);
+                        ctx.lineTo(rimSize, offsetN);
+                        ctx.lineTo(rimSize, ts);
+                        ctx.lineTo(0, ts);
                         ctx.closePath();
                         ctx.fill();
+                        ctx.restore();
                     }
 
                     // East rim (Mitered)
                     if (hasEastRim) {
-                        const grad = ctx.createLinearGradient(tx + ts, ty, tx + ts - rimSize, ty);
-                        grad.addColorStop(0, '#555');
-                        grad.addColorStop(1, '#000');
-                        ctx.fillStyle = grad;
+                        ctx.save();
+                        ctx.translate(tx, ty);
+                        ctx.fillStyle = gradE;
 
                         const offsetN = isFloorN ? rimSize : 0;
 
                         ctx.beginPath();
-                        ctx.moveTo(tx + ts, ty);
-                        ctx.lineTo(tx + ts, ty + ts);
-                        ctx.lineTo(tx + ts - rimSize, ty + ts);
-                        ctx.lineTo(tx + ts - rimSize, ty + offsetN);
+                        ctx.moveTo(ts, 0);
+                        ctx.lineTo(ts, ts);
+                        ctx.lineTo(ts - rimSize, ts);
+                        ctx.lineTo(ts - rimSize, offsetN);
                         ctx.closePath();
                         ctx.fill();
+                        ctx.restore();
                     }
 
                     // Step 5: Special handling for Type 2 (Locked Doors) red X
@@ -144,6 +165,9 @@ export class MapRenderer {
 
         for (const room of this.map.rooms) {
             if (room.type === 'staircase') {
+                // If this floor has a boss, hide portal until defeated
+                if (this.map.hasBoss && !this.map.bossDefeated) continue;
+
                 if (room.x * this.map.tileSize > endX * this.map.tileSize || (room.x + room.w) * this.map.tileSize < startX * this.map.tileSize ||
                     room.y * this.map.tileSize > endY * this.map.tileSize || (room.y + room.h) * this.map.tileSize < startY * this.map.tileSize) {
                     continue;

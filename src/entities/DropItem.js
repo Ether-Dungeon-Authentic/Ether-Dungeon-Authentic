@@ -19,7 +19,7 @@ export class DropItem extends Entity {
         this.deceleration = 400; // Linear deceleration
 
         // Visuals
-        this.image = getCachedImage('assets/aether_shard.png');
+        this.image = getCachedImage('assets/ui/aether_shard.png');
 
         // Magnet
         this.magnetRange = 150;

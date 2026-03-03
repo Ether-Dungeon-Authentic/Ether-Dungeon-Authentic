@@ -6,8 +6,8 @@ export class Chest extends Entity {
         super(game, x, y, 30, 30, '#ffd700', 1); // Gold color
         this.opened = false;
 
-        this.imageClosed = getCachedImage('assets/chest_closed.png');
-        this.imageOpen = getCachedImage('assets/chest_open.png');
+        this.imageClosed = getCachedImage('assets/map/chest_closed.png');
+        this.imageOpen = getCachedImage('assets/map/chest_open.png');
     }
 
     update(dt) {

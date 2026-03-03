@@ -43,6 +43,7 @@ export const spawnProjectile = (game, x, y, vx, vy, params) => {
         aetherCharge: params.aetherCharge !== undefined ? params.aetherCharge : 1.0,
         statusEffect: params.statusEffect,
         statusChance: params.statusChance,
+        statusDuration: params.statusDuration,
         shape: params.shape || 'circle',
         noShake: params.noShake,
         pierce: params.pierce,
@@ -71,7 +72,9 @@ export const spawnProjectile = (game, x, y, vx, vy, params) => {
         critChance: params.critChance || 0,
         critMultiplier: params.critMultiplier || 2.0,
         spinSpeed: params.spinSpeed || 0,
+        knockback: params.knockback || 0,
         hasAura: params.hasAura || false,
+        isEnemy: params.isEnemy || false,
         update: function (dt) {
             // Adaptive Aspect Ratio (User request: use image ratio)
             if (this.image && this.image.complete && !this._ratioApplied && params.fixedOrientation) {
@@ -173,7 +176,7 @@ export const spawnProjectile = (game, x, y, vx, vy, params) => {
                 const spawnCount = Math.random() < 0.8 ? 2 : 1;
                 for (let i = 0; i < spawnCount; i++) {
                     const partId = Math.floor(Math.random() * 9) + 1;
-                    const spritePath = `assets/ice_part_0${partId}.png`;
+                    const spritePath = `assets/skills/vfx/ice_part_0${partId}.png`;
                     const size = 6 + Math.random() * 10;
                     game.animations.push({
                         type: 'particle',
@@ -247,7 +250,7 @@ export const spawnProjectile = (game, x, y, vx, vy, params) => {
                 for (let i = 0; i < count; i++) {
                     const partId = Math.floor(Math.random() * 10) + 1;
                     const partStr = partId < 10 ? `0${partId}` : `${partId}`;
-                    const spritePath = `assets/lightning_part_${partStr}.png`;
+                    const spritePath = `assets/skills/vfx/lightning_part_${partStr}.png`;
 
                     let dirX = 0, dirY = 0;
                     if (this.vx !== 0 || this.vy !== 0) {
@@ -304,12 +307,22 @@ export const spawnProjectile = (game, x, y, vx, vy, params) => {
 
         if (needsCustomHandler) {
             proj.onHitEnemy = function (enemy, gameInstance) {
-                enemy.takeDamage(this.damage, this.damageColor, this.aetherCharge);
+                // Calculate knockback vector from PROJECTILE center to ENEMY center
+                let kx = 0, ky = 0;
+                if (this.knockback > 0) {
+                    const dx = (enemy.x + enemy.width / 2) - (this.x + this.w / 2);
+                    const dy = (enemy.y + enemy.height / 2) - (this.y + this.h / 2);
+                    const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+                    kx = (dx / dist) * this.knockback;
+                    ky = (dy / dist) * this.knockback;
+                }
+
+                enemy.takeDamage(this.damage, this.damageColor, this.aetherCharge, false, kx, ky);
 
                 // Apply Status (Even for custom handlers)
                 if (this.statusEffect && (!this.statusChance || Math.random() < this.statusChance)) {
                     if (enemy.statusManager) {
-                        enemy.statusManager.applyStatus(this.statusEffect, 5.0);
+                        enemy.statusManager.applyStatus(this.statusEffect, this.statusDuration || 5.0);
                     }
                 }
 
@@ -543,7 +556,7 @@ export const spawnThunderfallImpact = (game, x, y, scale = 1.0) => {
     for (let k = 0; k < coreCount; k++) {
         const partId = Math.floor(Math.random() * 10) + 1;
         const partStr = partId < 10 ? `0${partId}` : `${partId}`;
-        const spritePath = `assets/lightning_part_${partStr}.png`;
+        const spritePath = `assets/skills/vfx/lightning_part_${partStr}.png`;
 
         spawnProjectile(game, x + (Math.random() - 0.5) * 20 * scale, y + (Math.random() - 0.5) * 20 * scale, 0, 0, {
             visual: true,
@@ -570,7 +583,7 @@ export const spawnThunderfallImpact = (game, x, y, scale = 1.0) => {
 
         const partId = Math.floor(Math.random() * 10) + 1;
         const partStr = partId < 10 ? `0${partId}` : `${partId}`;
-        const spritePath = `assets/lightning_part_${partStr}.png`;
+        const spritePath = `assets/skills/vfx/lightning_part_${partStr}.png`;
 
         const vx = Math.cos(sparkAngle) * sparkSpeed;
         const vy = Math.sin(sparkAngle) * sparkSpeed;
@@ -718,7 +731,7 @@ export const spawnLightningBolt = (game, x, y, options = {}) => {
         // Pick random lightning part
         const partId = Math.floor(Math.random() * 10) + 1;
         const partStr = partId < 10 ? `0${partId}` : `${partId}`;
-        const spritePath = `assets/lightning_part_${partStr}.png`;
+        const spritePath = `assets/skills/vfx/lightning_part_${partStr}.png`;
 
         spawnProjectile(game, currentX + dx / 2, currentY + dy / 2, 0, 0, {
             visual: true,
@@ -784,7 +797,7 @@ export function spawnAetherExplosion(game, x, y, options = {}) {
 export function spawnIceShatter(game, x, y, count = 10) {
     for (let i = 0; i < count; i++) {
         const partId = Math.floor(Math.random() * 9) + 1;
-        const spritePath = `assets/ice_part_0${partId}.png`;
+        const spritePath = `assets/skills/vfx/ice_part_0${partId}.png`;
         const angle = Math.random() * Math.PI * 2;
         const speed = 100 + Math.random() * 300;
         const size = 12 + Math.random() * 12;

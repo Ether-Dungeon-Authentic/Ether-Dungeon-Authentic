@@ -1,0 +1,55 @@
+{
+  "frames": {
+    "sprite_001.png": {
+      "frame": {
+        "x": 4,
+        "y": 4,
+        "w": 247,
+        "h": 407
+      },
+      "rotated": false,
+      "trimmed": true,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 247,
+        "h": 407
+      },
+      "sourceSize": {
+        "w": 247,
+        "h": 407
+      }
+    },
+    "sprite_002.png": {
+      "frame": {
+        "x": 255,
+        "y": 148,
+        "w": 259,
+        "h": 263
+      },
+      "rotated": false,
+      "trimmed": true,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 144,
+        "w": 259,
+        "h": 263
+      },
+      "sourceSize": {
+        "w": 259,
+        "h": 407
+      }
+    }
+  },
+  "meta": {
+    "app": "SpriteAlign AI",
+    "version": "1.0",
+    "image": "packed_sheet.png",
+    "format": "RGBA8888",
+    "size": {
+      "w": 518,
+      "h": 415
+    },
+    "scale": 1
+  }
+}

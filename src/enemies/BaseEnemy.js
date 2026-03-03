@@ -3,23 +3,27 @@ import { StatusManager } from '../status_effects.js';
 import { DropItem } from '../entities/DropItem.js';
 
 const textures = {
-    slime: 'assets/slime.png',
-    bat: 'assets/bat.png',
-    goblin: 'assets/goblin.png',
-    skeleton_archer: 'assets/skeleton_archer.png'
+    slime: 'assets/enemies/slime.png',
+    bat: 'assets/enemies/bat.png',
+    goblin: 'assets/enemies/goblin.png',
+    skeleton_archer: 'assets/enemies/skeleton_archer.png',
+    ghost: 'assets/enemies/ghost.png'
 };
 
 const statusIcons = {
-    bleed: getCachedImage('assets/icon_bleed.png'),
-    slow: getCachedImage('assets/icon_ice.png'),
-    burn: getCachedImage('assets/icon_burn.png'),
-    wet: getCachedImage('assets/icon_wet.png')
+    bleed: getCachedImage('assets/skills/icons/icon_bleed.png'),
+    slow: getCachedImage('assets/skills/icons/icon_ice.png'),
+    burn: getCachedImage('assets/skills/icons/icon_burn.png'),
+    wet: getCachedImage('assets/skills/icons/icon_wet.png')
 };
 
 export class Enemy extends Entity {
-    constructor(game, x, y, width, height, color, hp, speed, textureKey) {
-        super(game, x, y, width, height, color, hp);
+    constructor(game, x, y, width, height, color, hp, speed, textureKey, scoreValue = 0) {
+        // Hard mode: Double enemy HP
+        const finalHp = game.difficulty === 'hard' ? hp * 2.0 : hp;
+        super(game, x, y, width, height, color, finalHp);
         this.speed = speed;
+        this.scoreValue = scoreValue;
         this.damage = 10; // Default contact damage
         this.flashTimer = 0; // Initialize flash timer
         this.image = textures[textureKey] ? getCachedImage(textures[textureKey]) : new Image();
@@ -39,6 +43,8 @@ export class Enemy extends Entity {
         this.isSpawning = true;
         this.spawnTimer = 0.67;
         this.spawnDuration = 0.67;
+
+        this.displayName = 'Enemy';
     }
 
     update(dt) {
@@ -156,8 +162,6 @@ export class Enemy extends Entity {
         // Decrease flash timer
         if (this.flashTimer > 0) {
             this.flashTimer -= dt;
-            this.vx = 0;
-            this.vy = 0;
         }
 
         // Handle Telegraphing independently of flashTimer
@@ -169,8 +173,8 @@ export class Enemy extends Entity {
                 this.isTelegraphing = false;
                 this.executeAttack();
             }
-        } else if (this.flashTimer <= 0) {
-            // Only move if not flashing and not telegraphing
+        } else {
+            // Only move if not telegraphing
             if (this.game.player) {
                 const dx = this.game.player.x - this.x;
                 const dy = this.game.player.y - this.y;
@@ -236,17 +240,29 @@ export class Enemy extends Entity {
     }
 
     checkPlayerCollision() {
-        if (this.damage > 0 && // Only if damage is positive
-            this.x < this.game.player.x + this.game.player.width &&
-            this.x + this.width > this.game.player.x &&
-            this.y < this.game.player.y + this.game.player.height &&
-            this.y + this.height > this.game.player.y) {
+        if (this.damage <= 0) return;
+
+        // Use a hit-box slightly smaller than the visual width/height (15% padding)
+        const padX = this.width * 0.15;
+        const padY = this.height * 0.15;
+
+        if (this.x + padX < this.game.player.x + this.game.player.width &&
+            this.x + this.width - padX > this.game.player.x &&
+            this.y + padY < this.game.player.y + this.game.player.height &&
+            this.y + this.height - padY > this.game.player.y) {
             this.game.player.takeDamage(this.damage);
         }
     }
 
-    takeDamage(amount, damageColor, aetherGain = 1, isCrit = false) {
+    takeDamage(amount, damageColor, aetherGain = 1, isCrit = false, kx = 0, ky = 0, kDuration = 0.15, silent = false) {
         if (this.isSpawning) return; // Invulnerable while spawning
+
+        // Apply knockback if provided
+        if (kx !== 0 || ky !== 0) {
+            this.knockbackVx = kx;
+            this.knockbackVy = ky;
+            this.knockbackDuration = kDuration;
+        }
 
         // Flash white on hit
         this.flashTimer = 0.1;
@@ -277,23 +293,30 @@ export class Enemy extends Entity {
         this.hp -= amount;
 
         // Spawn Damage Text (larger for crits)
-        this.game.animations.push({
-            type: 'text',
-            text: isCrit ? `${amount}!` : amount,
-            x: this.x + this.width / 2,
-            y: this.y,
-            vx: (Math.random() - 0.5) * 50,
-            vy: isCrit ? -130 : -100,
-            life: isCrit ? 1.0 : 0.8,
-            maxLife: isCrit ? 1.0 : 0.8,
-            color: damageColor || '#fff',
-            font: isCrit ? "bold 18px 'Press Start 2P', monospace" : "14px 'Press Start 2P', monospace"
-        });
+        if (!silent) {
+            this.game.animations.push({
+                type: 'text',
+                text: isCrit ? `${amount}!` : amount,
+                x: this.x + this.width / 2,
+                y: this.y,
+                vx: (Math.random() - 0.5) * 50,
+                vy: isCrit ? -130 : -100,
+                life: isCrit ? 1.0 : 0.8,
+                maxLife: isCrit ? 1.0 : 0.8,
+                color: damageColor || '#fff',
+                font: isCrit ? "bold 18px 'Press Start 2P', monospace" : "14px 'Press Start 2P', monospace"
+            });
+        }
 
         if (this.hp <= 0) {
             this.hp = 0;
             this.markedForDeletion = true;
             this.game.spawnDeathEffect(this);
+
+            // Add Score
+            if (this.game.score !== undefined) {
+                this.game.addScore(this.scoreValue);
+            }
 
             if (this.isDemo) return; // No drops in demo
 
@@ -373,10 +396,21 @@ export class Enemy extends Entity {
 
         // Draw HP Bar
         if (this.hp < this.maxHp) {
+            const barY = Math.floor(this.y - 6);
             ctx.fillStyle = 'red';
-            ctx.fillRect(Math.floor(this.x), Math.floor(this.y - 6), this.width, 4);
+            ctx.fillRect(Math.floor(this.x), barY, this.width, 4);
             ctx.fillStyle = 'green';
-            ctx.fillRect(Math.floor(this.x), Math.floor(this.y - 6), this.width * (this.hp / this.maxHp), 4);
+            ctx.fillRect(Math.floor(this.x), barY, this.width * (this.hp / this.maxHp), 4);
+
+            // Draw Name above HP bar
+            ctx.fillStyle = 'white';
+            ctx.font = 'bold 10px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.shadowColor = 'black';
+            ctx.shadowBlur = 4;
+            ctx.fillText(this.displayName, this.x + this.width / 2, barY - 4);
+            ctx.shadowBlur = 0;
+            ctx.textAlign = 'start'; // Reset
         }
 
         this.drawStatusIcons(ctx);

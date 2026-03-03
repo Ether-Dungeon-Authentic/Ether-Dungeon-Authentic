@@ -11,18 +11,20 @@ export class Map {
         this.pixelWidth = width * tileSize;
         this.pixelHeight = height * tileSize;
         this.tileSize = tileSize;
-        this.tiles = [];
         this.rooms = [];
         this.roomGrid = [];
-        this.wallImage = getCachedImage('assets/wall.png');
-        this.floorImage = getCachedImage('assets/floor.png');
-        this.stairsImage = getCachedImage('assets/portal_stairs.png');
+        this.exploredTiles = []; // 2D array of booleans
+        this.wallImage = getCachedImage('assets/map/wall.png');
+        this.floorImage = getCachedImage('assets/map/floor.png');
+        this.stairsImage = getCachedImage('assets/map/portal_stairs.png');
 
         // Initialize modules
         this.pathfinder = new MapPathfinder(this);
         this.placer = new RoomPlacer(this);
         this.renderer = new MapRenderer(this);
         this.connector = new RoomConnector(this);
+        this.hasBoss = false;
+        this.bossDefeated = false;
     }
 
     generate() {
@@ -40,9 +42,11 @@ export class Map {
             for (let y = 0; y < this.height; y++) {
                 this.tiles[y] = [];
                 this.roomGrid[y] = [];
+                this.exploredTiles[y] = [];
                 for (let x = 0; x < this.width; x++) {
                     this.tiles[y][x] = 1; // 1 = Wall
                     this.roomGrid[y][x] = -1; // -1 = No Room
+                    this.exploredTiles[y][x] = false;
                 }
             }
             this.rooms = [];
@@ -67,6 +71,7 @@ export class Map {
             this.placeStartNeighborRooms(startRoom); // Guarantee 4-way corridors + rooms
 
             // 1. Critical Rooms
+            let bossPlaced = this.placer.placeRoom({ w: 16, h: 16, type: 'boss', entranceCount: 1 });
             let staircasePlaced = this.placer.placeRoom({ w: 6, h: 6, type: 'staircase', entranceCount: 1 });
             let shopPlaced = this.placer.placeRoom({ w: 8, h: 8, type: 'shop', entranceCount: 1 });
 
@@ -234,9 +239,11 @@ export class Map {
         for (let y = 0; y < this.height; y++) {
             this.tiles[y] = [];
             this.roomGrid[y] = [];
+            this.exploredTiles[y] = [];
             for (let x = 0; x < this.width; x++) {
                 this.tiles[y][x] = 1;
                 this.roomGrid[y][x] = -1;
+                this.exploredTiles[y][x] = false;
             }
         }
         this.rooms = [];
@@ -267,9 +274,11 @@ export class Map {
         for (let y = 0; y < this.height; y++) {
             this.tiles[y] = [];
             this.roomGrid[y] = [];
+            this.exploredTiles[y] = [];
             for (let x = 0; x < this.width; x++) {
                 this.tiles[y][x] = 1;
                 this.roomGrid[y][x] = -1;
+                this.exploredTiles[y][x] = false;
             }
         }
         this.rooms = [];
@@ -350,6 +359,21 @@ export class Map {
             if (Math.abs(x - c.x) <= 2 && Math.abs(y - c.y) <= 2) return true;
         }
         return false;
+    }
+
+    markExplored(tx, ty, radius = 5) {
+        for (let y = ty - radius; y <= ty + radius; y++) {
+            for (let x = tx - radius; x <= tx + radius; x++) {
+                if (x >= 0 && x < this.width && y >= 0 && y < this.height) {
+                    // Circular reveal
+                    const dx = x - tx;
+                    const dy = y - ty;
+                    if (dx * dx + dy * dy <= radius * radius) {
+                        this.exploredTiles[y][x] = true;
+                    }
+                }
+            }
+        }
     }
 
     draw(ctx, camera, player, debugMode = false) {

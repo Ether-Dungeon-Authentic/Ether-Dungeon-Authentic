@@ -1,22 +1,25 @@
-import { Entity, getCachedImage } from './utils.js';
-import { SkillType, spawnAetherExplosion } from './skills/index.js';
+import { Entity, getCachedImage, getCachedJson } from './utils.js';
+import { SkillType, spawnAetherExplosion, createSkill } from './skills/index.js';
 import { SaveManager } from './SaveManager.js';
+import { skillsDB } from '../data/skills_db.js';
+import { AetherCircuitManager, ChipInstance } from './AetherCircuitManager.js';
 
 export class Player extends Entity {
     constructor(game, x, y) {
         super(game, x, y, 20, 20, '#4488ff', 100);
-        this.speed = 250;
+        this.baseMaxHp = 100;
+        this.speed = 260; // Increased by 30% from 200
         this.facing = 'right';
         this.isDashing = false;
         this.isCasting = false; // Added flag
         this.dashVx = 0;
         this.dashVy = 0;
 
-        this.dashCooldown = 1.0;
+        this.dashCooldown = 0.5;
         this.dashTimer = 0;
         this.canDash = true;
-        this.dashDuration = 0.15;
-        this.dashSpeed = 800;
+        this.dashDuration = 0.1;
+        this.dashSpeed = 900;
 
         this.inventory = [];
         this.equippedSkills = {
@@ -36,7 +39,7 @@ export class Player extends Entity {
         this.scale = 1.0;
         this.alpha = 1.0;
 
-        this.image = getCachedImage('assets/player_sprites.png');
+        this.image = getCachedImage('assets/player/player_sprites.png');
         const checkLoad = () => {
             if (this.image.complete && this.image.naturalWidth !== 0) {
                 this.rawSpriteWidth = this.image.width / 4;
@@ -81,17 +84,83 @@ export class Player extends Entity {
 
         // Load Sprite JSON
         this.spriteData = null;
-        fetch('assets/player_sprites.json')
-            .then(response => response.json())
-            .then(data => {
+        getCachedJson('assets/player/player_sprites.json').then(data => {
+            if (data) {
                 this.spriteData = data;
+                this.spriteSheet = getCachedImage('assets/player/player_sprites.png');
                 console.log('Player sprite data loaded:', this.spriteData);
-            })
+            }
+        })
             .catch(err => console.error('Failed to load sprite JSON:', err));
 
         this.bloodBlessings = [];
         this.voltDriveTimer = 0;
         this.voltDriveParams = null;
+        this.isCheatInvincible = false;
+        this.slowTimer = 0;
+
+        // Aether Circuit System
+        this.circuit = new AetherCircuitManager(this);
+        this.loadAetherCircuit();
+    }
+
+    loadAetherCircuit() {
+        const saveData = SaveManager.getSaveData();
+        if (saveData && saveData.aetherCircuit) {
+            if (saveData.aetherCircuit.ownedChips) {
+                this.circuit.deserialize(saveData.aetherCircuit);
+            } else if (saveData.aetherCircuit.ownedChipIds) {
+                // Initialize from IDs for new players
+                saveData.aetherCircuit.ownedChipIds.forEach(id => {
+                    const chip = new ChipInstance(id);
+                    this.circuit.ownedChips.push(chip);
+                });
+            }
+        }
+    }
+
+    unlockAllSkills() {
+        // Setting currency
+        this.currency = 999999;
+
+        // Clear existing inventory to avoid duplicates
+        this.inventory = [];
+
+        // Generate and add all skills from database
+        skillsDB.forEach(skillData => {
+            const skillInstance = createSkill(skillData);
+            if (skillInstance) {
+                this.inventory.push(skillInstance);
+            }
+        });
+
+        console.log(`Debug Mode: Unlocked ${this.inventory.length} skills.`);
+
+        // Auto-equip powerful sets
+        const findAndEquip = (id, slot) => {
+            const s = this.inventory.find(item => item.id === id);
+            if (s) this.equippedSkills[slot] = s;
+        };
+
+        // Standard Debug Loadout
+        findAndEquip('flame_fan', SkillType.NORMAL);
+        findAndEquip('fireball', 'primary1');
+        findAndEquip('magma_spear', 'primary2');
+        findAndEquip('dash', SkillType.SECONDARY);
+        findAndEquip('volt_drive', SkillType.ULTIMATE);
+
+        // Unlock all Aether Chips
+        if (this.circuit) {
+            import('../data/chips_db.js').then(m => {
+                const existingIds = this.circuit.ownedChips.map(c => c.data.id);
+                m.chipsDB.forEach(chipData => {
+                    if (!existingIds.includes(chipData.id)) {
+                        this.circuit.ownedChips.push(new ChipInstance(chipData.id));
+                    }
+                });
+                console.log(`Debug Mode: Unlocked ${this.circuit.ownedChips.length} Aether Chips.`);
+            });
+        }
     }
 
     get damageMultiplier() {
@@ -102,6 +171,12 @@ export class Player extends Entity {
             });
         }
         if (this.isAetherRush) mult *= 1.2;
+
+        // Aether Circuit Bonus
+        if (this.circuit) {
+            mult += this.circuit.getBonuses().damageMult;
+        }
+
         return mult;
     }
 
@@ -115,7 +190,28 @@ export class Player extends Entity {
         if (this.voltDriveTimer > 0 && this.voltDriveParams) {
             mult *= (this.voltDriveParams.speedMult || 1.8);
         }
-        return 250 * mult;
+        if (this.slowTimer > 0) {
+            mult *= 0.5; // 50% slow
+        }
+
+        // Aether Circuit Bonus
+        if (this.circuit) {
+            mult += this.circuit.getBonuses().speedMult;
+        }
+
+        return this.speed * mult;
+    }
+
+    get maxHp() {
+        let bonus = 0;
+        if (this.circuit) {
+            bonus = this.circuit.getBonuses().maxHp;
+        }
+        return (this.baseMaxHp || 100) + bonus;
+    }
+
+    set maxHp(val) {
+        this.baseMaxHp = val;
     }
 
     get aetherMultiplier() {
@@ -169,6 +265,9 @@ export class Player extends Entity {
     }
 
     update(dt) {
+        if (this.invulnerable > 0) this.invulnerable -= dt;
+        if (this.slowTimer > 0) this.slowTimer -= dt;
+
         if (this.isDemo) {
             this.frameTimer += dt;
             if (this.frameTimer > this.frameInterval) {
@@ -178,6 +277,19 @@ export class Player extends Entity {
             }
             return;
         }
+
+        if (this.game.isDungeonStarting || this.game.gameState === 'TITLE') {
+            // Cinematic or Title: Only run animation, no movement or skills
+            this.frameTimer += dt;
+            if (this.frameTimer > this.frameInterval) {
+                this.frameX++;
+                if (this.frameX >= this.maxFrames) this.frameX = 0;
+                this.frameTimer = 0;
+            }
+            return;
+        }
+
+        // 1. Reset Velocities (unless keepVelocity is set)
         if (!this.keepVelocity) {
             this.vx = 0;
             this.vy = 0;
@@ -185,12 +297,12 @@ export class Player extends Entity {
         this.keepVelocity = false;
         let moving = false;
 
+        // 2. Movement Logic
         if (this.isDashing) {
             this.vx = this.dashVx;
             this.vy = this.dashVy;
-            moving = true; // Still animate walking/dashing
+            moving = true;
 
-            // dt-based dash timer (respects timeScale / slow motion)
             this.dashElapsed = (this.dashElapsed || 0) + dt;
 
             // Volt Drive: Dash thru enemies
@@ -203,7 +315,17 @@ export class Player extends Entity {
                             const dmg = this.voltDriveParams.dashDamage || 20;
                             const isCrit = Math.random() < (this.voltDriveParams.critChance || 0);
                             const finalDmg = isCrit ? dmg * (this.voltDriveParams.critMultiplier || 2.0) : dmg;
-                            e.takeDamage(finalDmg, '#ffff00', 0, isCrit);
+
+                            // Phoenix Dive / Volt Drive Knockback
+                            let kx = 0, ky = 0;
+                            const kbValue = this.voltDriveParams.knockback || 400;
+                            const dx = (e.x + e.width / 2) - (this.x + this.width / 2);
+                            const dy = (e.y + e.height / 2) - (this.y + this.height / 2);
+                            const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+                            kx = (dx / dist) * kbValue;
+                            ky = (dy / dist) * kbValue;
+
+                            e.takeDamage(finalDmg, '#ffff00', 0, isCrit, kx, ky);
                             this.voltHitList.add(hitKey);
                             this.game.spawnParticles(e.x + e.width / 2, e.y + e.height / 2, 5, '#ffff00');
                         }
@@ -219,7 +341,9 @@ export class Player extends Entity {
                 if (this.voltHitList) this.voltHitList.clear();
             }
         } else if (this.isCasting) {
-            // Block movement input
+            moving = false;
+        } else if (this.knockbackDuration > 0) {
+            // Block normal movement input during knockback to make it "forced"
             moving = false;
         } else {
             const speed = this.actualSpeed;
@@ -233,12 +357,11 @@ export class Player extends Entity {
 
             if (moveX !== 0 || moveY !== 0) {
                 moving = true;
-                // Normalize for diagonal movement
                 const dist = Math.sqrt(moveX * moveX + moveY * moveY);
                 this.vx = (moveX / dist) * speed;
                 this.vy = (moveY / dist) * speed;
 
-                // Determine 8 directions for facing
+                // Facing direction
                 if (moveX > 0 && moveY === 0) this.facing = 'right';
                 else if (moveX < 0 && moveY === 0) this.facing = 'left';
                 else if (moveX === 0 && moveY > 0) this.facing = 'down';
@@ -250,7 +373,12 @@ export class Player extends Entity {
             }
         }
 
-        // Animation Logic
+        if (this.knockbackDuration <= 0) {
+            this.knockbackVx = 0;
+            this.knockbackVy = 0;
+        }
+
+        // 4. Animation and Visuals
         if (moving) {
             this.frameTimer += dt;
             if (this.frameTimer > this.frameInterval) {
@@ -259,129 +387,63 @@ export class Player extends Entity {
                 this.frameTimer = 0;
             }
         } else {
-            this.frameX = 0; // Reset to standing frame
+            this.frameX = 0;
             this.frameTimer = 0;
         }
 
-        // Map facing to sprite row (4 directions for sprite fallback)
-        // JSON Order: 0-3 Down, 4-7 Left, 8-11 Right, 12-15 Up
         if (this.facing.includes('down')) this.frameY = 0;
         else if (this.facing.includes('up')) this.frameY = 3;
         else if (this.facing.includes('left')) this.frameY = 1;
         else if (this.facing.includes('right')) this.frameY = 2;
 
-        // Decrease Dash Cooldown
-        if (this.dashTimer > 0) {
-            this.dashTimer -= dt;
-        }
+        if (this.dashTimer > 0) this.dashTimer -= dt;
 
-        // Aether Rush Logic
+        // Aether / Volt / Effects
         if (this.isAetherRush) {
             this.aetherRushTimer -= dt;
-            // Visual decay of gauge for effect
             this.aetherGauge = (this.aetherRushTimer / this.aetherRushDuration) * this.maxAetherGauge;
-
-            if (this.aetherRushTimer <= 0) {
-                this.endAetherRush();
-            }
-
-            // Passive particles during rush
-            if (Math.random() < 0.3) {
-                this.game.spawnParticles(
-                    this.x + this.width / 2 + (Math.random() - 0.5) * 20,
-                    this.y + this.height / 2 + (Math.random() - 0.5) * 20,
-                    1, '#00ffff'
-                );
-            }
+            if (this.aetherRushTimer <= 0) this.endAetherRush();
+            if (Math.random() < 0.3) this.game.spawnParticles(this.x + this.width / 2, this.y + this.height / 2, 1, '#00ffff');
         }
 
-        // Volt Drive Logic
         if (this.voltDriveTimer > 0) {
             this.voltDriveTimer -= dt;
-            if (this.voltDriveTimer <= 0) {
-                this.voltDriveTimer = 0;
-                this.voltDriveParams = null;
-            }
-
-            // Passive particles
-            if (Math.random() < 0.4) {
-                this.game.spawnParticles(
-                    this.x + this.width / 2 + (Math.random() - 0.5) * 25,
-                    this.y + this.height / 2 + (Math.random() - 0.5) * 25,
-                    1, '#ffff00',
-                    (Math.random() - 0.5) * 50, -50,
-                    { shape: 'circle', shrink: true }
-                );
-            }
+            if (this.voltDriveTimer <= 0) { this.voltDriveTimer = 0; this.voltDriveParams = null; }
+            if (Math.random() < 0.4) this.game.spawnParticles(this.x + this.width / 2, this.y + this.height / 2, 1, '#ffff00');
         }
 
-        // Ghost Afterimage Effect (Combined for Aether Rush AND Volt Drive)
+        // Ghost trail
         if (this.isAetherRush || this.voltDriveTimer > 0) {
             this.ghostTimer = (this.ghostTimer || 0) + dt;
             const ghostInterval = (this.voltDriveTimer > 0) ? 0.04 : 0.05;
             if (this.ghostTimer > ghostInterval) {
                 this.ghostTimer = 0;
-
-                // Calculate current frame data exactly like render()
-                if (this.spriteData && this.spriteData.frames) {
-                    const frameIndex = this.frameY * 4 + this.frameX;
-                    if (this.spriteData.frames[frameIndex]) {
-                        const frameData = this.spriteData.frames[frameIndex].frame;
-                        const ratio = frameData.w / frameData.h;
-                        const drawWidth = this.width * 1.05;
-                        const drawHeight = drawWidth / ratio;
-                        const drawX = this.x + (this.width - drawWidth) / 2;
-                        const drawY = this.y + this.height - drawHeight;
-
-                        const isVolt = this.voltDriveTimer > 0;
-
-                        this.game.animations.push({
-                            type: 'ghost',
-                            x: drawX, // Use calculated draw position
-                            y: drawY,
-                            width: drawWidth,
-                            height: drawHeight,
-                            image: this.image,
-                            sx: frameData.x,
-                            sy: frameData.y,
-                            sw: frameData.w,
-                            sh: frameData.h,
-                            life: 0.3,
-                            maxLife: 0.3,
-                            isVolt: isVolt,
-                            update: function (dt) { this.life -= dt; },
-                            draw: function (ctx) {
-                                ctx.save();
-                                ctx.globalAlpha = (this.life / this.maxLife) * 0.6;
-                                if (this.isVolt) {
-                                    ctx.filter = 'brightness(1.5) sepia(100%) saturate(1000%) hue-rotate(-20deg)'; // Golden/Yellow
-                                } else {
-                                    ctx.filter = 'brightness(2) grayscale(100%)';
-                                }
-                                ctx.drawImage(
-                                    this.image,
-                                    this.sx, this.sy, this.sw, this.sh,
-                                    Math.floor(this.x), Math.floor(this.y), this.width, this.height
-                                );
-                                ctx.restore();
-                            }
-                        });
-                    }
-                }
+                this.createGhostEffect(); // Refactored to helper
             }
         }
 
+        if (this.hitFlashTimer > 0) this.hitFlashTimer -= dt;
+
+        // 5. Physics and Skill Cooldowns
+        // Move entity via Entity.update (handles collisions)
+        // Note: super.update(dt) handles vx/vy application
         super.update(dt);
 
-        // Update cooldowns for equipped skills
         for (let key in this.equippedSkills) {
-            if (this.equippedSkills[key]) {
-                this.equippedSkills[key].update(dt);
+            const skill = this.equippedSkills[key];
+            if (!skill) continue;
+
+            const wasReady = skill.isReady();
+            skill.update(dt);
+            const isReady = skill.isReady();
+
+            // Notify user when a non-normal skill becomes ready
+            if (!wasReady && isReady && skill.type !== SkillType.NORMAL) {
+                this.triggerSkillReadyVisual(skill);
             }
         }
 
-        // Input handling for skills
-        // We need to map keys to slots to check for charge
+        // 6. Skill Input
         const inputMap = [
             { key: 'Space', slot: SkillType.NORMAL },
             { key: 'KeyQ', slot: 'primary1' },
@@ -390,62 +452,68 @@ export class Player extends Entity {
             { key: 'KeyX', slot: SkillType.ULTIMATE }
         ];
 
-        let chargeInputDetected = false;
-
         for (const map of inputMap) {
             const skill = this.equippedSkills[map.slot];
             if (skill) {
-                // If this is the currently charging skill
                 if (this.chargingSkillSlot === map.slot) {
-                    chargeInputDetected = true;
                     if (this.game.input.isDown(map.key)) {
-                        // Continue Charging
                         this.chargeTimer += dt;
-                        if (this.chargeTimer > this.maxChargeTime) {
-                            this.chargeTimer = this.maxChargeTime; // Cap it
-                            // Optional: Auto-release or visual cue?
-                        }
+                        if (this.chargeTimer > this.maxChargeTime) this.chargeTimer = this.maxChargeTime;
                     } else {
-                        // Released! Fire!
                         this.finishChargeAndFire();
                     }
-                }
-                // Start Charging?
-                else if (this.game.input.isDown(map.key) && !this.isCharging && !this.isDashing && !this.isCasting) {
-                    // Check if skill is chargeable
-                    // We need to access the underlying data or params. 
-                    // The Skill object doesn't have params directly exposed easily unless we attached them.
-                    // But createSkill attached 'effect' which is a closure.
-                    // Wait, we didn't attach params to the Skill instance itself in createSkill, only closed over them.
-                    // IMPORTANT: We need to check if 'chargeable' is true. 
-                    // Since we can't easily see internal params, we should probably add a flag to the Skill instance in createSkill.
-                    // Let's assume we will add `skill.chargeable` and `skill.chargeTime` properties in `createSkill` or `skills_db`.
-
-                    // For now, let's assume valid property exists or we check DB?
+                } else if (this.game.input.isDown(map.key) && !this.isCharging && !this.isDashing && !this.isCasting) {
                     if (skill.chargeable) {
                         this.startCharge(map.slot, skill);
-                        chargeInputDetected = true;
-                    } else if (this.game.input.isDown(map.key)) { // Use isDown for continuous fire (auto-fire on cooldown)
-                        // Prevent Normal Attack while interacting
-                        if (map.slot === SkillType.NORMAL && this.game.isInteracting) {
-                            continue;
-                        }
+                    } else if (this.game.input.isDown(map.key)) {
+                        if (map.slot === SkillType.NORMAL && this.game.isInteracting) continue;
                         this.useSkill(map.slot);
                     }
                 }
             }
         }
 
-        // If we were charging but the input is gone (e.g. key release missed due to frame drop or focus loss?)
-        // The above loop handles release for the specific key.
-        // But what if multiple keys? logic seems fine.
-
-        // Dash (Shift/RightClick) - Cancels Charge
+        // 7. RESTORED DASH INPUT
         if (this.game.input.isDown('ShiftLeft') || this.game.input.isDown('ShiftRight') || this.game.input.isPressed('ClickRight')) {
-            if (this.isCharging) {
-                this.cancelCharge();
-            }
+            if (this.isCharging) this.cancelCharge();
             this.performDash();
+        }
+    }
+
+    createGhostEffect() {
+        if (this.spriteData && this.spriteData.frames) {
+            const frameIndex = this.frameY * 4 + this.frameX;
+            if (this.spriteData.frames[frameIndex]) {
+                const frameData = this.spriteData.frames[frameIndex].frame;
+                const ratio = frameData.w / frameData.h;
+                const drawWidth = this.width * 1.05;
+                const drawHeight = drawWidth / ratio;
+                const drawX = this.x + (this.width - drawWidth) / 2;
+                const drawY = this.y + this.height - drawHeight;
+                const isVolt = this.voltDriveTimer > 0;
+
+                this.game.animations.push({
+                    type: 'ghost',
+                    x: drawX, y: drawY,
+                    width: drawWidth, height: drawHeight,
+                    image: this.image,
+                    sx: frameData.x, sy: frameData.y,
+                    sw: frameData.w, sh: frameData.h,
+                    life: 0.3, maxLife: 0.3,
+                    isVolt: isVolt,
+                    update: function (dt) { this.life -= dt; },
+                    draw: function (ctx) {
+                        ctx.save();
+                        ctx.globalAlpha = (this.life / this.maxLife) * 0.6;
+                        if (this.isVolt) ctx.filter = 'brightness(1.5) sepia(100%) saturate(1000%) hue-rotate(-20deg)';
+                        else ctx.filter = 'brightness(2) grayscale(100%)';
+                        if (this.image.complete && this.image.naturalWidth !== 0) {
+                            ctx.drawImage(this.image, this.sx, this.sy, this.sw, this.sh, Math.floor(this.x), Math.floor(this.y), this.width, this.height);
+                        }
+                        ctx.restore();
+                    }
+                });
+            }
         }
     }
 
@@ -552,6 +620,43 @@ export class Player extends Entity {
         return { x: hitX, y: hitY, w: hitW, h: hitH };
     }
 
+    triggerSkillReadyVisual(skill) {
+        if (!skill.icon) return;
+        const iconImg = getCachedImage(skill.icon);
+
+        this.game.animations.push({
+            type: 'custom',
+            player: this,
+            image: iconImg,
+            life: 1.2,
+            maxLife: 1.2,
+            update: function (dt) {
+                // Main.js handles life reduction
+            },
+            draw: function (ctx) {
+                const progress = this.life / this.maxLife; // 1.0 -> 0.0
+                const t = 1.0 - progress;
+                // Fast fade in (0.2s), then fade out
+                const alpha = Math.min(1.0, t * 5) * progress;
+
+                // Position relative to player
+                const px = this.player.x + this.player.width / 2;
+                const py = this.player.y - 40;
+
+                ctx.save();
+                ctx.globalAlpha = alpha;
+
+                // 2. Draw the icon
+                if (this.image && this.image.complete && this.image.naturalWidth !== 0) {
+                    const size = 24;
+                    ctx.drawImage(this.image, px - size / 2, py - size / 2, size, size);
+                }
+
+                ctx.restore();
+            }
+        });
+    }
+
     draw(ctx) {
         if (this.image.complete && this.image.naturalWidth !== 0 && this.spriteData) {
             // Calculate frame index
@@ -577,6 +682,10 @@ export class Player extends Entity {
                 ctx.globalAlpha *= this.alpha;
                 ctx.translate(Math.floor(this.x + this.width / 2), Math.floor(this.y + this.height));
                 ctx.scale(this.scale, this.scale);
+
+                if (this.hitFlashTimer > 0) {
+                    ctx.filter = 'brightness(0) invert(1)';
+                }
 
                 ctx.drawImage(
                     this.image,
@@ -643,6 +752,106 @@ export class Player extends Entity {
             ctx.closePath();
             ctx.fill();
             ctx.restore();
+        }
+
+        // --- Screen Damage Flash (Radial Red Flare) ---
+        if (this.hitFlashTimer > 0) {
+            ctx.save();
+            const alpha = (this.hitFlashTimer / 0.2) * 0.4;
+            const grad = ctx.createRadialGradient(
+                this.game.width / 2, this.game.height / 2, 0,
+                this.game.width / 2, this.game.height / 2, this.game.width
+            );
+            grad.addColorStop(0, 'rgba(255, 0, 0, 0)');
+            grad.addColorStop(1, `rgba(255, 0, 0, ${alpha})`);
+            ctx.fillStyle = grad;
+            ctx.setTransform(1, 0, 0, 1, 0, 0); // Overlay in screen space
+            ctx.fillRect(0, 0, this.game.width, this.game.height);
+            ctx.restore();
+        }
+    }
+
+    takeDamage(amount) {
+        if (this.invulnerable > 0) return;
+
+        // 1. Camera Shake (Intensity based on damage)
+        if (this.game.camera) {
+            const intensity = Math.min(15, 5 + amount / 2);
+            this.game.camera.shake(0.2, intensity);
+        }
+
+        // 2. Knockback Calculation (Away from nearest enemy or based on movement)
+        const enemiesInRange = this.game.enemies.filter(e => {
+            const dx = e.x - this.x;
+            const dy = e.y - this.y;
+            return Math.sqrt(dx * dx + dy * dy) < 100;
+        });
+
+        let kx = 0, ky = 0;
+        if (enemiesInRange.length > 0) {
+            const source = enemiesInRange[0];
+            const dx = this.x - source.x;
+            const dy = this.y - source.y;
+            const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+            kx = (dx / dist) * 400;
+            ky = (dy / dist) * 400;
+        } else {
+            // Fallback: knockback opposite to facing
+            const angles = { 'right': Math.PI, 'left': 0, 'up': Math.PI / 2, 'down': -Math.PI / 2 };
+            const angle = angles[this.facing] || 0;
+            kx = Math.cos(angle) * 300;
+            ky = Math.sin(angle) * 300;
+        }
+
+        // Use base Entity.takeDamage to apply HP loss and KNOCKBACK
+        // But if cheat invincible, we pass 0 damage to super.takeDamage for actual HP loss, 
+        // while keeping the visual amount for other effects.
+        const actualDamage = this.isCheatInvincible ? 0 : amount;
+        super.takeDamage(actualDamage, this.damageColor, 0, false, kx, ky, 0.15, true);
+
+        // Adjust invulnerability for player
+        this.invulnerable = 0.6;
+        this.hitFlashTimer = 0.2;
+
+        // 3. Particles (Blood-like)
+        for (let i = 0; i < 8; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const speed = 50 + Math.random() * 100;
+            this.game.animations.push({
+                type: 'particle',
+                x: this.x + this.width / 2,
+                y: this.y + this.height / 2,
+                vx: Math.cos(angle) * speed,
+                vy: Math.sin(angle) * speed,
+                life: 0.4,
+                maxLife: 0.4,
+                color: '#ff0000',
+                update: function (dt) { this.life -= dt; this.x += this.vx * dt; this.y += this.vy * dt; },
+                draw: function (ctx) {
+                    ctx.fillStyle = this.color;
+                    ctx.globalAlpha = this.life / this.maxLife;
+                    ctx.fillRect(this.x, this.y, 4, 4);
+                }
+            });
+        }
+
+        // 4. Damage Text (Override font for player)
+        this.game.animations.push({
+            type: 'text',
+            text: amount,
+            x: this.x + this.width / 2,
+            y: this.y - 20,
+            vx: (Math.random() - 0.5) * 60,
+            vy: -150,
+            life: 1.0,
+            maxLife: 1.0,
+            color: '#ff3333',
+            font: "bold 24px 'Press Start 2P', monospace"
+        });
+
+        if (this.hp <= 0) {
+            this.hp = 0;
+            this.game.gameState = 'GAME_OVER';
         }
     }
 

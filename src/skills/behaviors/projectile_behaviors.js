@@ -142,7 +142,18 @@ export const projectileBehaviors = {
                     // Critical hit roll
                     const isCrit = this.critChance > 0 && Math.random() < this.critChance;
                     const finalDamage = isCrit ? this.damage * (this.critMultiplier || 2.0) : this.damage;
-                    enemy.takeDamage(finalDamage, params.damageColor, this.aetherCharge, isCrit);
+
+                    // Calculate knockback
+                    let kx = 0, ky = 0;
+                    if (params.knockback) {
+                        const dx = (enemy.x + enemy.width / 2) - (this.x + this.w / 2);
+                        const dy = (enemy.y + enemy.height / 2) - (this.y + this.h / 2);
+                        const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+                        kx = (dx / dist) * params.knockback;
+                        ky = (dy / dist) * params.knockback;
+                    }
+
+                    enemy.takeDamage(finalDamage, params.damageColor, this.aetherCharge, isCrit, kx, ky);
                     // Expanding Circle Effect (Explosion) - Small & Light shake
                     spawnExplosion(gameInstance, this.x + this.w / 2, this.y + this.h / 2, params.color || 'orange', 0.25, 0.1);
 
@@ -458,7 +469,7 @@ export const projectileBehaviors = {
 
                             const partId = Math.floor(Math.random() * 10) + 1;
                             const partStr = partId < 10 ? `0${partId}` : `${partId}`;
-                            const spritePath = `assets/lightning_part_${partStr}.png`;
+                            const spritePath = `assets/skills/vfx/lightning_part_${partStr}.png`;
 
                             spawnProjectile(game, px, py, 0, 0, {
                                 visual: true,
@@ -481,7 +492,18 @@ export const projectileBehaviors = {
                     // 1. Deal Initial Hit (with crit)
                     const isCrit = this.critChance > 0 && Math.random() < this.critChance;
                     const finalDamage = isCrit ? this.damage * (this.critMultiplier || 2.0) : this.damage;
-                    enemy.takeDamage(finalDamage, this.damageColor, this.aetherCharge, isCrit);
+
+                    // Calculate knockback
+                    let kx = 0, ky = 0;
+                    if (params.knockback) {
+                        const dx = (enemy.x + enemy.width / 2) - (this.x + this.w / 2);
+                        const dy = (enemy.y + enemy.height / 2) - (this.y + this.h / 2);
+                        const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+                        kx = (dx / dist) * params.knockback;
+                        ky = (dy / dist) * params.knockback;
+                    }
+
+                    enemy.takeDamage(finalDamage, this.damageColor, this.aetherCharge, isCrit, kx, ky);
                     spawnBounceSparkImpact(gameInstance, this.x, this.y, params);
 
                     // 2. Spawn DoT Logic Object (if tickCount > 0)
@@ -739,6 +761,7 @@ export const projectileBehaviors = {
             hideWhileLoading: true,
 
             update: function (dt) {
+                if (this.hitPool) this.hitPool.clear();
                 // Rotation
                 this.rotation += (params.rotationSpeed || -15) * dt;
 
@@ -936,7 +959,7 @@ export const projectileBehaviors = {
             life: params.life || 5.0,
             shape: 'tornado',
             noShake: true,
-            spriteSheet: 'assets/tornado.png',
+            spriteSheet: 'assets/skills/vfx/tornado.png', // Corrected path
             noTrail: true, // Ensure no orange trails
             damageColor: params.damageColor, // Pass damageColor
             aetherCharge: params.aetherCharge, // Pass charge
@@ -1127,7 +1150,7 @@ export const projectileBehaviors = {
                     ctx.restore();
                 }
 
-                if (!this.image || !this.image.complete) return;
+                if (!this.image || !this.image.complete || this.image.naturalWidth === 0) return;
 
                 const centerW = Math.floor(this.x + this.w / 2);
                 const centerH = Math.floor(this.y + this.h / 2);

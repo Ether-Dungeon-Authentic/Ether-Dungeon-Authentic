@@ -1,0 +1,135 @@
+{
+  "frames": {
+    "sprite_006.png": {
+      "frame": {
+        "x": 4,
+        "y": 4,
+        "w": 185,
+        "h": 357
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 185,
+        "h": 357
+      },
+      "sourceSize": {
+        "w": 185,
+        "h": 357
+      }
+    },
+    "sprite_005.png": {
+      "frame": {
+        "x": 193,
+        "y": 4,
+        "w": 184,
+        "h": 352
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 184,
+        "h": 352
+      },
+      "sourceSize": {
+        "w": 184,
+        "h": 352
+      }
+    },
+    "sprite_004.png": {
+      "frame": {
+        "x": 381,
+        "y": 4,
+        "w": 185,
+        "h": 355
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 185,
+        "h": 355
+      },
+      "sourceSize": {
+        "w": 185,
+        "h": 355
+      }
+    },
+    "sprite_003.png": {
+      "frame": {
+        "x": 570,
+        "y": 4,
+        "w": 204,
+        "h": 345
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 204,
+        "h": 345
+      },
+      "sourceSize": {
+        "w": 204,
+        "h": 345
+      }
+    },
+    "sprite_002.png": {
+      "frame": {
+        "x": 778,
+        "y": 4,
+        "w": 188,
+        "h": 357
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 188,
+        "h": 357
+      },
+      "sourceSize": {
+        "w": 188,
+        "h": 357
+      }
+    },
+    "sprite_001.png": {
+      "frame": {
+        "x": 970,
+        "y": 4,
+        "w": 185,
+        "h": 353
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 185,
+        "h": 353
+      },
+      "sourceSize": {
+        "w": 185,
+        "h": 353
+      }
+    }
+  },
+  "meta": {
+    "app": "SpriteAlign AI",
+    "version": "1.0",
+    "image": "packed_sheet.png",
+    "format": "RGBA8888",
+    "size": {
+      "w": 1159,
+      "h": 365
+    },
+    "scale": 1
+  }
+}

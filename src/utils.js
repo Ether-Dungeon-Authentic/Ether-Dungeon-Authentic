@@ -73,6 +73,7 @@ export class Camera {
         this.mapHeight = mapHeight;
         this.x = 0;
         this.y = 0;
+        this.zoom = 1.0;
         this.shakeTimer = 0;
         this.shakeIntensity = 0;
     }
@@ -95,12 +96,17 @@ export class Camera {
         );
     }
 
-    follow(target, dt) {
-        let targetX = target.x + target.width / 2 - this.width / 2;
-        let targetY = target.y + target.height / 2 - this.height / 2;
+    follow(target, dt, offsetX = 0, offsetY = 0, zoom = 1.0, smoothFactor = 5) {
+        this.zoom = zoom;
+        // Adjust viewport size based on internal zoom
+        const viewW = this.width / this.zoom;
+        const viewH = this.height / this.zoom;
+
+        let targetX = target.x + target.width / 2 - viewW / 2 + offsetX;
+        let targetY = target.y + target.height / 2 - viewH / 2 + offsetY;
 
         if (dt) {
-            const factor = 5 * dt; // Smoothing factor
+            const factor = smoothFactor * dt; // Smoothing factor
             this.x += (targetX - this.x) * factor;
             this.y += (targetY - this.y) * factor;
         } else {
@@ -109,13 +115,9 @@ export class Camera {
         }
 
         // Apply Shake
-        // Apply Shake
         if (this.shakeTimer > 0) {
-            // Apply offset first to ensure even single-frame shakes are visible
-            const offsetX = (Math.random() - 0.5) * this.shakeIntensity * 2;
-            const offsetY = (Math.random() - 0.5) * this.shakeIntensity * 2;
-            this.x += offsetX;
-            this.y += offsetY;
+            this.x += (Math.random() - 0.5) * this.shakeIntensity * 2;
+            this.y += (Math.random() - 0.5) * this.shakeIntensity * 2;
 
             this.shakeTimer -= dt;
             if (this.shakeTimer <= 0) {
@@ -124,8 +126,8 @@ export class Camera {
             }
         }
 
-        this.x = Math.max(0, Math.min(this.x, this.mapWidth - this.width));
-        this.y = Math.max(0, Math.min(this.y, this.mapHeight - this.height));
+        this.x = Math.max(0, Math.min(this.x, this.mapWidth - viewW));
+        this.y = Math.max(0, Math.min(this.y, this.mapHeight - viewH));
     }
 }
 
@@ -146,11 +148,16 @@ export class Entity {
         this.markedForDeletion = false;
         this.invulnerable = 0;
         this.damageColor = '#fff'; // Default damage text color
+
+        // Knockback properties
+        this.knockbackVx = 0;
+        this.knockbackVy = 0;
+        this.knockbackDuration = 0;
+        this.ignoreWalls = false;
     }
 
-    update(dt) {
-        if (this.invulnerable > 0) this.invulnerable -= dt;
-
+    // Expose base update for children to bypass overrides
+    superUpdate(dt) {
         let nextX = this.x + this.vx * dt;
         if (!this.checkCollision(nextX, this.y)) {
             this.x = nextX;
@@ -162,12 +169,73 @@ export class Entity {
         }
     }
 
+    update(dt) {
+        if (this.invulnerable > 0) this.invulnerable -= dt;
+
+        // Apply knockback
+        let currentVx = this.vx;
+        let currentVy = this.vy;
+
+        if (this.knockbackDuration > 0) {
+            this.knockbackDuration -= dt;
+            currentVx += this.knockbackVx;
+            currentVy += this.knockbackVy;
+
+            // Decay knockback
+            this.knockbackVx *= Math.pow(0.8, dt * 60);
+            this.knockbackVy *= Math.pow(0.8, dt * 60);
+
+            if (this.knockbackDuration <= 0) {
+                this.knockbackVx = 0;
+                this.knockbackVy = 0;
+                this.knockbackDuration = 0;
+            }
+        }
+
+        let nextX = this.x + currentVx * dt;
+        if (!this.checkCollision(nextX, this.y)) {
+            this.x = nextX;
+        }
+
+        let nextY = this.y + currentVy * dt;
+        if (!this.checkCollision(this.x, nextY)) {
+            this.y = nextY;
+        }
+    }
+
     checkCollision(x, y) {
-        // Tile-based collision
-        const isWall = this.game.map.isWall(x, y) ||
-            this.game.map.isWall(x + this.width, y) ||
-            this.game.map.isWall(x, y + this.height) ||
-            this.game.map.isWall(x + this.width, y + this.height);
+        if (this.ignoreWalls) return false;
+
+        // Tile-based collision with optional padding
+        const pad = this.wallCollisionPadding || 0;
+        const left = x + pad;
+        const right = x + this.width - pad;
+        const top = y + pad;
+        const bottom = y + this.height - pad;
+
+        const points = [
+            { x: left, y: top },
+            { x: right, y: top },
+            { x: left, y: bottom },
+            { x: right, y: bottom }
+        ];
+
+        // Add middle points for large entities (straddling check)
+        const innerW = this.width - 2 * pad;
+        const innerH = this.height - 2 * pad;
+        const tileSize = this.game.map.tileSize || 32;
+
+        if (innerW > tileSize || innerH > tileSize) {
+            const midX = x + this.width / 2;
+            const midY = y + this.height / 2;
+            points.push({ x: midX, y: top });
+            points.push({ x: midX, y: bottom });
+            points.push({ x: left, y: midY });
+            points.push({ x: right, y: midY });
+            points.push({ x: midX, y: midY });
+        }
+
+        const isWall = points.some(p => this.game.map.isWall(p.x, p.y));
 
         if (isWall) return true;
 
@@ -191,23 +259,58 @@ export class Entity {
         return false;
     }
 
-    takeDamage(amount) {
+    /**
+     * Attempts to push the entity out of a wall if it's currently penetrating one.
+     * Scans surrounding areas to find the nearest safe spot.
+     */
+    resolveWallPenetration() {
+        if (!this.checkCollision(this.x, this.y)) return;
+
+        const maxDist = this.width; // Scan up to entity size
+        const step = 8; // Scan resolution
+
+        for (let r = step; r <= maxDist; r += step) {
+            // Check in 8 directions expanding outwards
+            for (let angle = 0; angle < Math.PI * 2; angle += Math.PI / 4) {
+                const testX = this.x + Math.cos(angle) * r;
+                const testY = this.y + Math.sin(angle) * r;
+
+                if (!this.checkCollision(testX, testY)) {
+                    this.x = testX;
+                    this.y = testY;
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    takeDamage(amount, color = null, aetherAmount = 0, isCrit = false, kx = 0, ky = 0, kDuration = 0.15, silent = false) {
         if (this.invulnerable > 0) return;
         this.hp -= amount;
 
+        // Apply knockback if provided
+        if (kx !== 0 || ky !== 0) {
+            this.knockbackVx = kx;
+            this.knockbackVy = ky;
+            this.knockbackDuration = kDuration;
+        }
+
         // Spawn Damage Text
-        this.game.animations.push({
-            type: 'text',
-            text: amount,
-            x: this.x + this.width / 2,
-            y: this.y,
-            vx: (Math.random() - 0.5) * 50,
-            vy: -100,
-            life: 0.8,
-            maxLife: 0.8,
-            color: this.damageColor,
-            font: '20px sans-serif'
-        });
+        if (!silent) {
+            this.game.animations.push({
+                type: 'text',
+                text: amount,
+                x: this.x + this.width / 2,
+                y: this.y,
+                vx: (Math.random() - 0.5) * 50,
+                vy: -100,
+                life: 0.8,
+                maxLife: 0.8,
+                color: this.damageColor,
+                font: '20px sans-serif'
+            });
+        }
 
         if (this.hp <= 0) {
             this.hp = 0;

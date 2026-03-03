@@ -5,7 +5,7 @@ export class BloodAltar extends Entity {
         // Large statue-like presence (120x120)
         super(game, x - 60, y - 60, 120, 120, '#ff0000', 1);
         this.used = false;
-        this.image = getCachedImage('assets/blood_altar.png');
+        this.image = getCachedImage('assets/entities/blood_altar.png');
         this.showPrompt = false;
     }
 

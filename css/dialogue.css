@@ -1,0 +1,74 @@
+﻿#dialogue-overlay {
+    position: absolute;
+    bottom: 10px;
+    left: 20px;
+    right: 20px;
+    z-index: 50;
+    pointer-events: none;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    gap: 15px;
+}
+
+#dialogue-choices-container {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    width: 100%;
+    pointer-events: auto;
+}
+
+.dialogue-choice-btn {
+    background: rgba(0, 0, 0, 0.85);
+    border: 2px solid white;
+    color: white;
+    padding: 12px 30px;
+    font-size: 18px;
+    font-weight: bold;
+    cursor: pointer;
+    border-radius: 6px;
+    transition: all 0.2s;
+    min-width: 150px;
+    text-align: center;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+}
+
+.dialogue-choice-btn:hover {
+    background: white;
+    color: black;
+    transform: translateY(-3px);
+    box-shadow: 0 6px 20px rgba(255, 255, 255, 0.3);
+}
+
+#dialogue-box {
+    width: 100%;
+    background-color: rgba(0, 0, 0, 0.8);
+    border: 3px solid white;
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+    box-sizing: border-box;
+    pointer-events: auto;
+    min-height: 120px;
+}
+
+#dialogue-text {
+    font-size: 24px;
+    color: white;
+    text-align: center;
+    margin-bottom: 10px;
+    font-weight: bold;
+    text-shadow: 1px 1px 2px black;
+}
+
+#dialogue-prompt {
+    font-size: 14px;
+    color: #ccc;
+    font-style: italic;
+}
+
+/* Blessing Selection Modal (Mirroring Skill Selection) */

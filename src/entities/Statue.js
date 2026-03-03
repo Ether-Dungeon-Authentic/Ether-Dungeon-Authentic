@@ -5,7 +5,7 @@ export class Statue extends Entity {
         // Resize to 3x (120x120) and center (offset by -40, -40 relative to a 40x40 center)
         super(game, x - 60, y - 60, 120, 120, '#ffffff', 1);
         this.used = false;
-        this.image = getCachedImage('assets/statue_angel.png');
+        this.image = getCachedImage('assets/entities/statue_angel.png');
         this.showPrompt = false;
     }
 

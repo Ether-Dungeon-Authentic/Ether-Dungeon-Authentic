@@ -156,7 +156,7 @@ export function initInventory(game) {
 
 export function renderInventory(game) {
     const invScreen = document.getElementById('inventory-screen');
-    if (!game.showInventory) {
+    if (!game.player || !game.showInventory) {
         invScreen.style.display = 'none';
         return;
     }

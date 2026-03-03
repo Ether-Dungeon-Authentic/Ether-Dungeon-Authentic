@@ -3,23 +3,23 @@ import { getCachedImage, getCachedJson } from '../utils.js';
 
 export class Goblin extends Enemy {
     constructor(game, x, y) {
-        super(game, x, y, 64, 64, '#33cc33', 150, 60, 'goblin');
+        super(game, x, y, 64, 64, '#33cc33', 150, 60, 'goblin', 200);
         this.attackCooldown = 0;
         this.bounceAmount = 0; // Disable squash and stretch
 
         // Attack Visuals
         this.imgNormal = this.image;
-        this.imgTelegraph = getCachedImage('assets/goblin_telegraph.png');
-        this.imgAttack = getCachedImage('assets/goblin_attack.png');
+        this.imgTelegraph = getCachedImage('assets/enemies/goblin_telegraph.png');
+        this.imgAttack = getCachedImage('assets/enemies/goblin_attack.png');
         this.attackImageTimer = 0;
 
         // Walk Animation
-        this.walkSheet = getCachedImage('assets/goblin_walk.png');
+        this.walkSheet = getCachedImage('assets/enemies/goblin_walk.png');
         this.walkData = null;
         this.frameKeys = [];
         this.animTimer = 0;
 
-        getCachedJson('assets/goblin_walk.json').then(data => {
+        getCachedJson('assets/enemies/goblin_walk.json').then(data => {
             if (data) {
                 this.walkData = data;
                 this.frameKeys = Object.keys(data.frames);
@@ -27,7 +27,8 @@ export class Goblin extends Enemy {
         });
 
         this.stunTimer = 0;
-        this.damage = 0; // Remove contact damage
+        this.damage = 10; // Re-enable contact damage
+        this.displayName = 'ゴブリン';
     }
 
     update(dt) {
@@ -49,7 +50,8 @@ export class Goblin extends Enemy {
         if (!this.isTelegraphing && this.stunTimer <= 0 && this.attackCooldown <= 0) {
             const dist = Math.sqrt((this.game.player.x - this.x) ** 2 + (this.game.player.y - this.y) ** 2);
             if (dist < 75) {
-                this.startTelegraph(1.2);
+                const duration = this.game.difficulty === 'hard' ? 0.78 : 1.2;
+                this.startTelegraph(duration);
             }
         }
 
@@ -172,10 +174,21 @@ export class Goblin extends Enemy {
 
         // Draw HP Bar
         if (this.hp < this.maxHp) {
+            const barY = Math.floor(this.y - 6);
             ctx.fillStyle = 'red';
-            ctx.fillRect(Math.floor(this.x), Math.floor(this.y - 6), this.width, 4);
+            ctx.fillRect(Math.floor(this.x), barY, this.width, 4);
             ctx.fillStyle = 'green';
-            ctx.fillRect(Math.floor(this.x), Math.floor(this.y - 6), this.width * (this.hp / this.maxHp), 4);
+            ctx.fillRect(Math.floor(this.x), barY, this.width * (this.hp / this.maxHp), 4);
+
+            // Draw Name
+            ctx.fillStyle = 'white';
+            ctx.font = 'bold 10px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.shadowColor = 'black';
+            ctx.shadowBlur = 4;
+            ctx.fillText(this.displayName, this.x + this.width / 2, barY - 4);
+            ctx.shadowBlur = 0;
+            ctx.textAlign = 'start';
         }
 
         this.drawStatusIcons(ctx);

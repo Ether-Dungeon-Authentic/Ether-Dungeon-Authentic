@@ -93,7 +93,14 @@ export const areaBehaviors = {
                             const ey = enemy.y + enemy.height / 2;
                             const dist = Math.sqrt((ex - center.x) ** 2 + (ey - center.y) ** 2);
                             if (dist < params.range) {
-                                enemy.takeDamage(params.damage, params.damageColor, params.aetherCharge);
+                                // Knockback
+                                let kx = 0, ky = 0;
+                                if (params.knockback) {
+                                    kx = ((ex - center.x) / dist) * params.knockback;
+                                    ky = ((ey - center.y) / dist) * params.knockback;
+                                }
+
+                                enemy.takeDamage(params.damage, params.damageColor, params.aetherCharge, false, kx, ky);
                                 // Shake on hit
                                 game.camera.shake(0.15, 3.5);
 
@@ -114,7 +121,13 @@ export const areaBehaviors = {
                 const ey = enemy.y + enemy.height / 2;
                 const dist = Math.sqrt((ex - center.x) ** 2 + (ey - center.y) ** 2);
                 if (dist < params.range) {
-                    enemy.takeDamage(params.damage, params.damageColor, params.aetherCharge);
+                    // Knockback
+                    let kx = 0, ky = 0;
+                    if (params.knockback) {
+                        kx = ((ex - center.x) / dist) * params.knockback;
+                        ky = ((ey - center.y) / dist) * params.knockback;
+                    }
+                    enemy.takeDamage(params.damage, params.damageColor, params.aetherCharge, false, kx, ky);
                     game.spawnParticles(ex, ey, 10, '#ff0000');
                 }
             });
@@ -531,7 +544,7 @@ export const areaBehaviors = {
 
                 // --- Visual Spikes (Existing Logic) ---
                 const count = params.visualSpikeCount || 15;
-                const visualImgName = 'assets/ice_spike.png';
+                const visualImgName = 'assets/skills/vfx/ice_spike.png';
 
                 const vImg = getCachedImage(visualImgName);
 
@@ -675,7 +688,7 @@ export const areaBehaviors = {
                             // Actually, let's just use spawnProjectile with 'ice_spike_burst' style?
                             // Simplified: Spawn a short-lived damage zone at enemy feet.
 
-                            const img = getCachedImage('assets/ice_spike.png');
+                            const img = getCachedImage('assets/skills/vfx/ice_spike.png');
 
                             const spikeLife = 0.5;
                             const maxH = 46;
@@ -1021,7 +1034,7 @@ export const areaBehaviors = {
                         const ty = py + Math.sin(ang) * d;
 
                         const rockIdx = Math.floor(Math.random() * 3) + 1;
-                        const sprite = "assets/meteor_rock" + rockIdx + ".png";
+                        const sprite = "assets/skills/vfx/meteor_rock" + rockIdx + ".png";
                         const speed = params.starSpeed || 1500;
                         const offset = 600;
                         const sx = tx + 200;
@@ -1963,7 +1976,7 @@ export const areaBehaviors = {
                                     // spriteSheet is necessary for rendering in main.js
                                     spawnProjectile(game, fx, fy, Math.cos(angle) * arcSpeed, Math.sin(angle) * arcSpeed, {
                                         visual: true,
-                                        spriteSheet: 'assets/lightning_part_01.png',
+                                        spriteSheet: 'assets/skills/vfx/lightning_part_01.png',
                                         life: duration,
                                         width: 60,
                                         height: 20,

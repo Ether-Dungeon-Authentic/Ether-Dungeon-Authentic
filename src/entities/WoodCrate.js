@@ -3,7 +3,7 @@ import { Entity, getCachedImage } from '../utils.js';
 export class WoodCrate extends Entity {
     constructor(game, x, y) {
         super(game, x, y, 40, 40, '#8B4513', 1);
-        this.image = getCachedImage('assets/wood_crate.png');
+        this.image = getCachedImage('assets/map/wood_crate.png');
         this.isPassive = true; // Don't block room clears
         this.isSolid = true;   // Block movement
         this.hp = 1;

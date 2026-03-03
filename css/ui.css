@@ -1,0 +1,358 @@
+﻿#ui-layer {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 800px;
+    height: 450px;
+    /* Standardize to 800x600 */
+    pointer-events: none;
+    font-size: 18px;
+    font-weight: bold;
+    text-shadow: 1px 1px 2px black;
+    transform-origin: top left;
+    box-sizing: border-box;
+    z-index: 100;
+}
+
+#game-ui-wrapper {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 800px;
+    height: 450px;
+    pointer-events: none;
+    transform-origin: top left;
+    z-index: 5000;
+    overflow: hidden;
+}
+
+#game-ui-wrapper>* {
+    pointer-events: auto;
+}
+
+#health-bar-container {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 5px;
+    padding: 10px;
+}
+
+#health-bar-label {
+    color: #ff4444;
+    font-weight: bold;
+    font-size: 20px;
+    text-shadow: 1px 1px 2px black;
+}
+
+#health-bar-track {
+    position: relative;
+    width: 200px;
+    height: 20px;
+    background-color: #333;
+    border: 2px solid #555;
+    border-radius: 4px;
+    overflow: hidden;
+    box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.5);
+}
+
+#health-bar-fill {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    width: 100%;
+    background-color: #ff4444;
+    transition: width 0.2s ease-out;
+}
+
+#health-bar-text {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: white;
+    font-size: 12px;
+    font-weight: bold;
+    text-shadow: 1px 1px 1px black;
+    z-index: 1;
+    white-space: nowrap;
+}
+
+#aether-gauge-container {
+    width: 200px;
+    height: 8px;
+    background-color: #222;
+    border: 1px solid #444;
+    border-radius: 4px;
+    position: relative;
+    overflow: hidden;
+    box-shadow: inset 0 0 3px rgba(0, 0, 0, 0.8);
+    margin-top: -2px;
+    margin-left: 10px;
+}
+
+#aether-gauge-fill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, #0088ff, #00ffff);
+    transition: width 0.3s ease-out;
+    box-shadow: 0 0 10px #00ffff;
+}
+
+/* HUB Elements (Centered) */
+#score-display {
+    position: absolute;
+    top: 15px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    width: 400px;
+    text-align: center;
+    font-size: 18px;
+    color: #ffffff;
+    font-weight: bold;
+    text-shadow: 2px 2px 4px black;
+    font-family: 'Press Start 2P', cursive;
+    pointer-events: none;
+    z-index: 105;
+}
+
+#score-label {
+    color: #ffd700;
+    font-size: 10px;
+    letter-spacing: 2px;
+}
+
+#floor-display {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    color: #ffffff;
+    font-weight: bold;
+    text-shadow: 1px 1px 2px black;
+    opacity: 0.8;
+    margin-top: 5px;
+    padding-left: 10px;
+}
+
+#floor-label {
+    color: #aaaaaa;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+#currency-display {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 20px;
+    color: #ffd700;
+    font-weight: bold;
+    text-shadow: 1px 1px 2px black;
+    margin-top: 5px;
+    padding-left: 10px;
+}
+
+.currency-icon {
+    width: 24px;
+    height: 24px;
+    object-fit: contain;
+    filter: drop-shadow(0 0 2px rgba(255, 215, 0, 0.5));
+}
+
+/* Skill Bar UI */
+#skill-bar {
+    position: absolute;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 10px;
+    pointer-events: none;
+}
+
+.skill-slot {
+    width: 60px;
+    height: 60px;
+    background-color: rgba(0, 0, 0, 0.6);
+    border: 2px solid #555;
+    border-radius: 8px;
+    position: relative;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+    pointer-events: auto;
+}
+
+.skill-slot.active {
+    border-color: #fff;
+    box-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
+}
+
+.skill-icon {
+    width: 40px;
+    height: 40px;
+    object-fit: contain;
+}
+
+.key-hint {
+    position: absolute;
+    top: 2px;
+    left: 4px;
+    font-size: 10px;
+    color: #aaa;
+    font-weight: bold;
+    z-index: 5;
+}
+
+.cooldown-overlay {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 0%;
+    /* Dynamic */
+    background-color: rgba(0, 0, 0, 0.75);
+    z-index: 2;
+    transition: height 0.1s linear;
+}
+
+.cooldown-text {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 18px;
+    font-weight: 800;
+    color: #ffffff;
+    text-shadow:
+        -1px -1px 0 #000,
+        1px -1px 0 #000,
+        -1px 1px 0 #000,
+        1px 1px 0 #000,
+        0px 0px 4px rgba(0, 0, 0, 0.8);
+    display: none;
+    z-index: 10;
+}
+
+.stack-count {
+    position: absolute;
+    bottom: 2px;
+    right: 4px;
+    font-size: 12px;
+    font-weight: bold;
+    color: #fff;
+    text-shadow: 1px 1px 0 #000;
+    z-index: 5;
+}
+
+/* Aether Rush Ultimate Effect */
+.skill-slot.aether-rush {
+    border-color: #00ffff;
+    box-shadow: 0 0 15px #00ffff, inset 0 0 10px #00ffff;
+    animation: pulse-aether 1s infinite alternate;
+}
+
+.skill-slot.aether-rush::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: linear-gradient(45deg, transparent, rgba(0, 255, 255, 0.3), transparent);
+    transform: rotate(45deg);
+    animation: shine 2s infinite linear;
+    pointer-events: none;
+    z-index: 1;
+}
+
+@keyframes pulse-aether {
+    0% {
+        box-shadow: 0 0 15px #00ffff, inset 0 0 10px #00ffff;
+        border-color: #00ffff;
+    }
+
+    100% {
+        box-shadow: 0 0 25px #0088ff, inset 0 0 20px #0088ff;
+        border-color: #0088ff;
+    }
+}
+
+@keyframes shine {
+    0% {
+        top: -150%;
+        left: -150%;
+    }
+
+    100% {
+        top: 150%;
+        left: 150%;
+    }
+}
+
+.stack-count {
+    position: absolute;
+    bottom: 2px;
+    right: 4px;
+    font-size: 14px;
+    font-weight: bold;
+    color: #fff;
+    text-shadow: 1px 1px 0 #000;
+    z-index: 5;
+    pointer-events: none;
+    display: none;
+}
+
+/* Aether Rush Ultimate Effect */
+.skill-slot.aether-rush {
+    border-color: #00ffff;
+    box-shadow: 0 0 15px #00ffff, inset 0 0 10px #00ffff;
+    animation: pulse-aether 1s infinite alternate;
+}
+
+.skill-slot.aether-rush::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: linear-gradient(45deg, transparent, rgba(0, 255, 255, 0.3), transparent);
+    transform: rotate(45deg);
+    animation: shine 2s infinite linear;
+    pointer-events: none;
+    z-index: 1;
+}
+
+@keyframes pulse-aether {
+    0% {
+        box-shadow: 0 0 15px #00ffff, inset 0 0 10px #00ffff;
+        border-color: #00ffff;
+    }
+
+    100% {
+        box-shadow: 0 0 25px #0088ff, inset 0 0 20px #0088ff;
+        border-color: #0088ff;
+    }
+}
+
+@keyframes shine {
+    0% {
+        top: -150%;
+        left: -150%;
+    }
+
+    100% {
+        top: 150%;
+        left: 150%;
+    }
+}
+

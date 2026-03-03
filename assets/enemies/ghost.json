@@ -1,0 +1,95 @@
+{
+  "frames": {
+    "sprite_005.png": {
+      "frame": {
+        "x": 4,
+        "y": 4,
+        "w": 196,
+        "h": 243
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 196,
+        "h": 243
+      },
+      "sourceSize": {
+        "w": 196,
+        "h": 243
+      }
+    },
+    "sprite_001.png": {
+      "frame": {
+        "x": 204,
+        "y": 4,
+        "w": 174,
+        "h": 229
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 174,
+        "h": 229
+      },
+      "sourceSize": {
+        "w": 174,
+        "h": 229
+      }
+    },
+    "sprite_004.png": {
+      "frame": {
+        "x": 382,
+        "y": 4,
+        "w": 200,
+        "h": 228
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 200,
+        "h": 228
+      },
+      "sourceSize": {
+        "w": 200,
+        "h": 228
+      }
+    },
+    "sprite_003.png": {
+      "frame": {
+        "x": 586,
+        "y": 4,
+        "w": 193,
+        "h": 238
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 193,
+        "h": 238
+      },
+      "sourceSize": {
+        "w": 193,
+        "h": 238
+      }
+    }
+  },
+  "meta": {
+    "app": "SpriteAlign AI",
+    "version": "1.0",
+    "image": "packed_sheet.png",
+    "format": "RGBA8888",
+    "size": {
+      "w": 783,
+      "h": 251
+    },
+    "scale": 1
+  }
+}

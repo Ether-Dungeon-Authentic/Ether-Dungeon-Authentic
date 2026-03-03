@@ -39,7 +39,12 @@ export class SaveManager {
             stats: {
                 totalKills: 0,
                 totalRuns: 0,
-                deepestFloor: 0
+                deepestFloor: 0,
+                highScore: 0
+            },
+            aetherCircuit: {
+                ownedChipIds: ['power_strike', 'life_spark', 'swift_step'], // Initial free chips
+                equippedChipIds: [null, null, null, null, null, null]
             }
         };
     }
@@ -65,5 +70,20 @@ export class SaveManager {
     static isSkillUnlocked(skillId) {
         const data = this.getSaveData();
         return data.unlockedSkills.includes(skillId);
+    }
+
+    /**
+     * Updates the high score if the new score is higher.
+     * @param {number} newScore 
+     * @returns {boolean} True if a new record was set.
+     */
+    static updateHighScore(newScore) {
+        const data = this.getSaveData();
+        if (!data.stats.highScore || newScore > data.stats.highScore) {
+            data.stats.highScore = newScore;
+            this.saveData(data);
+            return true;
+        }
+        return false;
     }
 }

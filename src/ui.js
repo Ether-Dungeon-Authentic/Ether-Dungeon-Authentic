@@ -1,3 +1,5 @@
+import { fetchTopRankings, submitScore } from './firebase_manager.js';
+
 let skillSlots = null;
 
 function initSkillSlots() {
@@ -48,15 +50,41 @@ function initSkillSlots() {
 export function drawUI(ctx, game, width, height) {
     // ... (Game Over logic unchanged)
     if (game.isGameOver) {
-        // ...
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
         ctx.fillRect(0, 0, width, height);
-        ctx.fillStyle = 'red';
-        ctx.font = '40px Arial';
-        ctx.fillText("ゲームオーバー", width / 2 - 100, height / 2);
+
+        ctx.textAlign = 'center';
+        ctx.fillStyle = '#ff4444';
+        ctx.font = 'bold 48px "Press Start 2P", cursive';
+        ctx.fillText("GAME OVER", width / 2, height / 2 - 60);
+
+        // Final Score
         ctx.fillStyle = 'white';
-        ctx.font = '20px Arial';
-        ctx.fillText("スペースキーでリスタート", width / 2 - 140, height / 2 + 40);
+        ctx.font = '20px "Press Start 2P", cursive';
+        ctx.fillText(`SCORE: ${Math.floor(game.score)}`, width / 2, height / 2 + 10);
+
+        // New Record Highlight
+        if (game.score >= game.highScore && game.score > 0) {
+            ctx.fillStyle = '#ffd700';
+            ctx.font = 'bold 24px "Press Start 2P", cursive';
+            ctx.fillText("NEW RECORD!", width / 2, height / 2 + 60);
+
+            // Subtle pulsing glow
+            const pulse = (Math.sin(Date.now() / 200) + 1) / 2;
+            ctx.shadowBlur = 10 * pulse;
+            ctx.shadowColor = '#ffd700';
+        } else {
+            ctx.fillStyle = '#aaa';
+            ctx.font = '14px "Press Start 2P", cursive';
+            ctx.fillText(`BEST: ${Math.floor(game.highScore)}`, width / 2, height / 2 + 50);
+        }
+        ctx.shadowBlur = 0;
+
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+        ctx.font = '12px "Press Start 2P", cursive';
+        ctx.fillText("Press [SPACE] to Restart", width / 2, height / 2 + 120);
+
+        ctx.textAlign = 'left'; // Reset for other UI elements
         return;
     }
 
@@ -80,6 +108,35 @@ export function drawUI(ctx, game, width, height) {
 
 
     if (!skillSlots) initSkillSlots();
+
+    // --- HUD Visibility Management ---
+    const uiLayerEl = document.getElementById('ui-layer');
+    const skillBarEl = document.getElementById('skill-bar');
+    const healthBarEl = document.getElementById('health-bar-container');
+    const currencyDisplayEl = document.getElementById('currency-display');
+    const scoreDisplayEl = document.getElementById('score-display');
+    const floorDisplayEl = document.getElementById('floor-display');
+    const settingsBtnEl = document.getElementById('settings-btn');
+
+    if (!game.isHUDVisible) {
+        if (uiLayerEl) {
+            // We want to keep the UI layer for things like level up, but hide specific HUD elements
+            if (skillBarEl) skillBarEl.style.display = 'none';
+            if (healthBarEl) healthBarEl.style.display = 'none';
+            if (currencyDisplayEl) currencyDisplayEl.style.display = 'none';
+            if (scoreDisplayEl) scoreDisplayEl.style.display = 'none';
+            if (floorDisplayEl) floorDisplayEl.style.display = 'none';
+            if (settingsBtnEl) settingsBtnEl.style.display = 'none';
+        }
+        return; // Skip Canvas HUD drawing (Mini-map, etc)
+    } else {
+        if (skillBarEl) skillBarEl.style.display = 'flex';
+        if (healthBarEl) healthBarEl.style.display = 'flex';
+        if (currencyDisplayEl) currencyDisplayEl.style.display = 'flex';
+        if (scoreDisplayEl) scoreDisplayEl.style.display = 'flex';
+        if (floorDisplayEl) floorDisplayEl.style.display = 'flex';
+        if (settingsBtnEl) settingsBtnEl.style.display = 'flex';
+    }
 
     // Update Skill DOM UI
     for (let key in game.player.equippedSkills) {
@@ -157,6 +214,18 @@ export function drawUI(ctx, game, width, height) {
         }
     }
 
+    // Update HP Bar
+    const hpFill = document.getElementById('health-bar-fill');
+    const hpText = document.getElementById('health-bar-text');
+    const hpValue = document.getElementById('hp-value');
+    const hpMax = document.getElementById('hp-max');
+    if (hpFill && hpText && hpValue && hpMax) {
+        const ratio = Math.min(1, Math.max(0, game.player.hp / game.player.maxHp));
+        hpFill.style.width = `${ratio * 100}%`;
+        hpValue.textContent = Math.ceil(game.player.hp);
+        hpMax.textContent = Math.ceil(game.player.maxHp);
+    }
+
     // Draw Mini-map
     drawMiniMap(ctx, game, width, height);
 }
@@ -166,7 +235,7 @@ function drawMiniMap(ctx, game, screenWidth, screenHeight) {
     const player = game.player;
 
     // Mini-map configuration
-    const mapSize = 140; // Max width/height in pixels (reduced 30% from 200)
+    const mapSize = 280; // Doubled from 140
     const timerSize = 4; // Tile size in pixels (if fitted)
 
     // Calculate scale to fit in mapSize
@@ -195,6 +264,7 @@ function drawMiniMap(ctx, game, screenWidth, screenHeight) {
             // Check for Staircase
             let isStaircase = false;
             let isShop = false;
+            let isBoss = false;
             // Check room grid for staircase type
             if (map.roomGrid && map.roomGrid[y] && map.roomGrid[y][x] !== -1) {
                 const roomId = map.roomGrid[y][x];
@@ -210,19 +280,39 @@ function drawMiniMap(ctx, game, screenWidth, screenHeight) {
                 if (room && room.type === 'shop') {
                     isShop = true;
                 }
+                if (room && room.type === 'boss') {
+                    isBoss = true;
+                }
             }
 
             if (isStaircase) {
-                ctx.fillStyle = '#00ffff'; // Cyan for stairs
-                ctx.fillRect(mmX + x * scale, mmY + y * scale, scale, scale);
+                if (game.debugMode || map.exploredTiles[y][x]) {
+                    ctx.fillStyle = '#00ffff'; // Cyan for stairs
+                    ctx.fillRect(mmX + x * scale, mmY + y * scale, scale, scale);
+                }
+            } else if (isBoss && tile === 0) {
+                if (game.debugMode || map.exploredTiles[y][x]) {
+                    ctx.fillStyle = 'rgba(255, 0, 0, 0.4)'; // Red tint for boss room
+                    ctx.fillRect(mmX + x * scale, mmY + y * scale, scale, scale);
+                }
             } else if (isShop && tile === 0) {
-                ctx.fillStyle = 'rgba(255, 200, 0, 0.35)'; // Gold tint for shop floor
-                ctx.fillRect(mmX + x * scale, mmY + y * scale, scale, scale);
+                if (game.debugMode || map.exploredTiles[y][x]) {
+                    ctx.fillStyle = 'rgba(255, 200, 0, 0.35)'; // Gold tint for shop floor
+                    ctx.fillRect(mmX + x * scale, mmY + y * scale, scale, scale);
+                }
             } else if (tile === 1) {
                 // Wall
-                ctx.fillStyle = '#888';
-                ctx.fillRect(mmX + x * scale, mmY + y * scale, scale, scale);
+                if (game.debugMode || map.exploredTiles[y][x]) {
+                    ctx.fillStyle = '#888';
+                    ctx.fillRect(mmX + x * scale, mmY + y * scale, scale, scale);
+                }
                 // Floor - Do nothing (Transparent/Background)
+            } else if (tile === 0) {
+                // Floor
+                if (game.debugMode || map.exploredTiles[y][x]) {
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.1)'; // Very subtle floor highlight?
+                    ctx.fillRect(mmX + x * scale, mmY + y * scale, scale, scale);
+                }
             }
         }
     }
@@ -231,7 +321,9 @@ function drawMiniMap(ctx, game, screenWidth, screenHeight) {
     if (game.statues) {
         ctx.fillStyle = '#ffffff'; // White for statues
         game.statues.forEach(statue => {
-            if (!statue.used) {
+            const tx = Math.floor(statue.x / map.tileSize);
+            const ty = Math.floor(statue.y / map.tileSize);
+            if (!statue.used && (game.debugMode || map.exploredTiles[ty][tx])) {
                 const sX = (statue.x / map.tileSize) * scale;
                 const sY = (statue.y / map.tileSize) * scale;
                 // Draw a small rect or circle
@@ -243,12 +335,16 @@ function drawMiniMap(ctx, game, screenWidth, screenHeight) {
     // Draw Shop NPCs
     if (game.shopNPCs) {
         game.shopNPCs.forEach(npc => {
-            const sX = (npc.x / map.tileSize) * scale;
-            const sY = (npc.y / map.tileSize) * scale;
-            ctx.fillStyle = '#ffd700';
-            ctx.beginPath();
-            ctx.arc(mmX + sX + scale / 2, mmY + sY + scale / 2, Math.max(3, scale * 1.5), 0, Math.PI * 2);
-            ctx.fill();
+            const tx = Math.floor(npc.x / map.tileSize);
+            const ty = Math.floor(npc.y / map.tileSize);
+            if (game.debugMode || map.exploredTiles[ty][tx]) {
+                const sX = (npc.x / map.tileSize) * scale;
+                const sY = (npc.y / map.tileSize) * scale;
+                ctx.fillStyle = '#ffd700';
+                ctx.beginPath();
+                ctx.arc(mmX + sX + scale / 2, mmY + sY + scale / 2, Math.max(3, scale * 1.5), 0, Math.PI * 2);
+                ctx.fill();
+            }
         });
     }
 
@@ -522,11 +618,58 @@ const btnCloseSettings = document.getElementById('btn-close-settings');
 const btnTraining = document.getElementById('btn-training');
 
 export function initSettingsUI(game) {
+    const cheatContainer = document.getElementById('cheat-menu-container');
+    if (cheatContainer) {
+        cheatContainer.style.display = game.debugMode ? 'block' : 'none';
+    }
+
     if (settingsBtn) {
         settingsBtn.addEventListener('click', () => {
             settingsModal.style.display = 'flex';
             game.isPaused = true;
+            // Update invincible button text when opening
+            const invBtn = document.getElementById('btn-cheat-invincible');
+            if (invBtn && game.player) {
+                invBtn.textContent = `無敵: ${game.player.isCheatInvincible ? 'ON' : 'OFF'}`;
+            }
         });
+    }
+
+    // Cheat Button Listeners
+    const btnTeleportBoss = document.getElementById('btn-cheat-teleport-boss');
+    if (btnTeleportBoss) {
+        btnTeleportBoss.onclick = () => {
+            const bossRoom = game.map.rooms.find(r => r.type === 'boss');
+            if (bossRoom && game.player) {
+                game.player.x = (bossRoom.x + bossRoom.w / 2) * game.map.tileSize;
+                game.player.y = (bossRoom.y + bossRoom.h / 2) * game.map.tileSize;
+                settingsModal.style.display = 'none';
+                game.isPaused = false;
+            }
+        };
+    }
+
+    const btnTeleportPortal = document.getElementById('btn-cheat-teleport-portal');
+    if (btnTeleportPortal) {
+        btnTeleportPortal.onclick = () => {
+            const portalRoom = game.map.rooms.find(r => r.type === 'staircase');
+            if (portalRoom && game.player) {
+                game.player.x = (portalRoom.x + portalRoom.w / 2) * game.map.tileSize;
+                game.player.y = (portalRoom.y + portalRoom.h / 2) * game.map.tileSize;
+                settingsModal.style.display = 'none';
+                game.isPaused = false;
+            }
+        };
+    }
+
+    const btnInvincible = document.getElementById('btn-cheat-invincible');
+    if (btnInvincible) {
+        btnInvincible.onclick = () => {
+            if (game.player) {
+                game.player.isCheatInvincible = !game.player.isCheatInvincible;
+                btnInvincible.textContent = `無敵: ${game.player.isCheatInvincible ? 'ON' : 'OFF'}`;
+            }
+        };
     }
 
     if (btnCloseSettings) {
@@ -543,6 +686,94 @@ export function initSettingsUI(game) {
             game.enterTrainingMode();
         });
     }
+}
+
+// --- Ranking UI ---
+const rankingModal = document.getElementById('ranking-modal');
+const rankingList = document.getElementById('ranking-list');
+const btnOpenRanking = document.getElementById('btn-open-ranking');
+const btnCloseRanking = document.getElementById('btn-close-ranking');
+
+const nicknameModal = document.getElementById('nickname-modal');
+const nicknameInput = document.getElementById('nickname-input');
+const btnSubmitNickname = document.getElementById('btn-submit-nickname');
+const btnCancelNickname = document.getElementById('btn-cancel-nickname');
+
+export function initRankingUI(game) {
+    if (btnOpenRanking) {
+        btnOpenRanking.addEventListener('click', () => {
+            showRanking();
+        });
+    }
+
+    if (btnCloseRanking) {
+        btnCloseRanking.addEventListener('click', () => {
+            hideRanking();
+        });
+    }
+}
+
+export async function showRanking() {
+    if (!rankingModal || !rankingList) return;
+
+    rankingModal.style.display = 'flex';
+    rankingList.innerHTML = '<div class="loading-spinner">通信中...</div>';
+
+    try {
+        const rankings = await fetchTopRankings(10);
+        rankingList.innerHTML = '';
+
+        if (rankings.length === 0) {
+            rankingList.innerHTML = '<div class="loading-spinner">データがありません</div>';
+            return;
+        }
+
+        rankings.forEach((data, index) => {
+            const item = document.createElement('div');
+            item.className = 'ranking-item';
+            item.innerHTML = `
+                <span class="rank-num">#${index + 1}</span>
+                <span class="rank-name">${data.name || 'ななし'}</span>
+                <span class="rank-score">${Math.floor(data.score).toLocaleString()}</span>
+            `;
+            rankingList.appendChild(item);
+        });
+    } catch (error) {
+        rankingList.innerHTML = '<div class="loading-spinner">読み込みに失敗しました</div>';
+    }
+}
+
+export function hideRanking() {
+    if (rankingModal) rankingModal.style.display = 'none';
+}
+
+export function showNicknameInput(onSubmit, onCancel) {
+    if (!nicknameModal || !nicknameInput) return;
+
+    nicknameModal.style.display = 'flex';
+    nicknameInput.value = localStorage.getItem('last_nickname') || '';
+    nicknameInput.focus();
+
+    // Reset listeners
+    btnSubmitNickname.onclick = () => {
+        const name = nicknameInput.value.trim();
+        if (name) {
+            localStorage.setItem('last_nickname', name);
+            hideNicknameInput();
+            if (onSubmit) onSubmit(name);
+        } else {
+            nicknameInput.style.borderColor = 'red';
+        }
+    };
+
+    btnCancelNickname.onclick = () => {
+        hideNicknameInput();
+        if (onCancel) onCancel();
+    };
+}
+
+export function hideNicknameInput() {
+    if (nicknameModal) nicknameModal.style.display = 'none';
 }
 
 let aetherFill = null;
@@ -562,3 +793,248 @@ function updateAetherGauge(current, max) {
 }
 
 
+
+// --- Stage Settings UI ---
+const stageModal = document.getElementById('stage-settings-modal');
+const startSkillList = document.getElementById('start-skill-list');
+const btnStartAdventure = document.getElementById('btn-start-adventure');
+const btnBackToTitle = document.getElementById('btn-back-to-title');
+const btnSelectSkill = document.getElementById('btn-select-skill');
+const skillGridOverlay = document.getElementById('skill-selection-grid-overlay');
+const currentSkillIcon = document.getElementById('current-skill-icon');
+const currentSkillName = document.getElementById('current-skill-name');
+const currentSkillDesc = document.getElementById('current-skill-desc');
+
+export function showStageSettings(game, skills, onStartCallback, onBackCallback) {
+    if (!stageModal || !startSkillList) return;
+
+    let selectedDifficulty = 'normal';
+    // Default to 'slash' if available, else first skill
+    let selectedSkillId = skills.some(s => s.id === 'slash') ? 'slash' : (skills.length > 0 ? skills[0].id : null);
+
+    const updateSkillDisplay = () => {
+        const skill = skills.find(s => s.id === selectedSkillId);
+        if (skill) {
+            currentSkillIcon.src = skill.icon || '';
+            currentSkillName.textContent = skill.name;
+            if (currentSkillDesc) currentSkillDesc.textContent = skill.description || "";
+        }
+    };
+    updateSkillDisplay();
+
+    // Difficulty selection
+    const diffOptions = stageModal.querySelectorAll('.diff-option');
+    diffOptions.forEach(opt => {
+        opt.onclick = () => {
+            diffOptions.forEach(o => o.classList.remove('active'));
+            opt.classList.add('active');
+            selectedDifficulty = opt.dataset.difficulty;
+        };
+    });
+
+    // Skill selection logic (GRID)
+    startSkillList.innerHTML = '';
+    skills.forEach(skill => {
+        const card = document.createElement('div');
+        card.className = 'start-skill-card';
+        if (skill.id === selectedSkillId) card.classList.add('active');
+
+        card.innerHTML = `
+            <img src="${skill.icon || ''}" class="start-skill-icon">
+        `;
+
+        card.onclick = () => {
+            selectedSkillId = skill.id;
+            updateSkillDisplay();
+            startSkillList.querySelectorAll('.start-skill-card').forEach(c => c.classList.remove('active'));
+            card.classList.add('active');
+            // Overlay logic removed as it's now permanent
+        };
+
+        startSkillList.appendChild(card);
+    });
+
+    // Toggle skill grid removed as it's now a side-by-side permanent layout
+
+    // --- Tab Logic ---
+    const tabButtons = stageModal.querySelectorAll('.stage-tab-btn');
+    const tabContents = stageModal.querySelectorAll('.stage-tab-content');
+
+    // --- Circuit Logic ---
+    let selectedChip = null;
+
+    const renderCircuitUI = () => {
+        const capacityUsedEl = document.getElementById('circuit-capacity-used');
+        const capacityMaxEl = document.getElementById('circuit-capacity-max');
+        const capacityFillEl = document.getElementById('circuit-capacity-fill');
+        const chipListEl = document.getElementById('chip-list');
+        const chipSlotsEl = document.getElementById('chip-slots');
+        const detailPanelEl = document.getElementById('chip-detail-panel');
+
+        const circuit = game.player.circuit;
+        if (!circuit || !detailPanelEl) return;
+
+        // Update Capacity
+        capacityUsedEl.textContent = circuit.usedCapacity;
+        capacityMaxEl.textContent = circuit.maxCapacity;
+        const percent = Math.min((circuit.usedCapacity / circuit.maxCapacity) * 100, 100);
+        capacityFillEl.style.width = percent + '%';
+
+        // Render Detail Panel
+        if (selectedChip) {
+            const isEquipped = game.player.circuit.slots.includes(selectedChip);
+            const catClass = {
+                '洞察': 'cat-insight',
+                '技巧': 'cat-technique',
+                '耐久': 'cat-durability',
+                '俊敏': 'cat-agility'
+            }[selectedChip.data.category] || '';
+
+            detailPanelEl.innerHTML = `
+                <div class="detail-header">
+                    <div class="chip-category ${catClass}">${selectedChip.data.category}</div>
+                    <div class="detail-cost-value">${selectedChip.getCurrentCost()}</div>
+                    <div class="detail-title">${selectedChip.data.name}</div>
+                </div>
+                <div class="chip-rank-dots">
+                    ${Array.from({ length: 5 }).map((_, i) => `<span class="dot ${i < selectedChip.level ? 'filled' : ''}"></span>`).join('')}
+                </div>
+                <div class="detail-description">${selectedChip.data.description}</div>
+                <div class="detail-footer">
+                    <button class="detail-action-btn ${isEquipped ? 'unequip' : ''}">
+                        ${isEquipped ? '解除' : '装着'}
+                    </button>
+                </div>
+           `;
+
+            detailPanelEl.querySelector('.detail-action-btn').onclick = () => {
+                if (isEquipped) {
+                    const idx = circuit.slots.indexOf(selectedChip);
+                    circuit.unequipChip(idx);
+                } else {
+                    const emptyIdx = circuit.slots.indexOf(null);
+                    if (emptyIdx !== -1) {
+                        circuit.equipChip(selectedChip, emptyIdx);
+                    }
+                }
+                renderCircuitUI();
+            };
+        } else {
+            detailPanelEl.innerHTML = '<div class="detail-placeholder">チップを選択して詳細を表示</div>';
+        }
+
+        // Render Inventory (Owned Chips)
+        chipListEl.innerHTML = '';
+        circuit.ownedChips.forEach(chip => {
+            const item = document.createElement('div');
+            item.className = 'chip-item';
+            if (game.player.circuit.slots.includes(chip)) item.classList.add('equipped');
+            if (selectedChip === chip) item.classList.add('selected');
+
+            const catClass = {
+                '洞察': 'cat-insight',
+                '技巧': 'cat-technique',
+                '耐久': 'cat-durability',
+                '俊敏': 'cat-agility'
+            }[chip.data.category] || '';
+
+            item.innerHTML = `
+                <div class="chip-category ${catClass}">${chip.data.category}</div>
+                <div class="chip-name">${chip.data.name}</div>
+                <div class="chip-rank-dots">
+                    ${Array.from({ length: 5 }).map((_, i) => `<span class="dot ${i < chip.level ? 'filled' : ''}"></span>`).join('')}
+                </div>
+            `;
+
+            item.onclick = () => {
+                selectedChip = chip;
+                renderCircuitUI();
+            };
+            chipListEl.appendChild(item);
+        });
+
+        // Render Slots
+        chipSlotsEl.innerHTML = '';
+        game.player.circuit.slots.forEach((chip, idx) => {
+            if (chip) {
+                const item = document.createElement('div');
+                item.className = 'chip-item';
+                if (selectedChip === chip) item.classList.add('selected');
+
+                const catClass = {
+                    '洞察': 'cat-insight',
+                    '技巧': 'cat-technique',
+                    '耐久': 'cat-durability',
+                    '俊敏': 'cat-agility'
+                }[chip.data.category] || '';
+
+                item.innerHTML = `
+                    <div class="chip-category ${catClass}">${chip.data.category}</div>
+                    <div class="chip-name">${chip.data.name}</div>
+                    <div class="chip-rank-dots">
+                        ${Array.from({ length: 5 }).map((_, i) => `<span class="dot ${i < chip.level ? 'filled' : ''}"></span>`).join('')}
+                    </div>
+                `;
+                item.onclick = () => {
+                    selectedChip = chip;
+                    renderCircuitUI();
+                };
+                chipSlotsEl.appendChild(item);
+            } else {
+                const empty = document.createElement('div');
+                empty.className = 'chip-slot-empty';
+                empty.textContent = 'Empty';
+                chipSlotsEl.appendChild(empty);
+            }
+        });
+    };
+
+    tabButtons.forEach(btn => {
+        btn.onclick = () => {
+            const tabId = btn.dataset.tab;
+
+            // Update buttons
+            tabButtons.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+
+            // Update contents
+            tabContents.forEach(content => {
+                if (content.id === `tab-${tabId}`) {
+                    content.style.display = 'block';
+                    content.classList.add('active');
+                    if (tabId === 'circuits') renderCircuitUI();
+                } else {
+                    content.style.display = 'none';
+                    content.classList.remove('active');
+                }
+            });
+        };
+    });
+
+    // Reset to default tab (Skills)
+    const skillsTabBtn = Array.from(tabButtons).find(b => b.dataset.tab === 'skills');
+    if (skillsTabBtn) skillsTabBtn.click();
+
+    // Footer buttons
+    btnStartAdventure.onclick = () => {
+        if (!selectedSkillId) return;
+
+        // Final hide of title screen (if it was transparently visible)
+        const titleScreen = document.getElementById('title-screen');
+        if (titleScreen) titleScreen.style.display = 'none';
+
+        hideStageSettings();
+        if (onStartCallback) onStartCallback({ difficulty: selectedDifficulty, skillId: selectedSkillId });
+    };
+
+    btnBackToTitle.onclick = () => {
+        hideStageSettings();
+        if (onBackCallback) onBackCallback();
+    };
+
+    stageModal.style.display = 'flex';
+}
+
+export function hideStageSettings() {
+    if (stageModal) stageModal.style.display = 'none';
+}

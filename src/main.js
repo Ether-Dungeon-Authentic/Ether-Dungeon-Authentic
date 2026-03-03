@@ -1,11 +1,14 @@
 import { InputHandler, Camera, Entity, getCachedImage } from './utils.js';
 import { Map } from './map.js';
 import { Player } from './player.js';
-import { Enemy, Slime, Bat, Goblin, SkeletonArcher, Chest, Statue, BloodAltar, ShopNPC, WoodCrate, SpikeTrap } from './entities.js';
+import { Enemy, Slime, Bat, Goblin, SkeletonArcher, Ghost, Boss, Chest, Statue, BloodAltar, ShopNPC, WoodCrate, SpikeTrap } from './entities.js';
 import { createSkill } from './skills/index.js';
-import { drawUI, showSkillSelection, hideSkillSelection, showBlessingSelection, hideBlessingSelection, drawDialogue, hideDialogue, initSettingsUI } from './ui.js';
+import { drawUI, showSkillSelection, hideSkillSelection, showBlessingSelection, hideBlessingSelection, drawDialogue, hideDialogue, initSettingsUI, initRankingUI, showNicknameInput, showStageSettings, hideStageSettings } from './ui.js';
 import { initInventory, renderInventory, resetInventorySelection } from './inventory.js';
 import { skillsDB } from '../data/skills_db.js';
+import { SaveManager } from './SaveManager.js';
+import { initFirebase, submitScore } from './firebase_manager.js';
+import { firebaseConfig } from './firebase_config.js';
 
 import { CollectionUI } from './ui/CollectionUI.js';
 
@@ -29,11 +32,22 @@ class Game {
         this.width = this.canvas.width;
         this.height = this.canvas.height;
         this.zoom = 1.2;
-        this.debugMode = false;
+        // Check for debug mode in URL: index.html?debug=true
+        this.debugMode = new URLSearchParams(window.location.search).get('debug') === 'true';
         this.gameState = 'TITLE'; // TITLE, PLAYING, REWARD_SELECT, GAME_OVER
         this.rewardOptions = null; // Array of 3 options
         this.images = {}; // Asset Check
         this.currentFloor = 1;
+        this.score = 0;
+        this.difficulty = 'normal'; // normal or hard
+        this.highScore = SaveManager.getSaveData().stats.highScore || 0;
+
+        // Cinematic Start State
+        this.cameraZoom = 1.0;
+        this.targetCameraZoom = 1.0;
+        this.worldFadeAlpha = 0;
+        this.isHUDVisible = true;
+        this.isDungeonStarting = false;
 
         // Transition State
         this.isTransitioning = false;
@@ -41,6 +55,13 @@ class Game {
         this.transitionTimer = 0;
         this.transitionDuration = 0.5; // 0.5s fade
         this.transitionAlpha = 0;
+        this.titleFadeAlpha = 1.0; // Fade in background on startup
+
+        // Camera Offset (for cinematic effect)
+        this.cameraOffsetX = 0;
+        this.cameraOffsetY = 0;
+        this.targetCameraOffsetX = 0;
+        this.targetCameraOffsetY = 0;
 
         // Time Scale (Slow Motion)
         this.timeScale = 1.0;
@@ -60,8 +81,11 @@ class Game {
         });
 
         try {
-            // Initial setup for title screen
-            this.prepareTitleScreen();
+            // Initially stay in TITLE state, but prepare to load assets
+            this.gameState = 'TITLE';
+
+            // Start single initialization sequence
+            this.startTitleSequence();
         } catch (e) {
             _debugLog("Init Error: " + e.message);
             console.error(e);
@@ -115,40 +139,122 @@ class Game {
         }
 
         // --- Scale UI Layer ---
-        const uiLayer = document.getElementById('ui-layer');
-        if (uiLayer) {
-            uiLayer.style.transform = `scale(${this.zoom})`;
+        const uiWrapper = document.getElementById('game-ui-wrapper');
+        if (uiWrapper) {
+            uiWrapper.style.transform = `scale(${this.zoom})`;
         }
 
-        console.log(`Resized to fit 16:9: ${this.width.toFixed(0)}x${this.height.toFixed(0)}, Zoom: ${this.zoom.toFixed(2)}`);
+        console.log(`Resized to fit 16:9: ${this.width.toFixed(0)}x${this.height.toFixed(0)}, UI Scale: ${this.zoom.toFixed(2)}`);
     }
 
 
-    prepareTitleScreen() {
-        // Hide UI Layer during title
-        const uiLayer = document.getElementById('ui-layer');
-        if (uiLayer) {
-            uiLayer.style.display = 'none';
+    prepareTitleScreenUI() {
+        // UI Layer visibility is now managed via CSS sibling selector
+        // based on #title-screen display state.
+
+        // --- Initialize Firebase ---
+        initFirebase(firebaseConfig);
+
+        // --- Initialize Ranking UI ---
+        initRankingUI(this);
+
+        // --- Show High Score on Title ---
+        const hsValue = document.getElementById('title-highscore-value');
+        if (hsValue) {
+            const data = SaveManager.getSaveData();
+            hsValue.textContent = Math.floor(data.stats.highScore || 0);
         }
 
-        // --- Demo Background Setup ---
-        // Cleanup artifacts: No more live demo generation
-        this.enemies = [];
-        this.projectiles = [];
-        this.animations = [];
-        this.chests = [];
-        this.statues = [];
-        this.bloodAltars = [];
-        this.shopNPCs = [];
         this.traps = [];
         this.enemyProjectiles = [];
         this.entities = [];
     }
 
+    async startTitleSequence() {
+        this.showLoading();
+        await this.preloadAllAssets();
+
+        // Setup UI and Firebase after assets are ready (or in parallel)
+        this.prepareTitleScreenUI();
+
+        // Generate a sample dungeon for background
+        this.init(false, 'normal', null);
+        this.gameState = 'TITLE';
+
+        // Setup initial camera cinematic state
+        this.cameraZoom = 1.0;
+        this.targetCameraZoom = 1.0;
+        this.isHUDVisible = false;
+
+        this.hideLoading();
+
+        // Fade in the world
+        const titleScreen = document.getElementById('title-screen');
+        if (titleScreen) {
+            titleScreen.style.background = 'radial-gradient(circle at center, rgba(0, 0, 0, 0.2) 0%, rgba(0, 0, 0, 0.6) 100%)';
+        }
+    }
+
     initTitleListeners() {
         const startBtn = document.getElementById('btn-start-game');
         if (startBtn) {
-            startBtn.onclick = () => this.startGame();
+            startBtn.onclick = () => {
+                const normalSkills = skillsDB.filter(s => s.type === 'normal');
+                // Hide only the menu, keep background/video
+                const titleMenu = document.querySelector('.title-menu');
+                if (titleMenu) titleMenu.style.display = 'none';
+
+                const highscoreContainer = document.getElementById('title-highscore-container');
+                if (highscoreContainer) highscoreContainer.style.display = 'none';
+
+                // Hide title header during preparation
+                const titleHeader = document.querySelector('.title-header');
+                if (titleHeader) titleHeader.style.display = 'none';
+
+                showStageSettings(
+                    this,
+                    normalSkills,
+                    (settings) => {
+                        // Smooth zoom back to normal
+                        this.targetCameraZoom = 1.0;
+                        this.targetCameraOffsetX = 0;
+                        this.targetCameraOffsetY = 0;
+                        this.isHUDVisible = true;
+                        this.isDungeonStarting = false;
+                        this.worldFadeAlpha = 0; // Reset fade
+
+                        // On Start - actually hide the whole screen then
+                        document.getElementById('title-screen').style.display = 'none';
+                        // Re-init with correct settings, reuse title map and camera
+                        this.init(false, settings.difficulty, settings.skillId, true);
+                    },
+                    () => {
+                        // On Back - restore menu
+                        if (titleMenu) titleMenu.style.display = 'flex';
+                        if (highscoreContainer) highscoreContainer.style.display = 'flex';
+                        const titleHeader = document.querySelector('.title-header');
+                        if (titleHeader) titleHeader.style.display = 'flex';
+
+                        // Reset cinematic state smoothly
+                        this.targetCameraZoom = 1.2; // Back to title zoom
+                        this.targetCameraOffsetX = 0;
+                        this.targetCameraOffsetY = 0;
+                        this.isHUDVisible = false;
+                        this.isDungeonStarting = false;
+
+                        const titleScreen = document.getElementById('title-screen');
+                        if (titleScreen) {
+                            titleScreen.style.background = 'radial-gradient(circle at center, rgba(0, 0, 0, 0.2) 0%, rgba(0, 0, 0, 0.6) 100%)';
+                        }
+                    }
+                );
+
+                // --- Cinematic Trigger (Start zoom-in effect) ---
+                this.targetCameraZoom = 2.5;
+                this.targetCameraOffsetX = 115; // Shift camera right -> player moves left
+                this.targetCameraOffsetY = 0; // Shift camera up slightly
+                this.isHUDVisible = false;
+            };
         }
 
         const openCollectionBtn = document.getElementById('btn-open-collection');
@@ -197,59 +303,64 @@ class Game {
     async preloadAllAssets() {
         console.log("Preloading started...");
         const assets = [
-            'assets/player_sprites.png',
-            'assets/floor.png',
-            'assets/portal_stairs.png',
-            'assets/aether_shard.png',
-            'assets/chest_closed.png',
-            'assets/chest_open.png',
-            'assets/bg_angel_blessing.png',
-            'assets/bg_blood_blessing.png',
-            'assets/slime.png',
-            'assets/bat.png',
-            'assets/goblin.png',
-            'assets/skeleton_archer.png',
-            'assets/icon_bleed.png',
-            'assets/icon_ice.png',
-            'assets/icon_burn.png',
-            'assets/icon_crimson_cross.png',
-            'assets/icon_dash.png',
-            'assets/flame_fan.png',
-            'assets/icon_flame_fan.png',
-            'assets/icon_slash.png',
-            'assets/icon_blood_scythe.png',
-            'assets/ice_spike.png',
-            'assets/icon_needle.png',
-            'assets/icon_fireball.png',
-            'assets/fireball_sheet.png',
-            'assets/icon_thunder_burst.png',
-            'assets/thunder_burst.png',
-            'assets/icon_bounce.png',
-            'assets/icon_ember_strike.png',
-            'assets/blood_scythe.png',
-            'assets/icon_ice_spike.png',
-            'assets/icon_ice_garden.png',
-            'assets/icon_wind.png',
-            'assets/icon_chain.png',
-            'assets/icon_thunder_fall.png',
-            'assets/icon_thunder_god.png',
-            'assets/icon_glacial_lotus.png',
-            'assets/phoenix_aura.png',
-            'assets/icon_magma_spear.png',
-            'assets/magma_spear.png',
-            'assets/magma_core.png',
-            'assets/tornado.png',
-            'assets/trap_spike.png',
-            'assets/wood_crate.png',
-            'assets/shop_npc.png',
-            'assets/statue_angel.png',
-            'assets/blood_altar.png'
+            'assets/player/player_sprites.png',
+            'assets/map/floor.png',
+            'assets/map/portal_stairs.png',
+            'assets/ui/aether_shard.png',
+            'assets/map/chest_closed.png',
+            'assets/map/chest_open.png',
+            'assets/ui/bg_angel_blessing.png',
+            'assets/ui/bg_blood_blessing.png',
+            'assets/enemies/slime.png',
+            'assets/enemies/bat.png',
+            'assets/enemies/goblin.png',
+            'assets/enemies/skeleton_archer.png',
+            'assets/skills/icons/icon_bleed.png',
+            'assets/skills/icons/icon_ice.png',
+            'assets/skills/icons/icon_burn.png',
+            'assets/skills/icons/icon_crimson_cross.png',
+            'assets/skills/icons/icon_dash.png',
+            'assets/skills/vfx/flame_fan.png',
+            'assets/skills/icons/icon_flame_fan.png',
+            'assets/skills/icons/icon_slash.png',
+            'assets/skills/icons/icon_blood_scythe.png',
+            'assets/skills/vfx/ice_spike.png',
+            'assets/skills/icons/icon_needle.png',
+            'assets/skills/icons/icon_fireball.png',
+            'assets/skills/vfx/fireball_sheet.png',
+            'assets/skills/icons/icon_thunder_burst.png',
+            'assets/skills/vfx/thunder_burst.png',
+            'assets/skills/icons/icon_bounce.png',
+            'assets/skills/icons/icon_ember_strike.png',
+            'assets/skills/vfx/blood_scythe.png',
+            'assets/skills/icons/icon_ice_spike.png',
+            'assets/skills/icons/icon_ice_garden.png',
+            'assets/skills/icons/icon_wind.png',
+            'assets/skills/icons/icon_chain.png',
+            'assets/skills/icons/icon_thunder_fall.png',
+            'assets/skills/icons/icon_thunder_god.png',
+            'assets/skills/icons/icon_glacial_lotus.png',
+            'assets/skills/vfx/phoenix_aura.png',
+            'assets/skills/icons/icon_magma_spear.png',
+            'assets/skills/vfx/magma_spear.png',
+            'assets/skills/vfx/magma_core.png',
+            'assets/skills/vfx/tornado.png',
+            'assets/skills/vfx/projectile_arrow.png',
+            'assets/skills/vfx/meteor_rock1.png',
+            'assets/skills/vfx/meteor_rock2.png',
+            'assets/skills/vfx/meteor_rock3.png',
+            'assets/map/trap_spike.png',
+            'assets/map/wood_crate.png',
+            'assets/entities/shop_npc.png',
+            'assets/entities/statue_angel.png',
+            'assets/entities/blood_altar.png'
         ];
 
         // Also add any icons/spriteSheets from skillsDB that aren't manually listed
         skillsDB.forEach(s => {
             if (s.icon && !assets.includes(s.icon)) assets.push(s.icon);
             if (s.params?.spriteSheet && !assets.includes(s.params.spriteSheet)) assets.push(s.params.spriteSheet);
+            if (s.params?.spriteData && !assets.includes(s.params.spriteData)) assets.push(s.params.spriteData);
         });
 
         let loadedCount = 0;
@@ -308,6 +419,7 @@ class Game {
                     // Initialize game session
                     this.init();
 
+                    this.score = 0; // Reset score
                     this.gameState = 'PLAYING';
                     this.hideLoading();
                 }, 100);
@@ -324,7 +436,20 @@ class Game {
             this.shopNPCs.some(n => n.showPrompt);
     }
 
-    init(isNextFloor = false) {
+    addScore(amount) {
+        const multiplier = this.difficulty === 'hard' ? 2 : 1;
+        this.score += amount * multiplier;
+    }
+
+    init(isNextFloor = false, difficulty = 'normal', startingSkillId = null, reuseExisting = false) {
+        this.difficulty = difficulty;
+        this.gameState = 'PLAYING';
+
+        // Reset Camera Targets for Gameplay (allow smooth transition from title/cinematic)
+        this.targetCameraOffsetX = 0;
+        this.targetCameraOffsetY = 0;
+        this.targetCameraZoom = 1.0;
+
         if (!isNextFloor) {
             this.currentFloor = 1;
         } else {
@@ -332,14 +457,24 @@ class Game {
             resetInventorySelection();
         }
 
-        // Larger Map: 100x80 tiles (4000x3200 pixels)
-        this.map = new Map(100, 80, 40);
-        this.map.generate();
-        _debugLog("Map Generated");
+        // --- Map Preparation ---
+        if (!reuseExisting || !this.map) {
+            // Larger Map: 100x80 tiles (4000x3200 pixels)
+            this.map = new Map(100, 80, 40);
+            this.map.generate();
+            _debugLog("Map Generated");
+        } else {
+            _debugLog("Reusing existing map from title screen");
+        }
 
         this.traps = [];
 
-        this.camera = new Camera(this.width / this.zoom, this.height / this.zoom, this.map.pixelWidth, this.map.pixelHeight);
+        // --- Camera Preparation ---
+        if (!reuseExisting || !this.camera) {
+            this.camera = new Camera(this.width / this.zoom, this.height / this.zoom, this.map.pixelWidth, this.map.pixelHeight);
+        } else {
+            _debugLog("Reusing existing camera from title screen");
+        }
 
         const startRoom = this.map.rooms.find(r => r.type === 'start') || this.map.rooms[0];
         console.log("Start Room:", startRoom);
@@ -348,38 +483,59 @@ class Game {
         const oldPlayer = this.player;
         if (startRoom) {
             this.player = new Player(this, (startRoom.x + startRoom.w / 2) * 40, (startRoom.y + startRoom.h / 2) * 40);
+
             if (isNextFloor && oldPlayer) {
                 // Restore skills and inventory
                 this.player.inventory = oldPlayer.inventory || [];
-                this.player.equippedSkills = oldPlayer.equippedSkills || {};
-                // Restore currency/shards if needed (Player constructor might reset them)
+                this.player.equippedSkills = oldPlayer.equippedSkills || {
+                    [SkillType.NORMAL]: null,
+                    'primary1': null,
+                    'primary2': null,
+                    [SkillType.SECONDARY]: null,
+                    [SkillType.ULTIMATE]: null
+                };
                 this.player.currency = oldPlayer.currency || 0;
                 this.player.hp = oldPlayer.hp;
                 this.player.maxHp = oldPlayer.maxHp;
                 this.player.aether = 0; // Reset aether rush on floor change
-                this.player.bloodBlessings = []; // Clear temporary blessings
+                this.player.bloodBlessings = oldPlayer.bloodBlessings || [];
+            } else if (this.debugMode) {
+                // Initial floor in debug mode
+                this.player.unlockAllSkills();
             }
-            console.log("Player Spawned at:", this.player.x, this.player.y);
         } else {
             console.error("CRITICAL: No rooms found to spawn player!");
             this.player = new Player(this, 100, 100); // Emergency fallback
         }
-        this.camera.follow(this.player);
 
-        // --- Load Skills from DB only on fresh start ---
+        console.log("Player Spawned at:", this.player.x, this.player.y);
+        if (!reuseExisting) {
+            this.camera.follow(this.player);
+        }
+
+        // --- Load Starting Skill ---
         if (!isNextFloor) {
-            skillsDB.forEach(skillData => {
-                const skill = createSkill(skillData);
-                if (skill) {
-                    this.player.acquireSkill(skill);
-                    // Auto equip for now based on type (simple logic)
-                    if (!this.player.equippedSkills[skill.type]) {
+            if (startingSkillId) {
+                const skillData = skillsDB.find(s => s.id === startingSkillId);
+                if (skillData) {
+                    const skill = createSkill(skillData);
+                    if (skill) {
+                        this.player.acquireSkill(skill);
                         this.player.equipSkill(skill);
                     }
                 }
-            });
+            } else {
+                // Fallback (should not happen with new UI)
+                const firstNormal = skillsDB.find(s => s.type === 'normal');
+                if (firstNormal) {
+                    const skill = createSkill(firstNormal);
+                    this.player.acquireSkill(skill);
+                    this.player.equipSkill(skill);
+                }
+            }
         }
         this.enemies = [];
+        this.traps = [];
         this.enemyProjectiles = [];
         this.chests = [];
         this.statues = [];
@@ -449,9 +605,12 @@ class Game {
                         }
                     }
                 }
+
+                if (room.type === 'boss') {
+                    this.map.hasBoss = true;
+                    this.map.bossDefeated = false;
+                }
             }
-
-
         }
 
         this.lastTime = performance.now();
@@ -462,6 +621,7 @@ class Game {
         this.uiHpMax = document.getElementById('hp-max');
         this.uiHpBar = document.getElementById('health-bar-fill');
         this.uiFloorValue = document.getElementById('floor-value');
+        this.uiScoreValue = document.getElementById('score-value');
         this.lastHp = null;
         this.lastMaxHp = null;
         this.showInventory = false;
@@ -727,6 +887,64 @@ class Game {
     }
 
     update(dt) {
+        if (!this.player || !this.camera) return;
+
+        // --- Background Fade-In (Dungeon Start) ---
+        if (this.isDungeonStarting && this.worldFadeAlpha > 0) {
+            this.worldFadeAlpha -= dt * 1.5; // Fade over ~0.66s
+            if (this.worldFadeAlpha < 0) this.worldFadeAlpha = 0;
+        }
+
+        // --- Essential Entity/Visual Updates (Available in all states) ---
+        this.player.update(dt);
+
+        // Update Animations
+        this.animations.forEach(a => {
+            a.life -= dt;
+            if (a.type === 'particle' || a.type === 'text') {
+                a.x += a.vx * dt;
+                a.y += a.vy * dt;
+            }
+            if (a.update) a.update(dt);
+        });
+        this.animations = this.animations.filter(a => a.life > 0);
+
+        // Interpolate Special Camera States
+        const zoomFactor = 3.0 * dt; // Doubled zoom speed (was 1.5)
+        const offsetFactor = 5.0 * dt; // Doubled movement speed (was 2.5)
+
+        if (Math.abs(this.targetCameraZoom - this.cameraZoom) > 0.001) {
+            this.cameraZoom += (this.targetCameraZoom - this.cameraZoom) * zoomFactor;
+        } else {
+            this.cameraZoom = this.targetCameraZoom;
+        }
+
+        if (Math.abs(this.targetCameraOffsetX - this.cameraOffsetX) > 0.1) {
+            this.cameraOffsetX += (this.targetCameraOffsetX - this.cameraOffsetX) * offsetFactor;
+        } else {
+            this.cameraOffsetX = this.targetCameraOffsetX;
+        }
+
+        if (Math.abs(this.targetCameraOffsetY - this.cameraOffsetY) > 0.1) {
+            this.cameraOffsetY += (this.targetCameraOffsetY - this.cameraOffsetY) * offsetFactor;
+        } else {
+            this.cameraOffsetY = this.targetCameraOffsetY;
+        }
+
+        // Consolidated Camera Update
+        let finalOffsetX = this.cameraOffsetX;
+        let finalOffsetY = this.cameraOffsetY;
+
+        if (this.gameState === 'DIALOGUE') {
+            finalOffsetX += 115; // Maintain dialogue shift
+        }
+
+        // Use higher smoothFactor for cinematic transitions to ensure linear path
+        const isCinematicTransition = this.targetCameraZoom !== 1.0 || this.targetCameraOffsetX !== 0;
+        const followSmoothness = isCinematicTransition ? 10 : 5;
+
+        this.camera.follow(this.player, dt, finalOffsetX, finalOffsetY, this.cameraZoom, followSmoothness);
+
         if (this.gameState === 'TITLE') {
             return;
         }
@@ -783,6 +1001,10 @@ class Game {
                 this.player.scale = 1.0; // Reset scale to default
 
                 if (this.transitionTimer >= duration) {
+                    // Add Floor Transition Score Reward
+                    const floorScore = 500;
+                    this.addScore(floorScore);
+
                     this.currentFloor++;
                     this.transitionType = 'fade-out';
                     this.transitionTimer = 0;
@@ -865,9 +1087,36 @@ class Game {
             return;
         }
 
-        this.player.update(dt);
+        // Minimap Fog of War logic here...
+        // ... (rest of update)
+
+        // Update Minimap (Fog of War)
+        const ptx = Math.floor((this.player.x + this.player.width / 2) / this.map.tileSize);
+        const pty = Math.floor((this.player.y + this.player.height / 2) / this.map.tileSize);
+        this.map.markExplored(ptx, pty, 6); // Radius of 6 tiles
+
         if (this.player.markedForDeletion) {
-            this.isGameOver = true;
+            if (!this.isGameOver) {
+                this.isGameOver = true;
+                // Update local high score
+                const isNewRecord = SaveManager.updateHighScore(this.score);
+                if (isNewRecord) {
+                    this.highScore = this.score;
+                    console.log(`[Game] New High Score: ${this.highScore}`);
+
+                    // Show Nickname Input for Online Ranking
+                    setTimeout(() => {
+                        showNicknameInput(async (name) => {
+                            try {
+                                await submitScore(name, this.score);
+                                console.log("[Game] Online score submitted successfully.");
+                            } catch (e) {
+                                console.error("[Game] Failed to submit online score:", e);
+                            }
+                        });
+                    }, 1500); // Small delay to let game over screen settle
+                }
+            }
         }
 
         // --- Room Encounter Logic ---
@@ -886,20 +1135,29 @@ class Game {
                 this.player.y >= ry && this.player.y + this.player.height <= ry + rh;
         });
 
-        if (currentRoom) {
+        if (currentRoom && this.gameState === 'PLAYING') {
             // Trigger Encounter
             if (!currentRoom.cleared && !currentRoom.active) {
                 currentRoom.active = true;
                 this.map.closeRoom(currentRoom);
 
-                // Only spawn enemies in normal combat rooms
+                if (currentRoom.type === 'boss') {
+                    const bx = (currentRoom.x + currentRoom.w / 2) * this.map.tileSize - 45;
+                    const by = (currentRoom.y + currentRoom.h / 2) * this.map.tileSize - 45;
+                    this.enemies.push(new Boss(this, bx, by));
+                    this.camera.shake(0.5, 10);
+                    this.logToScreen("WARNING: BOSS DETECTED!");
+                    return;
+                }
+
                 if (currentRoom.type !== 'normal') {
-                    // Non-combat room — clear immediately (safety net; should already be cleared)
+                    // Non-combat room — clear immediately
                     currentRoom.active = false;
                     currentRoom.cleared = true;
                     this.map.openRoom(currentRoom);
                     return;
                 }
+
                 // Cost-based spawning: rooms have a budget, enemies have a cost.
                 const area = currentRoom.w * currentRoom.h;
                 let budget = Math.max(8, Math.floor(area / 15) + Math.floor(Math.random() * 5));
@@ -908,7 +1166,8 @@ class Game {
                     { type: 'bat', cost: 1, ew: 24, eh: 24, Class: Bat },
                     { type: 'slime', cost: 2, ew: 32, eh: 32, Class: Slime },
                     { type: 'goblin', cost: 4, ew: 64, eh: 64, Class: Goblin },
-                    { type: 'skeleton', cost: 3, ew: 40, eh: 48, Class: SkeletonArcher }
+                    { type: 'skeleton', cost: 3, ew: 40, eh: 48, Class: SkeletonArcher },
+                    { type: 'ghost', cost: 5, ew: 40, eh: 48, Class: Ghost }
                 ];
 
                 while (budget > 0) {
@@ -1003,7 +1262,8 @@ class Game {
             const cy = (currentRoom.y + currentRoom.h / 2) * this.map.tileSize;
             const dist = Math.sqrt((this.player.x - cx) ** 2 + (this.player.y - cy) ** 2);
 
-            if (dist < 60) {
+            const isPortalLocked = this.map.hasBoss && !this.map.bossDefeated;
+            if (dist < 60 && !isPortalLocked) {
                 this.showStairPrompt = true;
                 this.stairPromptX = cx;
                 this.stairPromptY = cy;
@@ -1025,10 +1285,18 @@ class Game {
             this.showStairPrompt = false;
         }
 
-        this.camera.follow(this.player, dt);
+        // Camera update handled at the top of update() now.
 
+        const hadBoss = this.enemies.some(e => e.isBoss);
         this.enemies.forEach(enemy => enemy.update(dt));
         this.enemies = this.enemies.filter(e => !e.markedForDeletion);
+
+        if (hadBoss && !this.enemies.some(e => e.isBoss)) {
+            // Boss was just defeated
+            this.map.bossDefeated = true;
+            this.logToScreen("PORTAL ACTIVATED!");
+            this.camera.shake(0.5, 15);
+        }
 
         // --- Update Enemy Projectiles (Global) ---
         this.enemyProjectiles.forEach(p => p.update(dt, this));
@@ -1108,7 +1376,8 @@ class Game {
 
         // Portal Particles (Stairs)
         const stairRoom = this.map.rooms.find(r => r.type === 'staircase');
-        if (stairRoom) {
+        const showPortalFX = stairRoom && (!this.map.hasBoss || this.map.bossDefeated);
+        if (showPortalFX) {
             // Check visibility (optimization)
             const sx = (stairRoom.x + stairRoom.w / 2) * this.map.tileSize;
             const sy = (stairRoom.y + stairRoom.h / 2) * this.map.tileSize;
@@ -1139,16 +1408,9 @@ class Game {
         this.entities.forEach(e => e.update(dt));
         this.entities = this.entities.filter(e => !e.markedForDeletion);
 
-        // Update Animations
-        this.animations.forEach(a => {
-            a.life -= dt;
-            if (a.type === 'particle' || a.type === 'text') {
-                a.x += a.vx * dt;
-                a.y += a.vy * dt;
-            }
-            if (a.update) a.update(dt);
-        });
-        this.animations = this.animations.filter(a => a.life > 0);
+        // Update Animations (Removed from here - now at the top of update)
+        // No change needed here if already removed or just cleaning up.
+        // I'll remove the redundant block below.
 
         // Update Projectiles
         this.projectiles.forEach(p => {
@@ -1158,49 +1420,114 @@ class Game {
             }
 
             p.update(dt);
-            // Check collision with enemies
-            this.enemies.forEach(e => {
-                if (p.x < e.x + e.width && p.x + p.w > e.x &&
-                    p.y < e.y + e.height && p.y + p.h > e.y) {
 
-                    // Prevent multi-hits per enemy
+            if (p.isEnemy) {
+                // --- Enemy Projectile Logic: Hits Player ---
+                const padX = this.player.width * 0.2;
+                const padY = this.player.height * 0.2;
+
+                if (p.x < this.player.x + this.player.width - padX && p.x + p.w > this.player.x + padX &&
+                    p.y < this.player.y + this.player.height - padY && p.y + p.h > this.player.y + padY) {
+
+                    // Prevent multi-hits if needed (optional for player hits, but good for consistency)
                     p.hitPool = p.hitPool || new Set();
-                    if (p.hitPool.has(e)) return;
-                    p.hitPool.add(e);
+                    if (p.hitPool.has(this.player)) return;
+                    p.hitPool.add(this.player);
 
-                    // Screen Shake - Only on successful hit
-                    if (!p.noShake) {
-                        this.camera.shake(0.15, 3.5);
-                    }
-
-                    if (p.onHitEnemy) {
-                        p.onHitEnemy(e, this, dt);
+                    if (p.onHitPlayer) {
+                        p.onHitPlayer(this.player, this, dt);
                     } else {
-                        // Critical hit roll
-                        const isCrit = p.critChance > 0 && Math.random() < p.critChance;
-                        const finalDamage = isCrit ? p.damage * (p.critMultiplier || 2.0) : p.damage;
+                        this.player.takeDamage(p.damage || 10);
 
-                        e.takeDamage(finalDamage, p.damageColor, p.aetherCharge, isCrit);
-
-                        // Apply Status (Standard Projectiles)
-                        if (p.statusEffect && (!p.statusChance || Math.random() < p.statusChance)) {
-                            if (e.statusManager) {
-                                e.statusManager.applyStatus(p.statusEffect, 5.0);
-                            }
-                        }
-
+                        // Destroy projectile unless it has pierce
                         if (!p.pierce || p.pierce <= 1) {
-                            p.life = 0; // Destroy projectile
-                        } else {
-                            if (typeof p.pierce === 'number') p.pierce--;
+                            p.life = 0;
+                        } else if (typeof p.pierce === 'number') {
+                            p.pierce--;
                         }
+
                         if (!p.noHitParticles) {
-                            const particleColor = isCrit ? '#FFD700' : 'orange';
-                            this.spawnParticles(p.x, p.y, isCrit ? 12 : 8, particleColor);
+                            this.spawnParticles(p.x, p.y, 8, 'red');
                         }
                     }
                 }
-            });
+            } else {
+                // --- Player Projectile Logic: Hits Enemies ---
+                this.enemies.forEach(e => {
+                    const padX = e.width * 0.15;
+                    const padY = e.height * 0.15;
+                    if (p.x < e.x + e.width - padX && p.x + p.w > e.x + padX &&
+                        p.y < e.y + e.height - padY && p.y + p.h > e.y + padY) {
+
+                        // Prevent multi-hits per enemy
+                        p.hitPool = p.hitPool || new Set();
+                        if (p.hitPool.has(e)) return;
+                        p.hitPool.add(e);
+
+                        // Screen Shake - Only on successful hit
+                        if (!p.noShake) {
+                            this.camera.shake(0.15, 3.5);
+                        }
+
+                        if (p.onHitEnemy) {
+                            p.onHitEnemy(e, this, dt);
+                        } else {
+                            // Critical hit roll
+                            const isCrit = p.critChance > 0 && Math.random() < p.critChance;
+                            const finalDamage = isCrit ? p.damage * (p.critMultiplier || 2.0) : p.damage;
+
+                            e.takeDamage(finalDamage, p.damageColor, p.aetherCharge, isCrit);
+
+                            // Apply Status (Standard Projectiles)
+                            if (p.statusEffect && (!p.statusChance || Math.random() < p.statusChance)) {
+                                if (e.statusManager) {
+                                    e.statusManager.applyStatus(p.statusEffect, 5.0);
+                                }
+                            }
+
+                            if (!p.pierce || p.pierce <= 1) {
+                                p.life = 0; // Destroy projectile
+                            } else {
+                                if (typeof p.pierce === 'number') p.pierce--;
+                            }
+                            if (!p.noHitParticles) {
+                                const particleColor = isCrit ? '#FFD700' : 'orange';
+                                this.spawnParticles(p.x, p.y, isCrit ? 12 : 8, particleColor);
+                            }
+                        }
+                    }
+                });
+
+                // --- Player Projectile Logic: Hits Destructible Enemy Projectiles (Crystals, etc.) ---
+                this.enemyProjectiles.forEach(ep => {
+                    if (ep.hp !== undefined || ep.takeDamage) {
+                        const epPadX = (ep.w || 20) * 0.1;
+                        const epPadY = (ep.h || 20) * 0.1;
+
+                        if (p.x < ep.x + (ep.w || 20) - epPadX && p.x + (p.w || 10) > ep.x + epPadX &&
+                            p.y < ep.y + (ep.h || 20) - epPadY && p.y + (p.h || 10) > ep.y + epPadY) {
+
+                            p.hitPool = p.hitPool || new Set();
+                            if (p.hitPool.has(ep)) return;
+                            p.hitPool.add(ep);
+
+                            if (ep.takeDamage) {
+                                ep.takeDamage(p.damage || 1);
+                            } else if (ep.hp !== undefined) {
+                                ep.hp -= (p.damage || 1);
+                                if (ep.hp <= 0) ep.life = 0;
+                            }
+
+                            if (!p.pierce || p.pierce <= 1) {
+                                p.life = 0;
+                            } else if (typeof p.pierce === 'number') {
+                                p.pierce--;
+                            }
+                        }
+                    }
+                });
+            }
+
             // Check wall collision
             if (!p.ignoreWallDestruction && this.map.isWall(p.x + p.w / 2, p.y + p.h / 2)) {
                 if (p.onHitWall) {
@@ -1231,7 +1558,14 @@ class Game {
         if (this.uiFloorValue) {
             this.uiFloorValue.textContent = this.currentFloor;
         }
+
+        // Update Score UI
+        if (this.uiScoreValue) {
+            this.uiScoreValue.textContent = Math.floor(this.score);
+        }
     }
+
+
 
     drawProjectile(p) {
         if (p.draw) {
@@ -1452,20 +1786,17 @@ class Game {
     }
 
     draw() {
-        if (this.gameState === 'TITLE') {
-            // Standard clear
-            this.ctx.fillStyle = '#0a0a0a';
-            this.ctx.fillRect(0, 0, this.width, this.height);
-            return;
-        }
+        this.ctx.clearRect(0, 0, this.width, this.height);
 
-        // Clear screen
-        this.ctx.fillStyle = '#000';
-        this.ctx.fillRect(0, 0, this.width, this.height);
+        if (!this.camera || !this.player) return;
 
         // --- Camera Space ---
         this.ctx.save();
-        this.ctx.scale(this.zoom, this.zoom);
+
+        // Base Zoom * Cinematic Zoom
+        const finalZoom = this.zoom * this.camera.zoom;
+        this.ctx.scale(finalZoom, finalZoom);
+
         this.ctx.translate(-Math.floor(this.camera.x), -Math.floor(this.camera.y));
 
         this.map.draw(this.ctx, this.camera, this.player, this.debugMode);
@@ -1827,7 +2158,7 @@ class Game {
                     this.ctx.restore();
                 }
                 // Removed Fallback: Don't draw yellow square if loading or invalid.
-            } else if (!a.type) {
+            } else {
                 this.ctx.fillStyle = a.color || 'white';
                 this.ctx.fillRect(Math.floor(a.x), Math.floor(a.y), a.w, a.h);
             }
@@ -1837,8 +2168,24 @@ class Game {
 
         this.ctx.restore();
 
+        // --- Cinematic Fade Overlay (Final pass before/during UI) ---
+        if (this.worldFadeAlpha > 0) {
+            this.ctx.save();
+            this.ctx.setTransform(1, 0, 0, 1, 0, 0); // Screen space
+            this.ctx.fillStyle = `rgba(0, 0, 0, ${this.worldFadeAlpha})`;
+            this.ctx.fillRect(0, 0, (this.canvas.width || this.width), (this.canvas.height || this.height));
+            this.ctx.restore();
+        }
+
         // --- UI Space ---
         drawUI(this.ctx, this, this.width, this.height);
+
+        // Draw Boss Health Bar if active
+        const boss = this.enemies.find(e => e.isBoss && !e.markedForDeletion);
+        if (boss) {
+            this.drawBossHealthBar(boss);
+        }
+
         this.drawRewardUI();
 
         if (this.gameState === 'DIALOGUE') {
@@ -1855,6 +2202,45 @@ class Game {
             this.ctx.fillRect(0, 0, this.width, this.height);
             this.ctx.restore();
         }
+    }
+
+    drawBossHealthBar(boss) {
+        const barW = 600;
+        const barH = 20;
+        const x = (this.width - barW) / 2;
+        const y = 50;
+
+        this.ctx.save();
+        this.ctx.setTransform(1, 0, 0, 1, 0, 0); // HUD space
+
+        // Shadow/Background
+        this.ctx.fillStyle = 'rgba(0,0,0,0.5)';
+        this.ctx.fillRect(x - 4, y - 4, barW + 8, barH + 8);
+
+        // Name
+        this.ctx.fillStyle = 'white';
+        this.ctx.font = "bold 20px 'Press Start 2P', monospace";
+        this.ctx.textAlign = 'center';
+        this.ctx.shadowColor = 'black';
+        this.ctx.shadowBlur = 4;
+        this.ctx.fillText(boss.displayName, this.width / 2, y - 15);
+
+        // HP Bar
+        const ratio = boss.hp / boss.maxHp;
+        this.ctx.fillStyle = '#330000';
+        this.ctx.fillRect(x, y, barW, barH);
+
+        const grad = this.ctx.createLinearGradient(x, y, x, y + barH);
+        grad.addColorStop(0, '#ff0044');
+        grad.addColorStop(1, '#880022');
+        this.ctx.fillStyle = grad;
+        this.ctx.fillRect(x, y, barW * ratio, barH);
+
+        // Glass reflection
+        this.ctx.fillStyle = 'rgba(255,255,255,0.1)';
+        this.ctx.fillRect(x, y, barW, barH / 2);
+
+        this.ctx.restore();
     }
 
     triggerSkillSelection(skills) {
@@ -1923,7 +2309,7 @@ class Game {
                     const remainingDuration = this.slowMotionDuration - 0.3;
                     if (remainingDuration > 0) {
                         const p = (elapsed - 0.3) / remainingDuration;
-                        // Exponential curve from 0.2 to 1.0: y = 0.2 * (5^x)
+                        // Exponential curve from 0.2 to 1.0: y = 0.2 * Math.pow(5, p)
                         // x=0 -> y=0.2, x=1 -> y=1.0
                         this.timeScale = 0.2 * Math.pow(5, p);
                     } else {
@@ -1966,7 +2352,7 @@ class Game {
     }
 }
 
-window.onload = () => {
+document.addEventListener('DOMContentLoaded', () => {
     try {
         console.log("Starting Game Initialization...");
         const game = new Game();
@@ -1974,7 +2360,7 @@ window.onload = () => {
     } catch (e) {
         console.error("Game Initialization Failed:", e);
     }
-};
+});
 
 window.addEventListener('error', (e) => {
     console.error("Runtime Error:", e.message);

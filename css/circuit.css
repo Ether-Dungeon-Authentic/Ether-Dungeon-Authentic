@@ -1,0 +1,304 @@
+/* Aether Circuit System Styles */
+
+.circuit-layout {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 0 10px 10px 10px;
+    height: 100%;
+}
+
+.capacity-gauge-container {
+    padding: 8px 0;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.capacity-gauge-container span {
+    display: inline-block;
+    margin-bottom: 0;
+    font-size: 10px;
+    color: #00ffff;
+    font-family: 'Press Start 2P', cursive;
+    white-space: nowrap;
+}
+
+.capacity-bar-track {
+    flex-grow: 1;
+    height: 8px;
+    background: #222;
+    border: 1px solid #555;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.capacity-bar-fill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, #0088ff, #00ffff);
+    box-shadow: 0 0 10px #00ffff;
+    transition: width 0.3s ease;
+}
+
+.circuit-main {
+    display: flex;
+    flex-direction: row;
+    gap: 25px;
+    align-items: stretch;
+    flex: 1;
+    min-height: 0;
+}
+
+/* Left Column: Slots + Detail */
+.chip-slots-area {
+    flex: 0 0 210px;
+    /* Updated from 255px (60*3 + 15*2) */
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.chip-slots {
+    display: grid;
+    grid-template-columns: repeat(3, 60px);
+    grid-template-rows: repeat(2, 48px);
+    gap: 15px;
+}
+
+.chip-detail-panel {
+    margin-top: 15px;
+    width: 210px;
+    flex: 1;
+    /* Make it flexible to avoid cutting off */
+    min-height: 120px;
+    /* Base height */
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid #444;
+    border-radius: 8px;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    box-sizing: border-box;
+}
+
+/* Right Column: Inventory List */
+.chip-inventory-area {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.chip-list {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    /* Force 4 columns */
+    gap: 8px;
+    background: rgba(0, 0, 0, 0.2);
+    padding: 10px;
+    border-radius: 8px;
+    border: 1px solid #333;
+    flex: 1;
+    max-height: 500px;
+    overflow-y: auto;
+    align-content: start;
+    /* Ensure chips stick to the top */
+}
+
+/* Chip Item Common Styles */
+.chip-list .chip-item {
+    padding: 4px;
+    /* Slightly tighter padding for list items */
+}
+
+.chip-item {
+    width: 60px;
+    height: 48px;
+    background: #333;
+    border: 2px solid #555;
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    padding: 5px;
+    position: relative;
+    transition: all 0.2s;
+    box-sizing: border-box;
+}
+
+.chip-item:hover {
+    border-color: #fff;
+    transform: translateY(-2px);
+}
+
+.chip-item.equipped {
+    border-color: #00ffff;
+    background: rgba(0, 255, 255, 0.1);
+}
+
+.chip-item.selected {
+    box-shadow: 0 0 10px #fff;
+    border-color: #fff;
+}
+
+.chip-category {
+    font-size: 8px;
+    padding: 2px 4px;
+    border-radius: 2px;
+    color: white;
+    text-transform: uppercase;
+    margin-bottom: 2px;
+}
+
+.cat-insight {
+    background: #9b59b6;
+}
+
+.cat-technique {
+    background: #e67e22;
+}
+
+.cat-durability {
+    background: #2ecc71;
+}
+
+.cat-agility {
+    background: #3498db;
+}
+
+.chip-name {
+    font-size: 9px;
+    text-align: center;
+    word-break: break-all;
+    line-height: 1.1;
+    margin: auto 0;
+    /* Center vertically in the item */
+}
+
+/* Rank Dots */
+.chip-rank-dots {
+    display: flex;
+    gap: 3px;
+    margin-top: auto;
+    /* Push to bottom */
+    justify-content: center;
+    width: 100%;
+}
+
+.dot {
+    width: 5px;
+    height: 5px;
+    background: #444;
+    border-radius: 50%;
+    border: 1px solid #222;
+}
+
+.dot.filled {
+    background: #ffcc00;
+    box-shadow: 0 0 5px #ffcc00;
+    border-color: #fff;
+}
+
+/* Detail Panel Internal Styles */
+.detail-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    padding-bottom: 5px;
+}
+
+.detail-title {
+    font-size: 11px;
+    font-weight: bold;
+    color: #fff;
+    font-family: 'Press Start 2P', cursive;
+}
+
+.detail-description {
+    font-size: 10px;
+    color: #ccc;
+    line-height: 1.4;
+    flex-grow: 1;
+    overflow-y: auto;
+}
+
+.detail-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    padding-top: 8px;
+}
+
+.detail-cost-value {
+    font-size: 11px;
+    color: #ffd700;
+    font-weight: bold;
+    font-family: 'Press Start 2P', cursive;
+    background: rgba(0, 0, 0, 0.4);
+    padding: 2px 5px;
+    border-radius: 3px;
+}
+
+.detail-action-btn {
+    background: #0088ff;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 4px 12px;
+    cursor: pointer;
+    font-size: 9px;
+    font-weight: bold;
+}
+
+.detail-action-btn:hover {
+    background: #00aaff;
+}
+
+.detail-action-btn.unequip {
+    background: #e74c3c;
+}
+
+.detail-action-btn.unequip:hover {
+    background: #ff5e4d;
+}
+
+.detail-placeholder {
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    color: #666;
+    font-style: italic;
+    font-size: 11px;
+}
+
+/* Labels */
+.grid-label {
+    font-size: 10px;
+    color: #888;
+    margin-bottom: 5px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+/* Empty Slot */
+.chip-slot-empty {
+    width: 60px;
+    height: 48px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 2px dashed #444;
+    border-radius: 4px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    color: #444;
+    font-size: 8px;
+    /* Slightly smaller for smaller slot */
+}

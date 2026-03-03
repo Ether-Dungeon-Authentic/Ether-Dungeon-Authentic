@@ -21,7 +21,7 @@ export class ShopNPC extends Entity {
         this.showPrompt = false;
         this.stock = [];
         this._stockReady = false;
-        this._image = getCachedImage('assets/shop_npc.png');
+        this.image = getCachedImage('assets/entities/shop_npc.png');
         this.hoveredItemIndex = -1;
 
         // Offset positions for 3 items in front of the merchant
@@ -87,14 +87,14 @@ export class ShopNPC extends Entity {
         const facingLeft = px < cx;
 
         // NPC image
-        if (this._image && this._image.complete && this._image.naturalWidth !== 0) {
+        if (this.image && this.image.complete && this.image.naturalWidth !== 0) {
             ctx.save();
             if (facingLeft) {
                 ctx.translate(cx, 0);
                 ctx.scale(-1, 1);
                 ctx.translate(-cx, 0);
             }
-            ctx.drawImage(this._image, this.x, this.y, this.width, this.height);
+            ctx.drawImage(this.image, this.x, this.y, this.width, this.height);
             ctx.restore();
         }
 
@@ -183,7 +183,7 @@ export class ShopNPC extends Entity {
             ctx.shadowBlur = 3;
 
             // Draw Aether Shard Icon instead of diamond
-            const shardImg = getCachedImage('assets/aether_shard.png');
+            const shardImg = getCachedImage('assets/ui/aether_shard.png');
             const iconSize = 16;
             const priceText = `${item.price}`;
             const textWidth = ctx.measureText(priceText).width;

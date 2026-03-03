@@ -58,7 +58,7 @@ export class StatusManager {
                 if (effect.tickTimer >= 1.0) { // Tick every 1 second
                     effect.tickTimer -= 1.0;
                     const dmg = effect.stacks * 2; // 2 damage per stack
-                    this.owner.takeDamage(dmg, '#ff6600', 0); // Orange color, no aether gain
+                    this.owner.takeDamage(dmg, '#ff6600', 0, false, 0, 0, 0, true); // Orange color, no aether gain, silent
                     this.showStatusText('burn_tick', dmg);
                 }
             }

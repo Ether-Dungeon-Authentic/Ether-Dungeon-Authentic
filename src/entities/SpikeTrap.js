@@ -21,7 +21,7 @@ export class SpikeTrap extends Entity {
         this.hitCooldowns = new Map(); // Store cooldown per enemy
         this.cooldownTime = 0.5;
 
-        this.spikeImage = getCachedImage('assets/trap_spike.png');
+        this.spikeImage = getCachedImage('assets/map/trap_spike.png');
     }
 
     update(dt) {
@@ -106,7 +106,7 @@ export class SpikeTrap extends Entity {
         ctx.lineWidth = 2;
         ctx.strokeRect(x, y, w, h);
 
-        const hasImage = this.spikeImage.complete && this.spikeImage.naturalWidth !== 0;
+        const hasImage = this.spikeImage && this.spikeImage.complete && this.spikeImage.naturalWidth !== 0;
 
         // Holes / Spikes
         const padding = 10;
