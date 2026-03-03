@@ -69,10 +69,10 @@
 .chip-detail-panel {
     margin-top: 15px;
     width: 210px;
-    flex: 1;
-    /* Make it flexible to avoid cutting off */
-    min-height: 120px;
-    /* Base height */
+    flex: 0 0 auto;
+    /* Changed from flex: 1 to prevent stretching */
+    min-height: 100px;
+    /* Reduced from 120px */
     background: rgba(255, 255, 255, 0.05);
     border: 1px solid #444;
     border-radius: 8px;
@@ -94,15 +94,17 @@
 
 .chip-list {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    /* Force 4 columns */
+    grid-template-columns: repeat(3, 1fr);
+    /* Force 3 columns */
     gap: 8px;
+    justify-items: center;
     background: rgba(0, 0, 0, 0.2);
     padding: 10px;
     border-radius: 8px;
     border: 1px solid #333;
     flex: 1;
-    max-height: 500px;
+    max-height: 480px;
+    /* Adjusted to fit content better */
     overflow-y: auto;
     align-content: start;
     /* Ensure chips stick to the top */
@@ -217,15 +219,16 @@
     font-size: 11px;
     font-weight: bold;
     color: #fff;
-    font-family: 'Press Start 2P', cursive;
+    font-family: 'Segoe UI', 'Meiryo', 'Hiragino Kaku Gothic ProN', sans-serif;
 }
 
 .detail-description {
-    font-size: 10px;
+    font-size: 11px;
     color: #ccc;
     line-height: 1.4;
     flex-grow: 1;
     overflow-y: auto;
+    font-family: 'Segoe UI', 'Meiryo', 'Hiragino Kaku Gothic ProN', sans-serif;
 }
 
 .detail-footer {
@@ -240,7 +243,7 @@
     font-size: 11px;
     color: #ffd700;
     font-weight: bold;
-    font-family: 'Press Start 2P', cursive;
+    font-family: 'Segoe UI', 'Meiryo', 'Hiragino Kaku Gothic ProN', sans-serif;
     background: rgba(0, 0, 0, 0.4);
     padding: 2px 5px;
     border-radius: 3px;

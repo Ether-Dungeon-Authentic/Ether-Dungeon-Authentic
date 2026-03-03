@@ -100,7 +100,10 @@ export const areaBehaviors = {
                                     ky = ((ey - center.y) / dist) * params.knockback;
                                 }
 
-                                enemy.takeDamage(params.damage, params.damageColor, params.aetherCharge, false, kx, ky);
+                                const isCrit = params.critChance > 0 && Math.random() < params.critChance;
+                                const finalDamage = isCrit ? params.damage * (params.critMultiplier || 2.0) : params.damage;
+
+                                enemy.takeDamage(finalDamage, params.damageColor, params.aetherCharge, isCrit, kx, ky);
                                 // Shake on hit
                                 game.camera.shake(0.15, 3.5);
 
@@ -127,8 +130,12 @@ export const areaBehaviors = {
                         kx = ((ex - center.x) / dist) * params.knockback;
                         ky = ((ey - center.y) / dist) * params.knockback;
                     }
-                    enemy.takeDamage(params.damage, params.damageColor, params.aetherCharge, false, kx, ky);
-                    game.spawnParticles(ex, ey, 10, '#ff0000');
+
+                    const isCrit = params.critChance > 0 && Math.random() < params.critChance;
+                    const finalDamage = isCrit ? params.damage * (params.critMultiplier || 2.0) : params.damage;
+
+                    enemy.takeDamage(finalDamage, params.damageColor, params.aetherCharge, isCrit, kx, ky);
+                    game.spawnParticles(ex, ey, isCrit ? 15 : 10, isCrit ? '#FFD700' : '#ff0000');
                 }
             });
         }
@@ -246,6 +253,8 @@ export const areaBehaviors = {
                         color: '#a5f2f3',
                         damageColor: params.damageColor,
                         aetherCharge: params.aetherCharge,
+                        critChance: params.critChance || 0,
+                        critMultiplier: params.critMultiplier || 2.0,
                         alpha: 1.0,
 
                         hideWhileLoading: false,
@@ -303,8 +312,12 @@ export const areaBehaviors = {
                             let t = this.hitTimers.get(enemy.id);
 
                             if (t === undefined || t >= this.tickInterval) {
-                                enemy.takeDamage(this.damage, this.damageColor, this.aetherCharge);
-                                gameInstance.spawnParticles(enemy.x + enemy.width / 2, enemy.y + enemy.height / 2, 5, 'cyan');
+                                // Critical hit roll for spikes
+                                const isCrit = this.critChance > 0 && Math.random() < this.critChance;
+                                const finalDamage = isCrit ? this.damage * (this.critMultiplier || 2.0) : this.damage;
+
+                                enemy.takeDamage(finalDamage, this.damageColor, this.aetherCharge, isCrit);
+                                gameInstance.spawnParticles(enemy.x + enemy.width / 2, enemy.y + enemy.height / 2, isCrit ? 10 : 5, isCrit ? '#FFD700' : 'cyan');
                                 this.hitTimers.set(enemy.id, 0);
                             }
                         },
@@ -768,8 +781,11 @@ export const areaBehaviors = {
                                             // Enemy width/2 + Spike width/2 = contact
                                             // Plus some vertical forgiveness
                                             if (dx < (enemy.width / 2 + 10) && dy < 20) {
-                                                enemy.takeDamage(this.damage, this.damageColor, this.aetherCharge);
-                                                game.spawnParticles(ex, ey - 10, 5, '#a5f2f3');
+                                                const isCrit = params.critChance > 0 && Math.random() < params.critChance;
+                                                const finalDamage = isCrit ? this.damage * (params.critMultiplier || 2.0) : this.damage;
+
+                                                enemy.takeDamage(finalDamage, this.damageColor, this.aetherCharge, isCrit);
+                                                game.spawnParticles(ex, ey - 10, isCrit ? 10 : 5, isCrit ? '#FFD700' : '#a5f2f3');
                                                 // Camera shake removed per user request
                                             }
                                         }

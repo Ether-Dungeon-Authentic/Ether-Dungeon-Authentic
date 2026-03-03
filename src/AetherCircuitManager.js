@@ -62,7 +62,11 @@ export class AetherCircuitManager {
         const bonuses = {
             damageMult: 0,
             maxHp: 0,
-            speedMult: 0
+            speedMult: 0,
+            aetherChargeMult: 0,
+            fireDamageMult: 0,
+            critRateAdd: 0,
+            onHitDamageBuff: 0
         };
 
         this.slots.forEach(chip => {
@@ -71,6 +75,10 @@ export class AetherCircuitManager {
                 if (chip.data.effectType === 'damage_mult') bonuses.damageMult += effect;
                 if (chip.data.effectType === 'max_hp') bonuses.maxHp += effect;
                 if (chip.data.effectType === 'speed_mult') bonuses.speedMult += effect;
+                if (chip.data.effectType === 'aether_charge_mult') bonuses.aetherChargeMult += effect;
+                if (chip.data.effectType === 'fire_damage_mult') bonuses.fireDamageMult += effect;
+                if (chip.data.effectType === 'crit_rate_add') bonuses.critRateAdd += effect;
+                if (chip.data.effectType === 'on_hit_damage_buff') bonuses.onHitDamageBuff += effect;
             }
         });
 

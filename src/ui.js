@@ -617,22 +617,43 @@ const settingsModal = document.getElementById('settings-modal');
 const btnCloseSettings = document.getElementById('btn-close-settings');
 const btnTraining = document.getElementById('btn-training');
 
+let _settingsInitialized = false;
+
 export function initSettingsUI(game) {
     const cheatContainer = document.getElementById('cheat-menu-container');
     if (cheatContainer) {
         cheatContainer.style.display = game.debugMode ? 'block' : 'none';
     }
 
-    if (settingsBtn) {
-        settingsBtn.addEventListener('click', () => {
-            settingsModal.style.display = 'flex';
-            game.isPaused = true;
-            // Update invincible button text when opening
-            const invBtn = document.getElementById('btn-cheat-invincible');
-            if (invBtn && game.player) {
-                invBtn.textContent = `無敵: ${game.player.isCheatInvincible ? 'ON' : 'OFF'}`;
-            }
-        });
+    if (!_settingsInitialized) {
+        _settingsInitialized = true;
+
+        if (settingsBtn) {
+            settingsBtn.addEventListener('click', () => {
+                settingsModal.style.display = 'flex';
+                game.isPaused = true;
+                // Update invincible button text when opening
+                const invBtn = document.getElementById('btn-cheat-invincible');
+                if (invBtn && game.player) {
+                    invBtn.textContent = `無敵: ${game.player.isCheatInvincible ? 'ON' : 'OFF'}`;
+                }
+            });
+        }
+
+        if (btnCloseSettings) {
+            btnCloseSettings.addEventListener('click', () => {
+                settingsModal.style.display = 'none';
+                game.isPaused = false;
+            });
+        }
+
+        if (btnTraining) {
+            btnTraining.addEventListener('click', () => {
+                settingsModal.style.display = 'none';
+                game.isPaused = false;
+                game.enterTrainingMode();
+            });
+        }
     }
 
     // Cheat Button Listeners
@@ -672,20 +693,6 @@ export function initSettingsUI(game) {
         };
     }
 
-    if (btnCloseSettings) {
-        btnCloseSettings.addEventListener('click', () => {
-            settingsModal.style.display = 'none';
-            game.isPaused = false;
-        });
-    }
-
-    if (btnTraining) {
-        btnTraining.addEventListener('click', () => {
-            settingsModal.style.display = 'none';
-            game.isPaused = false;
-            game.enterTrainingMode();
-        });
-    }
 }
 
 // --- Ranking UI ---
@@ -699,17 +706,23 @@ const nicknameInput = document.getElementById('nickname-input');
 const btnSubmitNickname = document.getElementById('btn-submit-nickname');
 const btnCancelNickname = document.getElementById('btn-cancel-nickname');
 
-export function initRankingUI(game) {
-    if (btnOpenRanking) {
-        btnOpenRanking.addEventListener('click', () => {
-            showRanking();
-        });
-    }
+let _rankingInitialized = false;
 
-    if (btnCloseRanking) {
-        btnCloseRanking.addEventListener('click', () => {
-            hideRanking();
-        });
+export function initRankingUI(game) {
+    if (!_rankingInitialized) {
+        _rankingInitialized = true;
+
+        if (btnOpenRanking) {
+            btnOpenRanking.addEventListener('click', () => {
+                showRanking();
+            });
+        }
+
+        if (btnCloseRanking) {
+            btnCloseRanking.addEventListener('click', () => {
+                hideRanking();
+            });
+        }
     }
 }
 
@@ -958,7 +971,6 @@ export function showStageSettings(game, skills, onStartCallback, onBackCallback)
             }[chip.data.category] || '';
 
             item.innerHTML = `
-                <div class="chip-category ${catClass}">${chip.data.category}</div>
                 <div class="chip-name">${chip.data.name}</div>
                 <div class="chip-rank-dots">
                     ${Array.from({ length: 5 }).map((_, i) => `<span class="dot ${i < chip.level ? 'filled' : ''}"></span>`).join('')}
@@ -988,7 +1000,6 @@ export function showStageSettings(game, skills, onStartCallback, onBackCallback)
                 }[chip.data.category] || '';
 
                 item.innerHTML = `
-                    <div class="chip-category ${catClass}">${chip.data.category}</div>
                     <div class="chip-name">${chip.data.name}</div>
                     <div class="chip-rank-dots">
                         ${Array.from({ length: 5 }).map((_, i) => `<span class="dot ${i < chip.level ? 'filled' : ''}"></span>`).join('')}

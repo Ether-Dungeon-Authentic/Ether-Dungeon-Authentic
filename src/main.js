@@ -1827,80 +1827,73 @@ class Game {
             }
         });
 
-        // Create Render List for Depth Sorting
-        const renderList = [];
+        // Create Render List for Depth Sorting (Memory Optimized)
+        // Instead of allocating new objects and closures every frame, we push references to entities 
+        // and identifying type flags to a flat array.
+        const renderList = this._renderList || (this._renderList = []);
+        renderList.length = 0; // Clear without reallocating
+
+        // Helper to add to render list
+        // type: 1=chest, 2=statue, 3=altar, 4=shop, 5=player, 6=enemy, 7=entity, 8=projectile, 9=enemyProjectile
+        const addRenderItem = (entity, type, z) => {
+            renderList.push({ entity, type, z });
+        };
+        // We reuse the objects in the array if they exist to avoid allocation
+        let renderIndex = 0;
+        const addRenderItemOptimized = (entity, type, z) => {
+            if (renderIndex < renderList.length) {
+                const item = renderList[renderIndex];
+                item.entity = entity;
+                item.type = type;
+                item.z = z;
+            } else {
+                renderList.push({ entity, type, z });
+            }
+            renderIndex++;
+        };
 
         // 1. Chests
         this.chests.forEach(chest => {
             if (this.camera.isVisible(chest.x, chest.y, chest.width, chest.height)) {
-                renderList.push({
-                    z: chest.y + chest.height, // Sort by bottom
-                    draw: () => {
-                        chest.draw(this.ctx);
-                        if (chest.showPrompt) {
-                            this.ctx.fillStyle = 'white';
-                            this.ctx.font = '14px sans-serif';
-                            this.ctx.textAlign = 'center';
-                            this.ctx.fillText("[SPACE] 開く", chest.x + chest.width / 2, chest.y - 10);
-                        }
-                    }
-                });
+                addRenderItemOptimized(chest, 1, chest.y + chest.height);
             }
         });
 
         // 1.5 Statues
         this.statues.forEach(statue => {
             if (this.camera.isVisible(statue.x, statue.y, statue.width, statue.height)) {
-                renderList.push({
-                    z: statue.y + statue.height,
-                    draw: () => statue.draw(this.ctx)
-                });
+                addRenderItemOptimized(statue, 2, statue.y + statue.height);
             }
         });
 
         // 1.6 Blood Altars
         this.bloodAltars.forEach(altar => {
             if (this.camera.isVisible(altar.x, altar.y, altar.width, altar.height)) {
-                renderList.push({
-                    z: altar.y + altar.height,
-                    draw: () => altar.draw(this.ctx)
-                });
+                addRenderItemOptimized(altar, 3, altar.y + altar.height);
             }
         });
 
         // 1.7 Shop NPCs
         this.shopNPCs.forEach(npc => {
             if (this.camera.isVisible(npc.x, npc.y, npc.width, npc.height)) {
-                renderList.push({
-                    z: npc.y + npc.height,
-                    draw: () => npc.draw(this.ctx)
-                });
+                addRenderItemOptimized(npc, 4, npc.y + npc.height);
             }
         });
 
         // 2. Player
-        renderList.push({
-            z: this.player.y + this.player.height,
-            draw: () => this.player.draw(this.ctx)
-        });
+        addRenderItemOptimized(this.player, 5, this.player.y + this.player.height);
 
         // 3. Enemies
         this.enemies.forEach(enemy => {
             if (this.camera.isVisible(enemy.x, enemy.y, enemy.width, enemy.height)) {
-                renderList.push({
-                    z: enemy.y + enemy.height,
-                    draw: () => enemy.draw(this.ctx)
-                });
+                addRenderItemOptimized(enemy, 6, enemy.y + enemy.height);
             }
         });
 
         // 3.5 Generic Entities (Drops)
         this.entities.forEach(entity => {
             if (this.camera.isVisible(entity.x, entity.y, entity.width, entity.height)) {
-                renderList.push({
-                    z: entity.y + entity.height,
-                    draw: () => entity.draw(this.ctx)
-                });
+                addRenderItemOptimized(entity, 7, entity.y + entity.height);
             }
         });
 
@@ -1909,31 +1902,61 @@ class Game {
             if (p.startDelay > 0 || p.layer === 'bottom') return; // Skip bottom layer
             // Culling (using p.w/p.h or defaults)
             if (!this.camera.isVisible(p.x, p.y, p.w || 10, p.h || 10)) return;
-
-            renderList.push({
-                z: p.y + (p.h || 10),
-                draw: () => this.drawProjectile(p)
-            });
+            addRenderItemOptimized(p, 8, p.y + (p.h || 10));
         });
 
         // 5. Enemy Projectiles
         this.enemyProjectiles.forEach(p => {
             if (!this.camera.isVisible(p.x, p.y, 10, 10)) return;
-            renderList.push({
-                z: p.y,
-                draw: () => p.draw(this.ctx)
-            });
+            addRenderItemOptimized(p, 9, p.y);
         });
 
+        // Set the actual used length
+        renderList.length = renderIndex;
+
         // Sort by Z (Lower Y value [Top of screen] -> Lower Z -> Drawn First -> Behind)
-        // User said "Lower Y comes to front", which suggests Inverted Sort?
-        // Let's assume Standard Sort (Higher Y [Bottom] -> Front) is what makes sense for depth.
-        // If they REALLY meant Inverted, I just flip a.z - b.z to b.z - a.z
-        // Standard Depth Sort:
         renderList.sort((a, b) => a.z - b.z);
 
-        // Draw All
-        renderList.forEach(item => item.draw());
+        // Draw All based on type
+        for (let i = 0; i < renderIndex; i++) {
+            const item = renderList[i];
+            const e = item.entity;
+            switch (item.type) {
+                case 1: // Chest
+                    e.draw(this.ctx);
+                    if (e.showPrompt) {
+                        this.ctx.fillStyle = 'white';
+                        this.ctx.font = '14px sans-serif';
+                        this.ctx.textAlign = 'center';
+                        this.ctx.fillText("[SPACE] 開く", e.x + e.width / 2, e.y - 10);
+                    }
+                    break;
+                case 2: // Statue
+                    e.draw(this.ctx);
+                    break;
+                case 3: // Altar
+                    e.draw(this.ctx);
+                    break;
+                case 4: // Shop NPC
+                    e.draw(this.ctx);
+                    break;
+                case 5: // Player
+                    e.draw(this.ctx);
+                    break;
+                case 6: // Enemy
+                    e.draw(this.ctx);
+                    break;
+                case 7: // Generic Entity
+                    e.draw(this.ctx);
+                    break;
+                case 8: // Projectile
+                    this.drawProjectile(e);
+                    break;
+                case 9: // Enemy Projectile
+                    e.draw(this.ctx);
+                    break;
+            }
+        }
 
         // Draw Stair Prompt (Always on top of entities?)
         if (this.showStairPrompt) {

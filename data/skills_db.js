@@ -3,6 +3,7 @@ export const skillsDB = [
         id: 'flame_fan',
         name: 'フレイムファン', // Flame Fan
         type: 'normal',
+        element: 'fire',
         icon: 'assets/skills/icons/icon_flame_fan.png', // Dedicated icon
         cooldown: 0.8,
         behavior: 'fan_projectile',
@@ -155,6 +156,7 @@ export const skillsDB = [
         id: 'fireball',
         name: 'ファイアボール', // Fireball
         type: 'primary',
+        element: 'fire',
         icon: 'assets/skills/icons/icon_fireball.png',
         cooldown: 1.0,
         behavior: 'projectile',
@@ -260,6 +262,7 @@ export const skillsDB = [
         id: 'ember_strike',
         name: 'エンバーストライク', // Ember Strike
         type: 'ultimate',
+        element: 'fire',
         icon: 'assets/skills/icons/icon_ember_strike.png',
         cooldown: 10.0,
         behavior: 'barrage',
@@ -522,6 +525,7 @@ export const skillsDB = [
         id: 'phoenix_dive',
         name: 'フェニックス・ダイブ', // Phoenix Dive
         type: 'primary',
+        element: 'fire',
         icon: 'assets/skills/icons/icon_phoenix_dive.png',
         cooldown: 8.0,
         behavior: 'phoenix_dive',
@@ -544,6 +548,7 @@ export const skillsDB = [
         id: 'magma_spear',
         name: 'マグマスピア', // Magma Spear
         type: 'primary',
+        element: 'fire',
         icon: 'assets/skills/icons/icon_magma_spear.png',
         cooldown: 6.0,
         behavior: 'magma_spear',
@@ -573,6 +578,7 @@ export const skillsDB = [
         id: 'magma_core',
         name: 'マグマコア', // Magma Core
         type: 'ultimate',
+        element: 'fire',
         icon: 'assets/skills/icons/icon_magma_core.png',
         cooldown: 10.0,
         behavior: 'magma_core',
@@ -623,6 +629,7 @@ export const skillsDB = [
         id: 'starfall',
         name: 'スターフォール',
         type: 'ultimate',
+        element: 'fire',
         icon: 'assets/skills/icons/icon_starfall.png',
         cooldown: 20.0,
         behavior: 'starfall_storm',

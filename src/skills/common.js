@@ -317,7 +317,11 @@ export const spawnProjectile = (game, x, y, vx, vy, params) => {
                     ky = (dy / dist) * this.knockback;
                 }
 
-                enemy.takeDamage(this.damage, this.damageColor, this.aetherCharge, false, kx, ky);
+                // Critical hit roll for custom handlers
+                const isCrit = this.critChance > 0 && Math.random() < this.critChance;
+                const finalDamage = isCrit ? this.damage * (this.critMultiplier || 2.0) : this.damage;
+
+                enemy.takeDamage(finalDamage, this.damageColor, this.aetherCharge, isCrit, kx, ky);
 
                 // Apply Status (Even for custom handlers)
                 if (this.statusEffect && (!this.statusChance || Math.random() < this.statusChance)) {

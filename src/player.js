@@ -98,6 +98,8 @@ export class Player extends Entity {
         this.voltDriveParams = null;
         this.isCheatInvincible = false;
         this.slowTimer = 0;
+        this.enrageTimer = 0;
+        this.enrageBonus = 0;
 
         // Aether Circuit System
         this.circuit = new AetherCircuitManager(this);
@@ -175,9 +177,28 @@ export class Player extends Entity {
         // Aether Circuit Bonus
         if (this.circuit) {
             mult += this.circuit.getBonuses().damageMult;
+            if (this.enrageTimer > 0) {
+                mult += this.enrageBonus;
+            }
         }
 
         return mult;
+    }
+
+    get fireDamageMultiplier() {
+        let mult = 1.0;
+        if (this.circuit) {
+            mult += this.circuit.getBonuses().fireDamageMult;
+        }
+        return mult;
+    }
+
+    get critRateBonus() {
+        let bonus = 0;
+        if (this.circuit) {
+            bonus += this.circuit.getBonuses().critRateAdd;
+        }
+        return bonus;
     }
 
     get actualSpeed() {
@@ -220,6 +241,9 @@ export class Player extends Entity {
             this.bloodBlessings.forEach(b => {
                 if (b.buff && b.buff.aetherGainMult) mult *= b.buff.aetherGainMult;
             });
+        }
+        if (this.circuit) {
+            mult += this.circuit.getBonuses().aetherChargeMult;
         }
         return mult;
     }
@@ -267,6 +291,7 @@ export class Player extends Entity {
     update(dt) {
         if (this.invulnerable > 0) this.invulnerable -= dt;
         if (this.slowTimer > 0) this.slowTimer -= dt;
+        if (this.enrageTimer > 0) this.enrageTimer -= dt;
 
         if (this.isDemo) {
             this.frameTimer += dt;
@@ -808,6 +833,16 @@ export class Player extends Entity {
         // while keeping the visual amount for other effects.
         const actualDamage = this.isCheatInvincible ? 0 : amount;
         super.takeDamage(actualDamage, this.damageColor, 0, false, kx, ky, 0.15, true);
+
+        // Enrage (逆上) Chip Effect
+        if (this.circuit && !this.isCheatInvincible && actualDamage > 0) {
+            const bonuses = this.circuit.getBonuses();
+            if (bonuses.onHitDamageBuff > 0) {
+                this.enrageTimer = 5.0; // 5 seconds
+                this.enrageBonus = bonuses.onHitDamageBuff;
+                this.game.spawnParticles(this.x + this.width / 2, this.y + this.height / 2, 5, '#ff4400');
+            }
+        }
 
         // Adjust invulnerability for player
         this.invulnerable = 0.6;

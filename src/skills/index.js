@@ -85,6 +85,18 @@ export function createSkill(data) {
             if (finalParams.damage !== undefined) finalParams.damage *= user.damageMultiplier;
             if (finalParams.minDamage !== undefined) finalParams.minDamage *= user.damageMultiplier;
             if (finalParams.maxDamage !== undefined) finalParams.maxDamage *= user.damageMultiplier;
+
+            // Apply Element Bonus (e.g. Fire Damage Chip)
+            if (data.element === 'fire' && user.fireDamageMultiplier !== undefined) {
+                if (finalParams.damage !== undefined) finalParams.damage *= user.fireDamageMultiplier;
+                if (finalParams.minDamage !== undefined) finalParams.minDamage *= user.fireDamageMultiplier;
+                if (finalParams.maxDamage !== undefined) finalParams.maxDamage *= user.fireDamageMultiplier;
+            }
+
+            // Apply Critical Rate Bonus
+            if (user.critRateBonus !== undefined && finalParams.critChance !== undefined) {
+                finalParams.critChance += user.critRateBonus;
+            }
         }
 
         behaviorFn.call(skill, user, game, finalParams);
