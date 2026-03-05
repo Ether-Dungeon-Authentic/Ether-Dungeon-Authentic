@@ -1,6 +1,7 @@
 import { Entity, getCachedImage } from '../utils.js';
 import { StatusManager } from '../status_effects.js';
 import { DropItem } from '../entities/DropItem.js';
+import { AetherLabManager } from '../AetherLabManager.js';
 
 const textures = {
     slime: 'assets/enemies/slime.png',
@@ -19,8 +20,11 @@ const statusIcons = {
 
 export class Enemy extends Entity {
     constructor(game, x, y, width, height, color, hp, speed, textureKey, scoreValue = 0) {
-        // Hard mode: Double enemy HP
-        const finalHp = game.difficulty === 'hard' ? hp * 2.0 : hp;
+        // Difficulty scaling
+        let finalHp = hp;
+        if (game.difficulty === 'hard') finalHp = hp * 2.0;
+        else if (game.difficulty === 'easy') finalHp = hp * 0.5;
+
         super(game, x, y, width, height, color, finalHp);
         this.speed = speed;
         this.scoreValue = scoreValue;
@@ -182,8 +186,11 @@ export class Enemy extends Entity {
 
                 if (dist > 0) {
                     const speedMult = this.statusManager.getSpeedMultiplier();
-                    // Basic tracking force
-                    const acc = this.speed * 5;
+                    // Basic tracking force - Reduced while knocked back
+                    let acc = this.speed * 5;
+                    if (this.knockbackDuration > 0) {
+                        acc *= 0.2; // 80% reduction during impact
+                    }
                     this.vx += (dx / dist) * acc * dt;
                     this.vy += (dy / dist) * acc * dt;
                 }
@@ -320,11 +327,37 @@ export class Enemy extends Entity {
 
             if (this.isDemo) return; // No drops in demo
 
-            // Spawn Currency Drops
-            const dropCount = Math.floor(Math.random() * 3) + 1; // 1 to 3 shards
+            // Spawn Currency Drops (Aether Coins for Dungeon Shop)
+            const scoreValue = this.scoreValue || 50;
+            let dropCount = 1;
+            let coinValue = 1;
+
+            if (this.isBoss) {
+                dropCount = 10 + Math.floor(Math.random() * 6); // 10-15
+                coinValue = 50;
+            } else if (scoreValue >= 200) { // Elite (Goblin)
+                dropCount = 3 + Math.floor(Math.random() * 3); // 3-5
+                coinValue = 5;
+            } else if (scoreValue >= 100) { // Mid (Ghost, Archer)
+                dropCount = 2 + Math.floor(Math.random() * 2); // 2-3
+                coinValue = 2;
+            } else { // Weak (Slime, Bat)
+                dropCount = 1 + Math.floor(Math.random() * 2); // 1-2
+                coinValue = 1;
+            }
+
             for (let i = 0; i < dropCount; i++) {
-                const drop = new DropItem(this.game, this.x + this.width / 2, this.y + this.height / 2, 1);
+                const drop = new DropItem(this.game, this.x + this.width / 2, this.y + this.height / 2, coinValue, 'coins');
                 this.game.entities.push(drop);
+            }
+
+            // --- Aether Chip Drop Logic (20% chance) ---
+            if (Math.random() < 0.2) {
+                const chipInstance = AetherLabManager.getRandomChipByWeightedRarity();
+                if (chipInstance) {
+                    const chipDrop = new DropItem(this.game, this.x + this.width / 2, this.y + this.height / 2, chipInstance, 'chip');
+                    this.game.entities.push(chipDrop);
+                }
             }
         }
     }

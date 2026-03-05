@@ -46,12 +46,14 @@ export class AetherCircuitManager {
         }
 
         this.slots[slotIndex] = chipInstance;
+        this.player.saveAetherData(); // Persist change
         return true;
     }
 
     unequipChip(slotIndex) {
         if (slotIndex >= 0 && slotIndex < 6) {
             this.slots[slotIndex] = null;
+            this.player.saveAetherData(); // Persist change
         }
     }
 
@@ -93,7 +95,9 @@ export class AetherCircuitManager {
 
         // Load owned chips
         this.ownedChips = (data.ownedChips || []).map(chipData => {
-            return new ChipInstance(chipData.id, chipData.level);
+            // Pass instanceId as 4th arg to preserve it
+            const chip = new ChipInstance(chipData.id, chipData.level, chipData.isIdentified !== false, chipData.instanceId);
+            return chip;
         });
 
         // Load equipment
@@ -119,27 +123,41 @@ export class AetherCircuitManager {
  * Instance of a chip in the inventory.
  */
 export class ChipInstance {
-    constructor(id, level = 1) {
+    constructor(id, level = 1, isIdentified = true, instanceId = null) {
         this.data = chipsDB.find(c => c.id === id);
-        this.instanceId = Math.random().toString(36).substr(2, 9);
+        this.instanceId = instanceId || Math.random().toString(36).substr(2, 9);
         this.level = level;
+        this.isIdentified = isIdentified;
     }
 
     getCurrentCost() {
-        const rank = this.data.ranks.find(r => r.level === this.level);
-        return rank ? rank.cost : this.data.baseCost;
+        if (this.data.ranks.length < 2) return this.data.baseCost;
+
+        const rank1 = this.data.ranks[0];
+        const rank5 = this.data.ranks[this.data.ranks.length - 1]; // Original Max
+
+        // Linear interpolation from Level 1 to 10
+        const progress = (this.level - 1) / 9;
+        const interpolated = rank1.cost + (rank5.cost - rank1.cost) * progress;
+        return Math.round(interpolated);
     }
 
     getCurrentEffect() {
-        const rank = this.data.ranks.find(r => r.level === this.level);
-        return rank ? rank.value : 0;
+        if (this.data.ranks.length < 2) return 0;
+
+        const rank1 = this.data.ranks[0];
+        const rank5 = this.data.ranks[this.data.ranks.length - 1];
+
+        const progress = (this.level - 1) / 9;
+        return rank1.value + (rank5.value - rank1.value) * progress;
     }
 
     serialize() {
         return {
             id: this.data.id,
             level: this.level,
-            instanceId: this.instanceId
+            instanceId: this.instanceId,
+            isIdentified: this.isIdentified
         };
     }
 }

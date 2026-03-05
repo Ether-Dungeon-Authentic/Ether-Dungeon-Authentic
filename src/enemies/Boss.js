@@ -175,7 +175,7 @@ export class Boss extends Enemy {
                 // Unstuck: Ensure the boss isn't inside a wall after collision
                 this.resolveWallPenetration();
 
-                this.game.camera.shake(0.4, 12);
+                this.game.camera.shake(0.15, 8.4);
                 this.spawnDashImpact();
 
                 // 50% chance to immediately chain into another dash
@@ -342,7 +342,7 @@ export class Boss extends Enemy {
     }
 
     landJump() {
-        this.game.camera.shake(0.52, 13);
+        this.game.camera.shake(0.15, 9.1);
 
         // Use slam logic for landing impact
         const px = this.game.player.x + this.game.player.width / 2;
@@ -373,7 +373,7 @@ export class Boss extends Enemy {
     }
 
     attackSlam() {
-        this.game.camera.shake(0.5, 10);
+        this.game.camera.shake(0.15, 7.0);
         // Use center of player for accurate distance check
         const px = this.game.player.x + this.game.player.width / 2;
         const py = this.game.player.y + this.game.player.height / 2;

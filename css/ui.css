@@ -4,14 +4,13 @@
     left: 0;
     width: 800px;
     height: 450px;
-    /* Standardize to 800x600 */
     pointer-events: none;
     font-size: 18px;
     font-weight: bold;
     text-shadow: 1px 1px 2px black;
     transform-origin: top left;
     box-sizing: border-box;
-    z-index: 100;
+    z-index: 3000;
 }
 
 #game-ui-wrapper {
@@ -149,32 +148,59 @@
 
 #currency-display {
     display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 5px;
+    margin-top: 10px;
+    padding-left: 10px;
+    pointer-events: none;
+}
+
+.resource-item {
+    display: flex;
     align-items: center;
-    gap: 8px;
-    font-size: 20px;
-    color: #ffd700;
+    gap: 10px;
+    font-size: 14px;
+    color: #fff;
     font-weight: bold;
     text-shadow: 1px 1px 2px black;
-    margin-top: 5px;
-    padding-left: 10px;
+    font-family: 'Press Start 2P', cursive;
+}
+
+#gold-value {
+    color: #ffd700;
+}
+
+#shard-value {
+    color: #00ffff;
 }
 
 .currency-icon {
-    width: 24px;
-    height: 24px;
+    width: 20px;
+    height: 20px;
     object-fit: contain;
-    filter: drop-shadow(0 0 2px rgba(255, 215, 0, 0.5));
+}
+
+.currency-icon[src*="fragment"] {
+    width: 24px;
+    /* 20% larger than 20px */
+    height: 24px;
 }
 
 /* Skill Bar UI */
 #skill-bar {
     position: absolute;
-    bottom: 20px;
+    bottom: 5px;
+    /* Closer to bottom */
     left: 50%;
     transform: translateX(-50%);
     display: flex;
     gap: 10px;
     pointer-events: none;
+    padding: 3px 10px;
+    /* Maintain spacing but remove decorations */
+    z-index: 3000;
+    /* Above inventory */
 }
 
 .skill-slot {

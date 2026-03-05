@@ -2,6 +2,7 @@ import { Entity, getCachedImage, getCachedJson } from './utils.js';
 import { SkillType, spawnAetherExplosion, createSkill } from './skills/index.js';
 import { SaveManager } from './SaveManager.js';
 import { skillsDB } from '../data/skills_db.js';
+import { chipsDB } from '../data/chips_db.js';
 import { AetherCircuitManager, ChipInstance } from './AetherCircuitManager.js';
 
 export class Player extends Entity {
@@ -72,8 +73,10 @@ export class Player extends Entity {
         this.damageColor = '#ff3333'; // Player takes red damage text
 
 
-        // Currency
-        this.currency = 0;
+        // Currency & Materials
+        this.aetherShards = 0;   // Persistent Lab Material (for Upgrade/Appraisal)
+        this.aetherFragments = 0; // Persistent Lab Material (for Upgrade/Appraisal)
+        this.dungeonCoins = 0;   // Dungeon-only Currency (for Shop, resets every run)
 
         // Aether Rush System
         this.aetherGauge = 0;
@@ -109,6 +112,8 @@ export class Player extends Entity {
     loadAetherCircuit() {
         const saveData = SaveManager.getSaveData();
         if (saveData && saveData.aetherCircuit) {
+            this.aetherShards = saveData.aetherShards || saveData.gold || 0; // Migration support
+            this.aetherFragments = saveData.aetherFragments || 0;
             if (saveData.aetherCircuit.ownedChips) {
                 this.circuit.deserialize(saveData.aetherCircuit);
             } else if (saveData.aetherCircuit.ownedChipIds) {
@@ -122,8 +127,10 @@ export class Player extends Entity {
     }
 
     unlockAllSkills() {
-        // Setting currency
-        this.currency = 999999;
+        // Setting currency (Debug) - Reduced to prevent extreme persistence
+        this.aetherShards = 9999;
+        this.dungeonCoins = 9999;
+        this.aetherFragments = 9999;
 
         // Clear existing inventory to avoid duplicates
         this.inventory = [];
@@ -153,15 +160,15 @@ export class Player extends Entity {
 
         // Unlock all Aether Chips
         if (this.circuit) {
-            import('../data/chips_db.js').then(m => {
-                const existingIds = this.circuit.ownedChips.map(c => c.data.id);
-                m.chipsDB.forEach(chipData => {
-                    if (!existingIds.includes(chipData.id)) {
-                        this.circuit.ownedChips.push(new ChipInstance(chipData.id));
-                    }
-                });
-                console.log(`Debug Mode: Unlocked ${this.circuit.ownedChips.length} Aether Chips.`);
+            const existingIds = this.circuit.ownedChips.map(c => c.data.id);
+            chipsDB.forEach((chipData, idx) => {
+                if (!existingIds.includes(chipData.id)) {
+                    // Mix identified and unidentified for testing in debug
+                    const isIdentified = idx % 3 !== 0;
+                    this.circuit.ownedChips.push(new ChipInstance(chipData.id, 1, isIdentified));
+                }
             });
+            console.log(`Debug Mode: Unlocked ${this.circuit.ownedChips.length} Aether Chips.`);
         }
     }
 
@@ -248,9 +255,33 @@ export class Player extends Entity {
         return mult;
     }
 
-    addCurrency(amount) {
-        this.currency += amount;
-        // console.log(`Currency: ${this.currency} (+${amount})`);
+    addDungeonCoins(amount) {
+        this.dungeonCoins += amount;
+    }
+
+    addAetherShards(amount) {
+        let finalAmount = amount;
+        if (this.game.difficulty === 'easy') {
+            finalAmount = Math.ceil(amount * 0.5);
+        }
+        this.aetherShards += finalAmount;
+        this.saveAetherData();
+    }
+
+    addAetherFragments(amount) {
+        this.aetherFragments += amount;
+        this.saveAetherData();
+    }
+
+    saveAetherData() {
+        // Prevent debug mode from overwriting persistent save with cheated values
+        if (this.game.debugMode) return;
+
+        const data = SaveManager.getSaveData();
+        data.aetherShards = this.aetherShards;
+        data.aetherFragments = this.aetherFragments;
+        data.aetherCircuit = this.circuit.serialize();
+        SaveManager.saveData(data);
     }
 
     acquireSkill(skill) {
@@ -799,9 +830,14 @@ export class Player extends Entity {
     takeDamage(amount) {
         if (this.invulnerable > 0) return;
 
+        let scaledDamage = amount;
+        if (this.game.difficulty === 'easy') {
+            scaledDamage = Math.ceil(amount * 0.5);
+        }
+
         // 1. Camera Shake (Intensity based on damage)
         if (this.game.camera) {
-            const intensity = Math.min(15, 5 + amount / 2);
+            const intensity = Math.min(15, 5 + scaledDamage / 2);
             this.game.camera.shake(0.2, intensity);
         }
 
@@ -831,11 +867,11 @@ export class Player extends Entity {
         // Use base Entity.takeDamage to apply HP loss and KNOCKBACK
         // But if cheat invincible, we pass 0 damage to super.takeDamage for actual HP loss, 
         // while keeping the visual amount for other effects.
-        const actualDamage = this.isCheatInvincible ? 0 : amount;
-        super.takeDamage(actualDamage, this.damageColor, 0, false, kx, ky, 0.15, true);
+        const damageToApply = this.isCheatInvincible ? 0 : scaledDamage;
+        super.takeDamage(damageToApply, this.damageColor, 0, false, kx, ky, 0.15, true);
 
         // Enrage (逆上) Chip Effect
-        if (this.circuit && !this.isCheatInvincible && actualDamage > 0) {
+        if (this.circuit && !this.isCheatInvincible && scaledDamage > 0) {
             const bonuses = this.circuit.getBonuses();
             if (bonuses.onHitDamageBuff > 0) {
                 this.enrageTimer = 5.0; // 5 seconds
@@ -873,7 +909,7 @@ export class Player extends Entity {
         // 4. Damage Text (Override font for player)
         this.game.animations.push({
             type: 'text',
-            text: amount,
+            text: scaledDamage,
             x: this.x + this.width / 2,
             y: this.y - 20,
             vx: (Math.random() - 0.5) * 60,

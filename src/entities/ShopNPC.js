@@ -38,6 +38,14 @@ export class ShopNPC extends Entity {
 
     async _loadStock() {
         this.stock = await generateSkillStock(3); // Increased to 3
+
+        // Easy mode: Halve prices
+        if (this.game.difficulty === 'easy') {
+            this.stock.forEach(item => {
+                item.price = Math.max(1, Math.ceil(item.price * 0.5));
+            });
+        }
+
         this._stockReady = true;
     }
 
@@ -138,7 +146,7 @@ export class ShopNPC extends Entity {
     _drawItemSlot(ctx, item, x, y, isHovered) {
         const size = 32;
         const sold = item.sold;
-        const playerCurrency = this.game.player.currency;
+        const playerCurrency = this.game.player.dungeonCoins;
         const canAfford = playerCurrency >= item.price;
 
         ctx.save();
@@ -182,8 +190,8 @@ export class ShopNPC extends Entity {
             ctx.shadowColor = 'black';
             ctx.shadowBlur = 3;
 
-            // Draw Aether Shard Icon instead of diamond
-            const shardImg = getCachedImage('assets/ui/aether_shard.png');
+            // Draw Aether Coin Icon
+            const shardImg = getCachedImage('assets/ui/aether_coin.png');
             const iconSize = 16;
             const priceText = `${item.price}`;
             const textWidth = ctx.measureText(priceText).width;
@@ -204,7 +212,7 @@ export class ShopNPC extends Entity {
                     ctx.fillText('[スペース]で購入', x, y + 42);
                 } else {
                     ctx.fillStyle = '#ff4444';
-                    ctx.fillText('エーテルシャードが不足しています', x, y + 42);
+                    ctx.fillText('エーテルコインが不足しています', x, y + 42);
                 }
             }
         } else {
@@ -390,14 +398,14 @@ export class ShopNPC extends Entity {
         const item = this.stock[this.hoveredItemIndex];
         if (item.sold) return;
 
-        if (this.game.player.currency < item.price) {
-            // Optional: Message saying not enough shards
-            this.game.logToScreen("エーテルシャードが足りません！");
+        if (this.game.player.dungeonCoins < item.price) {
+            // Optional: Message saying not enough coins
+            this.game.logToScreen("エーテルコインが足りません！");
             return;
         }
 
         // Buy logic
-        this.game.player.currency -= item.price;
+        this.game.player.dungeonCoins -= item.price;
         item.sold = true;
         item.apply(this.game);
 

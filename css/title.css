@@ -96,12 +96,12 @@
 }
 
 .title-menu {
-    margin-top: 80px;
+    margin-top: 50px;
+    /* Reduced from 800px-specific value */
     display: flex;
     flex-direction: column;
-    gap: 15px;
-    min-height: 200px;
-    /* Reserve space if needed */
+    gap: 12px;
+    min-height: 150px;
 }
 
 #title-highscore-container {
@@ -115,8 +115,10 @@
     background: rgba(255, 255, 255, 0.05);
     border: 2px solid #555;
     color: white;
-    padding: 15px 40px;
-    font-size: 16px;
+    padding: 12px 40px;
+    /* Reduced padding */
+    font-size: 14px;
+    /* Slightly smaller font */
     font-family: 'Press Start 2P', cursive;
     cursor: pointer;
     transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
@@ -138,10 +140,56 @@
 
 .title-footer {
     position: absolute;
-    bottom: 20px;
+    bottom: 10px;
+    right: 20px;
     font-size: 8px;
     color: #444;
     letter-spacing: 1px;
+}
+
+/* Side Menu Positioning */
+.title-side-menu {
+    position: absolute;
+    bottom: 25px;
+    left: 25px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    z-index: 5100;
+    /* Above title background but maybe below modals */
+}
+
+.side-btn {
+    background: rgba(0, 0, 0, 0.6);
+    border: 1px solid #444;
+    color: #888;
+    padding: 8px 16px;
+    font-size: 10px;
+    font-family: 'Press Start 2P', cursive;
+    cursor: pointer;
+    transition: all 0.2s;
+    border-radius: 4px;
+    text-align: left;
+    width: 180px;
+}
+
+.side-btn:hover {
+    color: #fff;
+    border-color: #666;
+    background: rgba(40, 40, 40, 0.8);
+    transform: translateX(5px);
+}
+
+/* Lab Button Special Style */
+#btn-open-lab {
+    border-color: #9b59b6;
+    background: rgba(155, 89, 182, 0.05);
+}
+
+#btn-open-lab:hover {
+    background: rgba(155, 89, 182, 0.15);
+    border-color: #be8ad3;
+    box-shadow: 0 0 15px rgba(155, 89, 182, 0.3);
 }
 
 /* ===========================
@@ -500,7 +548,7 @@
     width: 100%;
     height: 100%;
     background: transparent;
-    z-index: 50;
+    z-index: 6000;
     /* Above title screen content, but same container */
     display: none;
     justify-content: center;
@@ -516,10 +564,13 @@
     position: absolute;
     width: 100%;
     height: 100%;
+    /* Fill 800x450 */
+    max-height: 450px;
     z-index: 6000;
     display: flex;
     flex-direction: column;
-    padding: 20px;
+    padding: 15px;
+    /* Smaller padding */
     box-sizing: border-box;
 }
 
@@ -527,10 +578,11 @@
     width: 100%;
     text-align: center;
     font-family: 'Press Start 2P', cursive;
-    font-size: 24px;
+    font-size: 18px;
+    /* Smaller title */
     color: #fff;
     text-shadow: 0 0 10px #00ffff;
-    margin-bottom: 20px;
+    margin-bottom: 15px;
 }
 
 .stage-overhaul-layout {
@@ -559,7 +611,8 @@
 
 .stage-actions-area {
     position: absolute;
-    bottom: 25px;
+    bottom: 15px;
+    /* Closer to bottom */
     left: 90px;
     transform: translateX(-50%);
     display: flex;
@@ -573,8 +626,14 @@
 
 .stage-actions-area .title-btn {
     width: 100%;
-    padding: 6px 10px;
+    padding: 8px 10px;
     font-size: 11px;
+    min-height: 42px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    line-height: 1.2;
 }
 
 .stage-actions-area .title-btn.secondary {
@@ -595,7 +654,7 @@
     /* Sharper pixel-art feel */
     display: flex;
     flex-direction: column;
-    padding: 16px 24px;
+    padding: 10px 15px;
     box-sizing: border-box;
     backdrop-filter: blur(20px);
     overflow: hidden;
@@ -624,8 +683,8 @@
 
 .stage-tabs {
     display: flex;
-    gap: 20px;
-    margin-bottom: 12px;
+    gap: 12px;
+    margin-bottom: 8px;
     border-bottom: 1px solid rgba(0, 255, 255, 0.2);
     padding-bottom: 8px;
     position: relative;
@@ -693,17 +752,18 @@
     font-family: 'Press Start 2P', cursive;
     font-size: 8px;
     color: rgba(0, 255, 255, 0.5);
-    margin-bottom: 20px;
+    margin-bottom: 10px;
 }
 
 #current-skill-icon {
-    width: 80px;
-    height: 80px;
+    width: 60px;
+    /* Smaller icon */
+    height: 60px;
     border: 2px solid #00ffff;
     background: rgba(0, 0, 0, 0.5);
     box-shadow: 0 0 15px rgba(0, 255, 255, 0.3);
     border-radius: 4px;
-    margin-bottom: 15px;
+    margin-bottom: 10px;
 }
 
 #current-skill-name {

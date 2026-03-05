@@ -42,8 +42,14 @@ export class SaveManager {
                 deepestFloor: 0,
                 highScore: 0
             },
+            aetherShards: 0,
+            aetherFragments: 0,
             aetherCircuit: {
-                ownedChipIds: ['power_strike', 'life_spark', 'swift_step'], // Initial free chips
+                ownedChips: [
+                    { id: 'power_strike', level: 1, isIdentified: true },
+                    { id: 'life_spark', level: 1, isIdentified: true },
+                    { id: 'swift_step', level: 1, isIdentified: true }
+                ],
                 equippedChipIds: [null, null, null, null, null, null]
             }
         };
@@ -85,5 +91,13 @@ export class SaveManager {
             return true;
         }
         return false;
+    }
+
+    /**
+     * Clears all save data from localStorage.
+     */
+    static clearData() {
+        localStorage.removeItem(this.STORAGE_KEY);
+        console.log('[SaveManager] Data cleared.');
     }
 }

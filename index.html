@@ -11,6 +11,8 @@
     <link rel="stylesheet" href="css/modals.css">
     <link rel="stylesheet" href="css/dialogue.css">
     <link rel="stylesheet" href="css/circuit.css">
+    <link rel="stylesheet" href="css/lab.css">
+    <link rel="stylesheet" href="css/inventory.css">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
 
@@ -62,361 +64,386 @@
 
                     <div class="title-menu">
                         <button id="btn-start-game" class="title-btn">冒険を始める</button>
-                        <button id="btn-open-ranking" class="title-btn secondary">ランキング</button>
-                        <button id="btn-open-collection" class="title-btn secondary">図鑑を見る</button>
+                        <button id="btn-open-lab" class="title-btn">エーテル回路</button>
                     </div>
 
-                    <!-- Stage Settings (Redesigned) -->
-                    <div id="stage-settings-modal" class="stage-settings-container" style="display: none;">
-                        <div class="stage-overhaul-layout">
-                            <!-- Left Side: Player Focus + Start Button -->
-                            <div class="stage-left-column">
-                                <div class="player-focus-area">
-                                    <!-- Area for camera view -->
-                                </div>
-                                <div class="stage-actions-area">
-                                    <button id="btn-start-adventure" class="title-btn">出発する</button>
-                                    <button id="btn-back-to-title" class="title-btn secondary">キャンセル</button>
-                                </div>
-                            </div>
+                    <div class="title-footer">
+                        v1.2.0 | created by simmer
+                    </div>
+                </div>
+            </div>
 
-                            <!-- Right Side: Tabbed Settings -->
-                            <div class="stage-right-column">
-                                <div class="stage-tabs">
-                                    <button class="stage-tab-btn active" data-tab="skills">スキル選択</button>
-                                    <button class="stage-tab-btn" data-tab="circuits">エーテル回路</button>
-                                    <button class="stage-tab-btn" data-tab="difficulty">難易度</button>
-                                </div>
+            <!-- Global Utility side menu -->
+            <div class="title-side-menu">
+                <button id="btn-open-ranking" class="side-btn">ランキング</button>
+                <button id="btn-open-collection" class="side-btn">図鑑を見る</button>
+            </div>
 
-                                <div class="stage-tab-content active" id="tab-skills">
-                                    <div class="skill-selection-horizontal-layout">
-                                        <!-- Left Side: Selected Skill Focus -->
-                                        <div id="selected-skill-focus">
-                                            <div class="focus-label">選択中</div>
-                                            <img id="current-skill-icon" src="assets/skills/icons/icon_slash.png">
-                                            <div id="current-skill-name">スラッシュ</div>
-                                            <div id="current-skill-desc">前方に鋭い斬撃を放つ。</div>
-                                        </div>
+            <!-- Stage Settings (Redesigned) -->
+            <div id="stage-settings-modal" class="stage-settings-container" style="display: none;">
+                <div class="stage-overhaul-layout">
+                    <!-- Left Side: Player Focus + Start Button -->
+                    <div class="stage-left-column">
+                        <div class="player-focus-area">
+                            <!-- Area for camera view -->
+                        </div>
+                        <div class="stage-actions-area">
+                            <button id="btn-start-adventure" class="title-btn">出発する</button>
+                            <button id="btn-back-to-title" class="title-btn secondary">キャンセル</button>
+                        </div>
+                    </div>
 
-                                        <!-- Right Side: Permanent Grid -->
-                                        <div class="skill-grid-container">
-                                            <div class="grid-label">スキル一覧</div>
-                                            <div id="start-skill-list" class="start-skill-list">
-                                                <!-- Skills injected here by JS -->
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
+                    <!-- Right Side: Tabbed Settings -->
+                    <div class="stage-right-column">
+                        <div class="stage-tabs">
+                            <button class="stage-tab-btn active" data-tab="skills">スキル選択</button>
+                            <button class="stage-tab-btn" data-tab="difficulty">難易度</button>
+                        </div>
 
-                                <div class="stage-tab-content" id="tab-circuits" style="display: none;">
-                                    <div class="circuit-layout">
-                                        <div class="circuit-header">
-                                            <div class="capacity-gauge-container">
-                                                <span>容量出力: <span id="circuit-capacity-used">0</span> / <span
-                                                        id="circuit-capacity-max">20</span></span>
-                                                <div class="capacity-bar-track">
-                                                    <div id="circuit-capacity-fill" class="capacity-bar-fill"></div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div class="circuit-main">
-                                            <div class="chip-slots-area">
-                                                <div class="grid-label">回路スロット</div>
-                                                <div id="chip-slots" class="chip-slots">
-                                                    <!-- 6 slots -->
-                                                </div>
-                                                <div id="chip-detail-panel" class="chip-detail-panel">
-                                                    <div class="detail-placeholder">チップを選択して詳細を表示</div>
-                                                </div>
-                                            </div>
-                                            <div class="chip-inventory-area">
-                                                <div class="grid-label">所持チップ</div>
-                                                <div id="chip-list" class="chip-list">
-                                                    <!-- Chips -->
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
+                        <div class="stage-tab-content active" id="tab-skills">
+                            <div class="skill-selection-horizontal-layout">
+                                <!-- Left Side: Selected Skill Focus -->
+                                <div id="selected-skill-focus">
+                                    <div class="focus-label">選択中</div>
+                                    <img id="current-skill-icon" src="assets/skills/icons/icon_slash.png">
+                                    <div id="current-skill-name">スラッシュ</div>
+                                    <div id="current-skill-desc">前方に鋭い斬撃を放つ。</div>
                                 </div>
 
-                                <div class="stage-tab-content" id="tab-difficulty" style="display: none;">
-                                    <div class="settings-section no-box">
-                                        <h3 style="text-align: center; font-size: 14px; margin-bottom: 20px;">難易度を選択
-                                        </h3>
-                                        <div class="difficulty-options">
-                                            <label class="diff-option active" data-difficulty="normal">
-                                                <div class="diff-name">ノーマル</div>
-                                            </label>
-                                            <label class="diff-option" data-difficulty="hard">
-                                                <div class="diff-name">ハード</div>
-                                            </label>
-                                        </div>
+                                <!-- Right Side: Permanent Grid -->
+                                <div class="skill-grid-container">
+                                    <div class="grid-label">スキル一覧</div>
+                                    <div id="start-skill-list" class="start-skill-list">
+                                        <!-- Skills injected here by JS -->
                                     </div>
                                 </div>
                             </div>
                         </div>
 
-                    </div>
-                </div>
-                <div class="title-footer">
-                    v1.2.0 | created by simmer
-                </div>
-            </div>
-        </div>
 
-        <!-- Collection Modal -->
-        <div id="collection-modal" style="display: none;">
-            <div class="collection-container">
-                <h2 class="collection-title">開発済みスキル書庫</h2>
-                <div id="collection-grid" class="collection-grid">
-                    <!-- Items injected by JS -->
-                </div>
-                <div class="collection-footer">
-                    <button id="btn-close-collection" class="title-btn secondary" style="width: 200px;">閉じる</button>
-                </div>
-            </div>
-        </div>
-
-        <!-- Loading Screen -->
-        <div id="loading-screen">
-            <div class="loading-container">
-                <div class="loading-text">ダンジョンを生成中...</div>
-                <div class="loading-bar-track">
-                    <div class="loading-bar-fill"></div>
-                </div>
-            </div>
-        </div>
-
-        <div id="ui-layer">
-            <div id="health-bar-container">
-                <div id="health-bar-label">HP</div>
-                <div id="health-bar-track">
-                    <div id="health-bar-fill"></div>
-                    <div id="health-bar-text"><span id="hp-value">100</span> / <span id="hp-max">100</span>
-                    </div>
-                </div>
-            </div>
-            <div id="aether-gauge-container">
-                <div id="aether-gauge-fill"></div>
-            </div>
-
-            <div id="currency-display">
-                <img src="assets/ui/aether_shard.png" alt="Currency" class="currency-icon">
-                <span id="currency-value">0</span>
-            </div>
-
-            <div id="score-display">
-                <span id="score-label">SCORE</span>
-                <span id="score-value">0</span>
-            </div>
-
-            <div id="floor-display">
-                <span id="floor-label">階層</span>
-                <span id="floor-value">1</span>
-            </div>
-        </div>
-
-        <!-- Settings Button -->
-        <div id="settings-btn"
-            style="position: absolute; top: 10px; right: 10px; z-index: 1000; cursor: pointer; background: rgba(0,0,0,0.5); padding: 5px; border-radius: 5px; width: 32px; height: 32px; display: flex; justify-content: center; align-items: center; color: white; font-size: 20px; border: 1px solid #555;">
-            ⚙️
-        </div>
-
-        <!-- Settings Modal -->
-        <div id="settings-modal"
-            style="display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 2000; justify-content: center; align-items: center;">
-            <div
-                style="background: #222; padding: 20px; border: 2px solid #555; border-radius: 10px; text-align: center; color: white; min-width: 300px;">
-                <h2 style="margin-top: 0;">設定</h2>
-                <div class="setting-item">
-                    <label>音量</label>
-                    <input type="range" id="sound-volume" min="0" max="1" step="0.1" value="0.5">
-                </div>
-                <div class="setting-item">
-                    <label>BGM音量</label>
-                    <input type="range" id="music-volume" min="0" max="1" step="0.1" value="0.5">
-                </div>
-                <!-- Cheat Menu (Hidden by default, shown in debugMode) -->
-                <div id="cheat-menu-container"
-                    style="display: none; border-top: 1px solid #444; margin-top: 15px; padding-top: 15px;">
-                    <h3 style="margin-top: 0; font-size: 16px; color: #ffcc00;">チートメニュー</h3>
-                    <div style="display: flex; flex-direction: column; gap: 10px;">
-                        <button id="btn-cheat-teleport-boss" class="title-btn"
-                            style="font-size: 10px; padding: 10px;">ボス部屋へテレポート</button>
-                        <button id="btn-cheat-teleport-portal" class="title-btn"
-                            style="font-size: 10px; padding: 10px;">ポータルへテレポート</button>
-                        <button id="btn-cheat-invincible" class="title-btn" style="font-size: 10px; padding: 10px;">無敵:
-                            OFF</button>
-                    </div>
-                </div>
-                <button id="btn-close-settings" style="margin-top: 15px;">閉じる</button>
-            </div>
-        </div>
-
-
-
-        <!-- Skill Selection Modal -->
-        <div id="skill-selection-modal" style="display: none;">
-            <div class="skill-selection-container">
-                <h2>レベルアップ！スキルを選択してください</h2>
-                <div id="skill-selection-cards">
-                    <!-- Cards injected by JS -->
-                </div>
-            </div>
-        </div>
-
-        <!-- Blessing Selection Modal -->
-        <div id="blessing-selection-modal" style="display: none;">
-            <div class="skill-selection-container">
-                <h2>女神の祝福</h2>
-                <div id="blessing-selection-cards" style="display: flex; justify-content: center; gap: 20px;">
-                    <!-- Cards injected by JS -->
-                </div>
-            </div>
-        </div>
-
-        <!-- Ranking Board Modal -->
-        <div id="ranking-modal" style="display: none;">
-            <div class="collection-container ranking-board">
-                <h2 class="collection-title">世界ランキング</h2>
-                <div id="ranking-list" class="ranking-list">
-                    <div class="loading-spinner">通信中...</div>
-                </div>
-                <div class="collection-footer">
-                    <button id="btn-close-ranking" class="title-btn secondary" style="width: 200px;">閉じる</button>
-                </div>
-            </div>
-        </div>
-
-        <!-- Nickname Input Modal -->
-        <div id="nickname-modal" style="display: none;">
-            <div class="nickname-container">
-                <h3>新記録！名前を入力して登録</h3>
-                <input type="text" id="nickname-input" maxlength="10" placeholder="なまえ（10文字以内）">
-                <div class="nickname-btns">
-                    <button id="btn-submit-nickname" class="title-btn">登録する</button>
-                    <button id="btn-cancel-nickname" class="title-btn secondary">登録しない</button>
-                </div>
-            </div>
-        </div>
-
-        <div id="skill-bar">
-            <div class="skill-slot" id="skill-normal">
-                <div class="key-hint">Space</div>
-                <img class="skill-icon" style="display:none">
-                <div class="skill-fallback-text" style="display:none"></div>
-                <div class="cooldown-overlay"></div>
-                <div class="cooldown-text"></div>
-                <div class="stack-count"></div>
-            </div>
-            <div class="skill-slot" id="skill-primary1">
-                <div class="key-hint">Q</div>
-                <img class="skill-icon" style="display:none">
-                <div class="skill-fallback-text" style="display:none"></div>
-                <div class="cooldown-overlay"></div>
-                <div class="cooldown-text"></div>
-                <div class="stack-count"></div>
-            </div>
-            <div class="skill-slot" id="skill-primary2">
-                <div class="key-hint">E</div>
-                <img class="skill-icon" style="display:none">
-                <div class="skill-fallback-text" style="display:none"></div>
-                <div class="cooldown-overlay"></div>
-                <div class="cooldown-text"></div>
-                <div class="stack-count"></div>
-            </div>
-            <div class="skill-slot" id="skill-secondary">
-                <div class="key-hint">C</div>
-                <img class="skill-icon" style="display:none">
-                <div class="skill-fallback-text" style="display:none"></div>
-                <div class="cooldown-overlay"></div>
-                <div class="cooldown-text"></div>
-                <div class="stack-count"></div>
-            </div>
-            <div class="skill-slot" id="skill-ultimate">
-                <div class="key-hint">X</div>
-                <img class="skill-icon" style="display:none">
-                <div class="skill-fallback-text" style="display:none"></div>
-                <div class="cooldown-overlay"></div>
-                <div class="cooldown-text"></div>
-                <div class="stack-count"></div>
-            </div>
-        </div>
-
-        <!-- Inventory Screen -->
-        <div id="inventory-screen" style="display: none;">
-            <div class="inventory-container">
-                <h2>インベントリ</h2>
-                <div class="inventory-content">
-                    <div class="equipped-section">
-                        <h3>装備中</h3>
-                        <div class="equip-slots">
-                            <div class="equip-slot" data-type="normal">
-                                <div class="slot-label">通常 (Space)</div>
-                                <img class="skill-icon" style="display:none">
-                                <div class="slot-content" id="equip-normal">なし</div>
-                            </div>
-                            <div class="equip-slot" data-type="primary1">
-                                <div class="slot-label">メイン1 (Q)</div>
-                                <img class="skill-icon" style="display:none">
-                                <div class="slot-content" id="equip-primary1">なし</div>
-                            </div>
-                            <div class="equip-slot" data-type="primary2">
-                                <div class="slot-label">メイン2 (E)</div>
-                                <img class="skill-icon" style="display:none">
-                                <div class="slot-content" id="equip-primary2">なし</div>
-                            </div>
-                            <div class="equip-slot" data-type="secondary">
-                                <div class="slot-label">サブ (C)</div>
-                                <img class="skill-icon" style="display:none">
-                                <div class="slot-content" id="equip-secondary">なし</div>
-                            </div>
-                            <div class="equip-slot" data-type="ultimate">
-                                <div class="slot-label">必殺技 (X)</div>
-                                <img class="skill-icon" style="display:none">
-                                <div class="slot-content" id="equip-ultimate">なし</div>
+                        <div class="stage-tab-content" id="tab-difficulty" style="display: none;">
+                            <div class="settings-section no-box">
+                                <h3 style="text-align: center; font-size: 14px; margin-bottom: 20px;">難易度を選択
+                                </h3>
+                                <div class="difficulty-options">
+                                    <label class="diff-option" data-difficulty="easy">
+                                        <div class="diff-name">イージー</div>
+                                    </label>
+                                    <label class="diff-option active" data-difficulty="normal">
+                                        <div class="diff-name">ノーマル</div>
+                                    </label>
+                                    <label class="diff-option" data-difficulty="hard">
+                                        <div class="diff-name">ハード</div>
+                                    </label>
+                                </div>
                             </div>
                         </div>
                     </div>
-                    <div class="backpack-section">
-                        <h3>所持スキル</h3>
-                        <div class="inventory-tabs">
-                            <button class="tab-btn active" data-filter="all">すべて</button>
-                            <button class="tab-btn" data-filter="normal">通常</button>
-                            <button class="tab-btn" data-filter="primary">メイン</button>
-                            <button class="tab-btn" data-filter="secondary">サブ</button>
-                            <button class="tab-btn" data-filter="ultimate">必殺技</button>
+                </div>
+            </div>
+
+            <!-- Aether Lab Modal -->
+            <div id="lab-modal" class="stage-settings-container" style="display: none;">
+                <div class="stage-overhaul-layout">
+                    <!-- Left Side: Lab Focus + Actions -->
+                    <div class="stage-left-column">
+                        <div id="lab-focus-area" class="player-focus-area">
+                            <!-- Preview or Selected Item -->
                         </div>
-                        <div id="backpack-grid">
-                            <!-- Items will be injected here -->
+                        <div class="stage-actions-area">
+                            <button id="btn-lab-execute" class="title-btn">実行する</button>
+                            <button id="btn-close-lab" class="title-btn secondary">戻る</button>
                         </div>
                     </div>
-                    <div class="description-section">
-                        <h3>詳細</h3>
-                        <div id="skill-detail-panel">
-                            <div id="detail-name">スキルを選択してください</div>
-                            <div id="detail-info"></div>
-                            <div id="detail-desc"></div>
+
+                    <!-- Right Side: Lab Tabs -->
+                    <div class="stage-right-column">
+                        <div class="stage-tabs">
+                            <button class="stage-tab-btn active" data-tab="build">ビルド</button>
+                            <button class="stage-tab-btn" data-tab="upgrade">強化</button>
+                            <button class="stage-tab-btn" data-tab="dismantle">分解</button>
+                            <button class="stage-tab-btn" data-tab="synthesis">合成</button>
+                        </div>
+
+                        <div id="lab-tab-content" class="lab-tab-content">
+                            <!-- Content injected by JS -->
+                        </div>
+
+                        <div class="lab-material-bar">
+                            <div class="material-item">
+                                <img src="assets/ui/aether_shard.png" class="currency-icon" title="エーテルシャード">
+                                <span id="lab-gold-value" class="mat-value">0</span>
+                            </div>
+                            <div class="material-item">
+                                <img src="assets/ui/aether_fragment.png" class="currency-icon" title="エーテルフラグメント">
+                                <span id="lab-shard-value" class="mat-value">0</span>
+                            </div>
                         </div>
                     </div>
                 </div>
-                <div class="inventory-footer">
-                    <p>スキルをクリックして選択し、装備欄をクリックして装備します。</p>
-                    <button id="close-inventory">閉じる (B)</button>
+            </div>
+
+            <!-- Inventory Modal (Redesigned Centered Layout) -->
+            <div id="inventory-modal" class="inventory-modal-wrapper" style="display: none;">
+                <div class="inventory-box">
+                    <div class="inventory-content-row">
+                        <!-- Left Side: Inventory Tabs & Grid -->
+                        <div class="inventory-left-side">
+                            <div class="stage-tabs inventory-filters"
+                                style="display: flex; gap: 8px; margin-bottom: 15px; flex-wrap: wrap; justify-content: center; border-bottom: none;">
+                                <button class="stage-tab-btn filter-btn active" data-filter="normal">通常</button>
+                                <button class="stage-tab-btn filter-btn" data-filter="primary1">メイン1</button>
+                                <button class="stage-tab-btn filter-btn" data-filter="primary2">メイン2</button>
+                                <button class="stage-tab-btn filter-btn" data-filter="secondary">サブ</button>
+                                <button class="stage-tab-btn filter-btn" data-filter="ultimate">必殺</button>
+                            </div>
+                            <div id="inventory-backpack-grid" class="inventory-backpack-grid">
+                                <!-- Items injected by JS -->
+                            </div>
+                        </div>
+
+                        <!-- Right Side: Focus Area (Description) -->
+                        <div class="inventory-right-side">
+                            <div id="inventory-focus-area" class="inventory-focus-box">
+                                <div id="inventory-selected-name" class="inventory-focus-name">スキルを選択</div>
+                                <div id="inventory-selected-type" class="inventory-focus-type">-</div>
+
+                                <div class="inventory-stats-list" id="inventory-selected-stats">
+                                    <div class="stat-row"><span>クールダウン:</span> <span id="stat-cooldown">-</span></div>
+                                    <div class="stat-row"><span>クリティカル率:</span> <span id="stat-crit-rate">-</span></div>
+                                    <div class="stat-row"><span>クリティカル倍率:</span> <span id="stat-crit-mult">-</span>
+                                    </div>
+                                    <div class="stat-row"><span>状態異常確率:</span> <span id="stat-status-rate">-</span>
+                                    </div>
+                                </div>
+
+                                <div id="inventory-selected-desc" class="inventory-focus-desc"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Footer: Close Button -->
+                    <div class="inventory-footer">
+                        <button id="btn-inventory-close" class="title-btn secondary">閉じる (B)</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Collection Modal -->
+            <div id="collection-modal" style="display: none;">
+                <div class="collection-container">
+                    <h2 class="collection-title">開発済みスキル書庫</h2>
+                    <div id="collection-grid" class="collection-grid">
+                        <!-- Items injected by JS -->
+                    </div>
+                    <div class="collection-footer">
+                        <button id="btn-close-collection" class="title-btn secondary" style="width: 200px;">閉じる</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Loading Screen -->
+            <div id="loading-screen">
+                <div class="loading-container">
+                    <div class="loading-text">ダンジョンを生成中...</div>
+                    <div class="loading-bar-track">
+                        <div class="loading-bar-fill"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="ui-layer">
+                <div id="health-bar-container">
+                    <div id="health-bar-label">HP</div>
+                    <div id="health-bar-track">
+                        <div id="health-bar-fill"></div>
+                        <div id="health-bar-text"><span id="hp-value">100</span> / <span id="hp-max">100</span>
+                        </div>
+                    </div>
+                </div>
+                <div id="aether-gauge-container">
+                    <div id="aether-gauge-fill"></div>
+                </div>
+
+                <!-- Aether Coins (Per-run) -->
+                <div id="currency-display">
+                    <div class="resource-item">
+                        <img src="assets/ui/aether_coin.png" alt="Coins" class="currency-icon">
+                        <span id="gold-value">0</span>
+                        <span style="font-size: 8px; color: #ffcc00; margin-left: 4px;">COINS</span>
+                    </div>
+                    <!-- Aether Shards (Persistent) -->
+                    <div class="resource-item">
+                        <img src="assets/ui/aether_shard.png" alt="Shards" class="currency-icon">
+                        <span id="shard-value">0</span>
+                        <span style="font-size: 8px; color: #00ffff; margin-left: 4px;">SHARDS</span>
+                    </div>
+                </div>
+
+                <div id="score-display">
+                    <span id="score-label">SCORE</span>
+                    <span id="score-value">0</span>
+                </div>
+
+                <div id="floor-display">
+                    <span id="floor-label">階層</span>
+                    <span id="floor-value">1</span>
+                </div>
+            </div>
+
+            <!-- Settings Button -->
+            <div id="settings-btn"
+                style="position: absolute; top: 10px; right: 10px; z-index: 10000; cursor: pointer; background: rgba(0,0,0,0.5); padding: 5px; border-radius: 5px; width: 32px; height: 32px; display: flex; justify-content: center; align-items: center; color: white; font-size: 20px; border: 1px solid #555;">
+                ⚙️
+            </div>
+
+            <!-- Settings Modal -->
+            <div id="settings-modal"
+                style="display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 30000; justify-content: center; align-items: center; pointer-events: auto;">
+                <div
+                    style="background: #222; padding: 20px; border: 2px solid #555; border-radius: 10px; text-align: center; color: white; min-width: 300px; pointer-events: auto;">
+                    <h2 id="settings-title" style="margin-top: 0;">設定</h2>
+                    <div class="setting-item">
+                        <label>音量</label>
+                        <input type="range" id="sound-volume" min="0" max="1" step="0.1" value="0.5">
+                    </div>
+                    <div class="setting-item">
+                        <label>BGM音量</label>
+                        <input type="range" id="music-volume" min="0" max="1" step="0.1" value="0.5">
+                    </div>
+                    <!-- Cheat Menu (Hidden by default, shown in debugMode) -->
+                    <div id="cheat-menu-container"
+                        style="display: none; border-top: 1px solid #444; margin-top: 15px; padding-top: 15px;">
+                        <h3 style="margin-top: 0; font-size: 16px; color: #ffcc00;">チートメニュー</h3>
+                        <div style="display: flex; flex-direction: column; gap: 10px;">
+                            <button id="btn-cheat-teleport-boss" class="title-btn"
+                                style="font-size: 10px; padding: 10px;">ボス部屋へテレポート</button>
+                            <button id="btn-cheat-teleport-portal" class="title-btn"
+                                style="font-size: 10px; padding: 10px;">ポータルへテレポート</button>
+                            <button id="btn-cheat-invincible" class="title-btn"
+                                style="font-size: 10px; padding: 10px;">無敵:
+                                OFF</button>
+                            <button id="btn-cheat-teleport-statue" class="title-btn"
+                                style="font-size: 10px; padding: 10px;">天使の石像へテレポート</button>
+                            <button id="btn-cheat-teleport-altar" class="title-btn"
+                                style="font-size: 10px; padding: 10px;">血の祭壇へテレポート</button>
+                            <button id="btn-cheat-forced-chest" class="title-btn"
+                                style="font-size: 10px; padding: 10px;">宝箱を強制獲得</button>
+                        </div>
+                    </div>
+                    <!-- Progress Reset -->
+                    <div style="border-top: 1px solid #444; margin-top: 15px; padding-top: 15px;">
+                        <button id="btn-reset-data" class="title-btn"
+                            style="font-size: 10px; padding: 10px; background: #600; border-color: #a00; color: #ffcccc;">
+                            データを初期化（最初から）
+                        </button>
+                    </div>
+                    <button id="btn-close-settings" style="margin-top: 15px;">閉じる</button>
+                </div>
+            </div>
+
+            <!-- Skill Selection Modal -->
+            <div id="skill-selection-modal"
+                style="display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 30000; justify-content: center; align-items: center; pointer-events: auto;">
+                <div class="skill-selection-container" style="pointer-events: auto;">
+                    <h2>獲得スキルを選択</h2>
+                    <div id="skill-selection-cards">
+                        <!-- Cards injected by JS -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Blessing Selection Modal -->
+            <div id="blessing-selection-modal"
+                style="display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 30000; justify-content: center; align-items: center; pointer-events: auto;">
+                <div class="skill-selection-container" style="pointer-events: auto;">
+                    <h2>女神の祝福</h2>
+                    <div id="blessing-selection-cards" style="display: flex; justify-content: center; gap: 20px;">
+                        <!-- Cards injected by JS -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Ranking Board Modal -->
+            <div id="ranking-modal" style="display: none;">
+                <div class="collection-container ranking-board">
+                    <h2 class="collection-title">世界ランキング</h2>
+                    <div id="ranking-list" class="ranking-list">
+                        <div class="loading-spinner">通信中...</div>
+                    </div>
+                    <div class="collection-footer">
+                        <button id="btn-close-ranking" class="title-btn secondary" style="width: 200px;">閉じる</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Nickname Input Modal -->
+            <div id="nickname-modal"
+                style="display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 30000; justify-content: center; align-items: center; pointer-events: auto;">
+                <div class="nickname-container" style="pointer-events: auto;">
+                    <h3>新記録！名前を入力して登録</h3>
+                    <input type="text" id="nickname-input" maxlength="10" placeholder="なまえ（10文字以内）">
+                    <div class="nickname-btns">
+                        <button id="btn-submit-nickname" class="title-btn">登録する</button>
+                        <button id="btn-cancel-nickname" class="title-btn secondary">登録しない</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="skill-bar">
+                <div class="skill-slot" id="skill-normal">
+                    <div class="key-hint">Space</div>
+                    <img class="skill-icon" style="display:none">
+                    <div class="skill-fallback-text" style="display:none"></div>
+                    <div class="cooldown-overlay"></div>
+                    <div class="cooldown-text"></div>
+                    <div class="stack-count"></div>
+                </div>
+                <div class="skill-slot" id="skill-primary1">
+                    <div class="key-hint">Q</div>
+                    <img class="skill-icon" style="display:none">
+                    <div class="skill-fallback-text" style="display:none"></div>
+                    <div class="cooldown-overlay"></div>
+                    <div class="cooldown-text"></div>
+                    <div class="stack-count"></div>
+                </div>
+                <div class="skill-slot" id="skill-primary2">
+                    <div class="key-hint">E</div>
+                    <img class="skill-icon" style="display:none">
+                    <div class="skill-fallback-text" style="display:none"></div>
+                    <div class="cooldown-overlay"></div>
+                    <div class="cooldown-text"></div>
+                    <div class="stack-count"></div>
+                </div>
+                <div class="skill-slot" id="skill-secondary">
+                    <div class="key-hint">C</div>
+                    <img class="skill-icon" style="display:none">
+                    <div class="skill-fallback-text" style="display:none"></div>
+                    <div class="cooldown-overlay"></div>
+                    <div class="cooldown-text"></div>
+                    <div class="stack-count"></div>
+                </div>
+                <div class="skill-slot" id="skill-ultimate">
+                    <div class="key-hint">X</div>
+                    <img class="skill-icon" style="display:none">
+                    <div class="skill-fallback-text" style="display:none"></div>
+                    <div class="cooldown-overlay"></div>
+                    <div class="cooldown-text"></div>
+                    <div class="stack-count"></div>
+                </div>
+            </div>
+
+            <!-- Dialogue Overlay -->
+            <div id="dialogue-overlay" style="display: none;">
+                <div id="dialogue-choices-container" style="display: none;">
+                    <!-- Choice buttons will be injected here -->
+                </div>
+                <div id="dialogue-box">
+                    <div id="dialogue-text"></div>
+                    <div id="dialogue-prompt">[SPACE] で次へ</div>
                 </div>
             </div>
         </div>
-        <!-- Dialogue Overlay -->
-        <div id="dialogue-overlay" style="display: none;">
-            <div id="dialogue-choices-container" style="display: none;">
-                <!-- Choice buttons will be injected here -->
-            </div>
-            <div id="dialogue-box">
-                <div id="dialogue-text"></div>
-                <div id="dialogue-prompt">[SPACE] で次へ</div>
-            </div>
-        </div>
-    </div>
     </div>
     <script type="module" src="src/main.js"></script>
 </body>

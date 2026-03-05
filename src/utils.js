@@ -181,9 +181,10 @@ export class Entity {
             currentVx += this.knockbackVx;
             currentVy += this.knockbackVy;
 
-            // Decay knockback
-            this.knockbackVx *= Math.pow(0.8, dt * 60);
-            this.knockbackVy *= Math.pow(0.8, dt * 60);
+            // Decay knockback (Smoother glide)
+            const decay = Math.pow(0.92, dt * 60);
+            this.knockbackVx *= decay;
+            this.knockbackVy *= decay;
 
             if (this.knockbackDuration <= 0) {
                 this.knockbackVx = 0;
@@ -285,7 +286,7 @@ export class Entity {
         return false;
     }
 
-    takeDamage(amount, color = null, aetherAmount = 0, isCrit = false, kx = 0, ky = 0, kDuration = 0.15, silent = false) {
+    takeDamage(amount, color = null, aetherAmount = 0, isCrit = false, kx = 0, ky = 0, kDuration = 0.2, silent = false) {
         if (this.invulnerable > 0) return;
         this.hp -= amount;
 

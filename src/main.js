@@ -4,13 +4,14 @@ import { Player } from './player.js';
 import { Enemy, Slime, Bat, Goblin, SkeletonArcher, Ghost, Boss, Chest, Statue, BloodAltar, ShopNPC, WoodCrate, SpikeTrap } from './entities.js';
 import { createSkill } from './skills/index.js';
 import { drawUI, showSkillSelection, hideSkillSelection, showBlessingSelection, hideBlessingSelection, drawDialogue, hideDialogue, initSettingsUI, initRankingUI, showNicknameInput, showStageSettings, hideStageSettings } from './ui.js';
-import { initInventory, renderInventory, resetInventorySelection } from './inventory.js';
 import { skillsDB } from '../data/skills_db.js';
 import { SaveManager } from './SaveManager.js';
 import { initFirebase, submitScore } from './firebase_manager.js';
 import { firebaseConfig } from './firebase_config.js';
 
 import { CollectionUI } from './ui/CollectionUI.js';
+import { LabUI } from './ui/LabUI.js';
+import { InventoryUI } from './ui/InventoryUI.js';
 
 const _debugLog = (msg) => {
     // console.log(msg);
@@ -34,12 +35,13 @@ class Game {
         this.zoom = 1.2;
         // Check for debug mode in URL: index.html?debug=true
         this.debugMode = new URLSearchParams(window.location.search).get('debug') === 'true';
+        this.isDemo = true; // Demo Version Flag
         this.gameState = 'TITLE'; // TITLE, PLAYING, REWARD_SELECT, GAME_OVER
         this.rewardOptions = null; // Array of 3 options
         this.images = {}; // Asset Check
         this.currentFloor = 1;
         this.score = 0;
-        this.difficulty = 'normal'; // normal or hard
+        this.difficulty = 'normal'; // easy, normal or hard
         this.highScore = SaveManager.getSaveData().stats.highScore || 0;
 
         // Cinematic Start State
@@ -104,6 +106,8 @@ class Game {
         this.handleResize(); // Initial call
 
         this.initTitleListeners();
+
+        initSettingsUI(this);
 
         requestAnimationFrame(this.loop);
         _debugLog("Game Loop Started");
@@ -207,9 +211,11 @@ class Game {
                 const highscoreContainer = document.getElementById('title-highscore-container');
                 if (highscoreContainer) highscoreContainer.style.display = 'none';
 
-                // Hide title header during preparation
                 const titleHeader = document.querySelector('.title-header');
                 if (titleHeader) titleHeader.style.display = 'none';
+
+                const sideMenu = document.querySelector('.title-side-menu');
+                if (sideMenu) sideMenu.style.display = 'none';
 
                 showStageSettings(
                     this,
@@ -229,11 +235,13 @@ class Game {
                         this.init(false, settings.difficulty, settings.skillId, true);
                     },
                     () => {
-                        // On Back - restore menu
                         if (titleMenu) titleMenu.style.display = 'flex';
                         if (highscoreContainer) highscoreContainer.style.display = 'flex';
                         const titleHeader = document.querySelector('.title-header');
                         if (titleHeader) titleHeader.style.display = 'flex';
+
+                        const sideMenu = document.querySelector('.title-side-menu');
+                        if (sideMenu) sideMenu.style.display = 'flex';
 
                         // Reset cinematic state smoothly
                         this.targetCameraZoom = 1.2; // Back to title zoom
@@ -265,6 +273,12 @@ class Game {
         const closeCollectionBtn = document.getElementById('btn-close-collection');
         if (closeCollectionBtn) {
             closeCollectionBtn.onclick = () => CollectionUI.close();
+        }
+
+        const openLabBtn = document.getElementById('btn-open-lab');
+        if (openLabBtn) {
+            openLabBtn.onclick = () => LabUI.open();
+            LabUI.init(this);
         }
     }
 
@@ -437,7 +451,10 @@ class Game {
     }
 
     addScore(amount) {
-        const multiplier = this.difficulty === 'hard' ? 2 : 1;
+        let multiplier = 1;
+        if (this.difficulty === 'hard') multiplier = 2;
+        else if (this.difficulty === 'easy') multiplier = 0.2;
+
         this.score += amount * multiplier;
     }
 
@@ -452,9 +469,6 @@ class Game {
 
         if (!isNextFloor) {
             this.currentFloor = 1;
-        } else {
-            // Clear stale inventory selection from the previous floor
-            resetInventorySelection();
         }
 
         // --- Map Preparation ---
@@ -624,13 +638,11 @@ class Game {
         this.uiScoreValue = document.getElementById('score-value');
         this.lastHp = null;
         this.lastMaxHp = null;
-        this.showInventory = false;
         if (this.player) {
             this.player.scale = 1.0;
             this.player.alpha = 1.0;
         }
-        initInventory(this);
-        initSettingsUI(this);
+        InventoryUI.init(this);
     }
 
     spawnCratesInRoom(room) {
@@ -734,7 +746,7 @@ class Game {
             p.hp = p.maxHp;
             _debugLog('祝福: HP全回復!');
         } else if (opt.id === 'shards') {
-            p.addCurrency(50);
+            p.addAetherFragments(50);
             _debugLog('祝福: エーテルシャード50個を獲得!');
         } else if (opt.id === 'random_skill_grant') {
             // Pick a random skill now
@@ -749,7 +761,7 @@ class Game {
                         _debugLog(`祝福: ${skill.name} を習得!`);
                     } else {
                         _debugLog(`祝福: ${skill.name} は既に持っています! (シャード+20)`);
-                        p.addCurrency(20); // Small compensation for duplicate
+                        p.addAetherFragments(20); // Small compensation for duplicate
                     }
                 }
             });
@@ -959,6 +971,17 @@ class Game {
                     this.showLoading();
 
                     setTimeout(async () => {
+                        if (this.isDemo && this.currentFloor >= 3) {
+                            // Demo Clear Sequence
+                            this.isPaused = true;
+                            this.gameState = 'DIALOGUE';
+                            this.dialogueText = "デモ版はここまでです。プレイありがとうございました！";
+
+                            setTimeout(() => {
+                                window.location.reload(); // Return to title
+                            }, 3000);
+                            return;
+                        }
                         await this.preloadAllAssets();
                         this.init(true);
                         this.transitionType = 'fade-in';
@@ -1036,14 +1059,17 @@ class Game {
         }
 
         // Toggle Inventory
-        if (this.input.isDown('KeyB')) {
-            if (!this.input.bPressed) {
-                this.showInventory = !this.showInventory;
-                this.input.bPressed = true;
-                renderInventory(this);
+        if (this.input.isDown('KeyB') || this.input.isDown('KeyI') || this.input.isDown('Tab')) {
+            if (!this.input.inventoryPressed) {
+                this.input.inventoryPressed = true;
+                if (InventoryUI.modal && InventoryUI.modal.style.display === 'flex') {
+                    InventoryUI.close();
+                } else {
+                    InventoryUI.open();
+                }
             }
         } else {
-            this.input.bPressed = false;
+            this.input.inventoryPressed = false;
         }
 
         // Training Mode Input (Spawn logic moved to enterTrainingMode)
@@ -1074,7 +1100,7 @@ class Game {
         }
 
 
-        if (this.showInventory || this.isPaused) return; // Pause game when inventory or modal is open
+        if (this.isPaused) return; // Pause game when modal is open
 
         if (this.isGameOver) {
             if (this.input.isDown('Space')) {
@@ -2273,6 +2299,13 @@ class Game {
         });
     }
 
+    cheatForcedChest() {
+        // Pick 3 random unique skills
+        const shuffled = [...skillsDB].sort(() => 0.5 - Math.random());
+        const selectedOptions = shuffled.slice(0, 3);
+        this.triggerSkillSelection(selectedOptions);
+    }
+
     handleSkillSelected(skillData) {
         this.isPaused = false;
         // Create the actual skill instance
@@ -2299,7 +2332,7 @@ class Game {
                 this.spawnParticles(this.player.x + this.player.width / 2, this.player.y + this.player.height / 2, 20, '#ffff00');
             } else {
                 this.logToScreen(`${skill.name} は既に所持しています。`);
-                this.player.addCurrency(50); // Refund/Compensation
+                this.player.addDungeonCoins(50); // Refund/Compensation
             }
         }
     }
@@ -2348,6 +2381,12 @@ class Game {
         }
 
         this.accumulator += deltaTime;
+
+        // --- P Key Toggle for Settings/Cheat Menu ---
+        if (this.input.isPressed('KeyP')) {
+            const settingsBtn = document.getElementById('settings-btn');
+            if (settingsBtn) settingsBtn.click();
+        }
 
         // Dynamic Step Size for Smooth Slow Motion
         // Use scaled step size to ensure updates run every frame even at low time scales

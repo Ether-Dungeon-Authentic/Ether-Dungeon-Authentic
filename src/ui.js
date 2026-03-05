@@ -1,6 +1,30 @@
-import { fetchTopRankings, submitScore } from './firebase_manager.js';
+import { SaveManager } from './SaveManager.js';
+import { SkillSelectionUI } from './ui/SkillSelectionUI.js';
 
 let skillSlots = null;
+
+export const getFormattedEffect = (chip) => {
+    const value = chip.getCurrentEffect();
+    const type = chip.data.effectType;
+    let text = '';
+    const isPositive = value > 0;
+
+    const isPercentage = type.endsWith('_mult') ||
+        type === 'crit_rate_add' ||
+        type === 'on_hit_damage_buff';
+
+    if (isPercentage) {
+        const percent = Math.round(value * 100);
+        text = `${isPositive ? '+' : ''}${percent}%`;
+    } else {
+        const roundedValue = Math.round(value);
+        text = `${isPositive ? '+' : ''}${roundedValue}`;
+    }
+
+    const colorClass = isPositive ? 'stat-plus' : 'stat-minus';
+    return ` <span class="${colorClass}">${text}</span>`;
+};
+
 
 function initSkillSlots() {
     skillSlots = {
@@ -45,6 +69,30 @@ function initSkillSlots() {
             stack: document.querySelector('#skill-ultimate .stack-count')
         }
     };
+
+    // Add click listeners to skill slots
+    const keys = Object.keys(skillSlots);
+    for (let i = 0; i < keys.length; i++) {
+        const key = keys[i];
+        const slot = skillSlots[key];
+        if (slot && slot.el) {
+            slot.el.style.cursor = 'pointer';
+            slot.el.style.transition = 'transform 0.1s';
+
+            // Add hover effect dynamically if CSS isn't present
+            slot.el.addEventListener('mouseenter', () => slot.el.style.transform = 'scale(1.05)');
+            slot.el.addEventListener('mouseleave', () => slot.el.style.transform = 'scale(1)');
+
+            slot.el.addEventListener('click', () => {
+                const game = window._gameInstance;
+                if (game && !game.isGameOver && game.gameState === 'PLAYING') {
+                    import('./ui/InventoryUI.js').then(({ InventoryUI }) => {
+                        InventoryUI.openForSlot(key);
+                    }).catch(err => console.error("Failed to load InventoryUI", err));
+                }
+            });
+        }
+    }
 }
 
 export function drawUI(ctx, game, width, height) {
@@ -88,8 +136,9 @@ export function drawUI(ctx, game, width, height) {
         return;
     }
 
-    // Update Currency
-    updateCurrency(game.player.currency);
+
+    // Update Currency (Dungeon Coins and Persistent Shards)
+    updateResources(game.player.dungeonCoins, game.player.aetherShards);
 
     // Update Aether Gauge
     updateAetherGauge(game.player.aetherGauge, game.player.maxAetherGauge);
@@ -103,7 +152,7 @@ export function drawUI(ctx, game, width, height) {
     ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
     ctx.font = '12px sans-serif';
     ctx.textAlign = 'right';
-    ctx.fillText("v0.6.0 (Pro)", width - 10, height - 10);
+    ctx.fillText("v0.6.0 (Demo)", width - 10, height - 10);
     ctx.restore();
 
 
@@ -358,70 +407,14 @@ function drawMiniMap(ctx, game, screenWidth, screenHeight) {
     ctx.fill();
 }
 
-// --- Skill Selection UI ---
-const skillModal = document.getElementById('skill-selection-modal');
-const skillCardsContainer = document.getElementById('skill-selection-cards');
+import { SkillRewardUI } from './ui/SkillRewardUI.js';
 
 export function showSkillSelection(skills, onSelectCallback) {
-    if (!skillModal || !skillCardsContainer) return;
-
-    // Clear previous
-    skillCardsContainer.innerHTML = '';
-
-    skills.forEach(skill => {
-        const card = document.createElement('div');
-        card.className = 'skill-card';
-        card.dataset.type = skill.type; // for styling
-
-        // Icon
-        const icon = document.createElement('img');
-        icon.className = 'skill-card-icon';
-        icon.src = skill.icon || 'assets/icon_unknown.png'; // Fallback? based on type?
-        icon.onerror = () => { icon.style.display = 'none'; }; // Hide if missing
-        card.appendChild(icon);
-
-        // Name
-        const name = document.createElement('div');
-        name.className = 'skill-card-name';
-        name.textContent = skill.name;
-        card.appendChild(name);
-
-        // Type
-        const type = document.createElement('div');
-        type.className = 'skill-card-type';
-        // Translate type or capitalize
-        const typeMap = {
-            normal: '通常スキル',
-            primary: 'メインスキル',
-            secondary: 'サブスキル',
-            ultimate: 'アルティメット'
-        };
-        type.textContent = typeMap[skill.type] || skill.type.toUpperCase();
-        card.appendChild(type);
-
-        // Description
-        const desc = document.createElement('div');
-        desc.className = 'skill-card-desc';
-        desc.textContent = skill.description || '説明がありません。';
-        card.appendChild(desc);
-
-        // Click Handler
-        card.addEventListener('click', () => {
-            hideSkillSelection();
-            if (onSelectCallback) onSelectCallback(skill);
-        });
-
-        skillCardsContainer.appendChild(card);
-    });
-
-    skillModal.style.display = 'flex';
+    SkillRewardUI.show(skills, onSelectCallback);
 }
 
 export function hideSkillSelection() {
-    if (skillModal) {
-        skillModal.style.display = 'none';
-        skillCardsContainer.innerHTML = ''; // Cleanup
-    }
+    SkillRewardUI.hide();
 }
 
 // --- Blessing Selection UI ---
@@ -543,11 +536,11 @@ export function hideBlessingSelection() {
     }
 }
 
-export function updateCurrency(amount) {
-    const el = document.getElementById('currency-value');
-    if (el) {
-        el.textContent = amount;
-    }
+export function updateResources(coins, shards) {
+    const goldEl = document.getElementById('gold-value');
+    const shardEl = document.getElementById('shard-value');
+    if (goldEl) goldEl.textContent = Math.floor(coins);
+    if (shardEl) shardEl.textContent = Math.floor(shards);
 }
 
 
@@ -612,17 +605,29 @@ export function hideChoices() {
 }
 
 // --- Settings UI ---
-const settingsBtn = document.getElementById('settings-btn');
-const settingsModal = document.getElementById('settings-modal');
-const btnCloseSettings = document.getElementById('btn-close-settings');
-const btnTraining = document.getElementById('btn-training');
-
 let _settingsInitialized = false;
 
 export function initSettingsUI(game) {
+    const settingsBtn = document.getElementById('settings-btn');
+    const settingsModal = document.getElementById('settings-modal');
+    const btnCloseSettings = document.getElementById('btn-close-settings');
+    const btnTraining = document.getElementById('btn-training');
     const cheatContainer = document.getElementById('cheat-menu-container');
+
     if (cheatContainer) {
         cheatContainer.style.display = game.debugMode ? 'block' : 'none';
+    }
+
+    const btnReset = document.getElementById('btn-reset-data');
+    if (btnReset) {
+        btnReset.onclick = () => {
+            if (confirm('全てのセーブデータ（所持チップ、強化状況、ハイスコアなど）を完全に消去しますか？\nこの操作は取り消せません。')) {
+                if (confirm('本当に初期化してもよろしいですか？')) {
+                    SaveManager.clearData();
+                    window.location.reload();
+                }
+            }
+        };
     }
 
     if (!_settingsInitialized) {
@@ -630,69 +635,114 @@ export function initSettingsUI(game) {
 
         if (settingsBtn) {
             settingsBtn.addEventListener('click', () => {
-                settingsModal.style.display = 'flex';
-                game.isPaused = true;
-                // Update invincible button text when opening
-                const invBtn = document.getElementById('btn-cheat-invincible');
-                if (invBtn && game.player) {
-                    invBtn.textContent = `無敵: ${game.player.isCheatInvincible ? 'ON' : 'OFF'}`;
+                if (settingsModal) {
+                    settingsModal.style.display = 'flex';
+                    game.isPaused = true;
+
+                    // Refresh cheat menu visibility
+                    if (cheatContainer) {
+                        cheatContainer.style.display = game.debugMode ? 'block' : 'none';
+                    }
+
+                    // Update invincible button text when opening
+                    const invBtn = document.getElementById('btn-cheat-invincible');
+                    if (invBtn && game.player) {
+                        invBtn.textContent = `無敵: ${game.player.isCheatInvincible ? 'ON' : 'OFF'}`;
+                    }
                 }
             });
         }
 
         if (btnCloseSettings) {
             btnCloseSettings.addEventListener('click', () => {
-                settingsModal.style.display = 'none';
-                game.isPaused = false;
+                if (settingsModal) {
+                    settingsModal.style.display = 'none';
+                    game.isPaused = false;
+                }
             });
         }
 
         if (btnTraining) {
             btnTraining.addEventListener('click', () => {
-                settingsModal.style.display = 'none';
-                game.isPaused = false;
-                game.enterTrainingMode();
+                if (settingsModal) {
+                    settingsModal.style.display = 'none';
+                    game.isPaused = false;
+                    game.enterTrainingMode();
+                }
             });
         }
-    }
 
-    // Cheat Button Listeners
-    const btnTeleportBoss = document.getElementById('btn-cheat-teleport-boss');
-    if (btnTeleportBoss) {
-        btnTeleportBoss.onclick = () => {
-            const bossRoom = game.map.rooms.find(r => r.type === 'boss');
-            if (bossRoom && game.player) {
-                game.player.x = (bossRoom.x + bossRoom.w / 2) * game.map.tileSize;
-                game.player.y = (bossRoom.y + bossRoom.h / 2) * game.map.tileSize;
-                settingsModal.style.display = 'none';
-                game.isPaused = false;
-            }
-        };
-    }
+        // Cheat Button Listeners
+        const btnTeleportBoss = document.getElementById('btn-cheat-teleport-boss');
+        if (btnTeleportBoss) {
+            btnTeleportBoss.onclick = () => {
+                const bossRoom = game.map.rooms.find(r => r.type === 'boss');
+                if (bossRoom && game.player) {
+                    game.player.x = (bossRoom.x + bossRoom.w / 2) * game.map.tileSize;
+                    game.player.y = (bossRoom.y + bossRoom.h / 2) * game.map.tileSize;
+                    if (settingsModal) settingsModal.style.display = 'none';
+                    game.isPaused = false;
+                }
+            };
+        }
 
-    const btnTeleportPortal = document.getElementById('btn-cheat-teleport-portal');
-    if (btnTeleportPortal) {
-        btnTeleportPortal.onclick = () => {
-            const portalRoom = game.map.rooms.find(r => r.type === 'staircase');
-            if (portalRoom && game.player) {
-                game.player.x = (portalRoom.x + portalRoom.w / 2) * game.map.tileSize;
-                game.player.y = (portalRoom.y + portalRoom.h / 2) * game.map.tileSize;
-                settingsModal.style.display = 'none';
-                game.isPaused = false;
-            }
-        };
-    }
+        const btnTeleportPortal = document.getElementById('btn-cheat-teleport-portal');
+        if (btnTeleportPortal) {
+            btnTeleportPortal.onclick = () => {
+                const portalRoom = game.map.rooms.find(r => r.type === 'staircase');
+                if (portalRoom && game.player) {
+                    game.player.x = (portalRoom.x + portalRoom.w / 2) * game.map.tileSize;
+                    game.player.y = (portalRoom.y + portalRoom.h / 2) * game.map.tileSize;
+                    if (settingsModal) settingsModal.style.display = 'none';
+                    game.isPaused = false;
+                }
+            };
+        }
 
-    const btnInvincible = document.getElementById('btn-cheat-invincible');
-    if (btnInvincible) {
-        btnInvincible.onclick = () => {
-            if (game.player) {
-                game.player.isCheatInvincible = !game.player.isCheatInvincible;
-                btnInvincible.textContent = `無敵: ${game.player.isCheatInvincible ? 'ON' : 'OFF'}`;
-            }
-        };
-    }
+        const btnTeleportStatue = document.getElementById('btn-cheat-teleport-statue');
+        if (btnTeleportStatue) {
+            btnTeleportStatue.onclick = () => {
+                const room = game.map.rooms.find(r => r.type === 'statue');
+                if (room && game.player) {
+                    game.player.x = (room.x + room.w / 2) * game.map.tileSize;
+                    game.player.y = (room.y + room.h / 2) * game.map.tileSize;
+                    if (settingsModal) settingsModal.style.display = 'none';
+                    game.isPaused = false;
+                }
+            };
+        }
 
+        const btnTeleportAltar = document.getElementById('btn-cheat-teleport-altar');
+        if (btnTeleportAltar) {
+            btnTeleportAltar.onclick = () => {
+                const room = game.map.rooms.find(r => r.type === 'altar');
+                if (room && game.player) {
+                    game.player.x = (room.x + room.w / 2) * game.map.tileSize;
+                    game.player.y = (room.y + room.h / 2) * game.map.tileSize;
+                    if (settingsModal) settingsModal.style.display = 'none';
+                    game.isPaused = false;
+                }
+            };
+        }
+
+        const btnInvincible = document.getElementById('btn-cheat-invincible');
+        if (btnInvincible) {
+            btnInvincible.onclick = () => {
+                if (game.player) {
+                    game.player.isCheatInvincible = !game.player.isCheatInvincible;
+                    btnInvincible.textContent = `無敵: ${game.player.isCheatInvincible ? 'ON' : 'OFF'}`;
+                }
+            };
+        }
+
+        const btnForcedChest = document.getElementById('btn-cheat-forced-chest');
+        if (btnForcedChest) {
+            btnForcedChest.onclick = () => {
+                game.cheatForcedChest();
+                if (settingsModal) settingsModal.style.display = 'none';
+            };
+        }
+    }
 }
 
 // --- Ranking UI ---
@@ -808,263 +858,10 @@ function updateAetherGauge(current, max) {
 
 
 // --- Stage Settings UI ---
-const stageModal = document.getElementById('stage-settings-modal');
-const startSkillList = document.getElementById('start-skill-list');
-const btnStartAdventure = document.getElementById('btn-start-adventure');
-const btnBackToTitle = document.getElementById('btn-back-to-title');
-const btnSelectSkill = document.getElementById('btn-select-skill');
-const skillGridOverlay = document.getElementById('skill-selection-grid-overlay');
-const currentSkillIcon = document.getElementById('current-skill-icon');
-const currentSkillName = document.getElementById('current-skill-name');
-const currentSkillDesc = document.getElementById('current-skill-desc');
-
 export function showStageSettings(game, skills, onStartCallback, onBackCallback) {
-    if (!stageModal || !startSkillList) return;
-
-    let selectedDifficulty = 'normal';
-    // Default to 'slash' if available, else first skill
-    let selectedSkillId = skills.some(s => s.id === 'slash') ? 'slash' : (skills.length > 0 ? skills[0].id : null);
-
-    const updateSkillDisplay = () => {
-        const skill = skills.find(s => s.id === selectedSkillId);
-        if (skill) {
-            currentSkillIcon.src = skill.icon || '';
-            currentSkillName.textContent = skill.name;
-            if (currentSkillDesc) currentSkillDesc.textContent = skill.description || "";
-        }
-    };
-    updateSkillDisplay();
-
-    // Difficulty selection
-    const diffOptions = stageModal.querySelectorAll('.diff-option');
-    diffOptions.forEach(opt => {
-        opt.onclick = () => {
-            diffOptions.forEach(o => o.classList.remove('active'));
-            opt.classList.add('active');
-            selectedDifficulty = opt.dataset.difficulty;
-        };
-    });
-
-    // Skill selection logic (GRID)
-    startSkillList.innerHTML = '';
-    skills.forEach(skill => {
-        const card = document.createElement('div');
-        card.className = 'start-skill-card';
-        if (skill.id === selectedSkillId) card.classList.add('active');
-
-        card.innerHTML = `
-            <img src="${skill.icon || ''}" class="start-skill-icon">
-        `;
-
-        card.onclick = () => {
-            selectedSkillId = skill.id;
-            updateSkillDisplay();
-            startSkillList.querySelectorAll('.start-skill-card').forEach(c => c.classList.remove('active'));
-            card.classList.add('active');
-            // Overlay logic removed as it's now permanent
-        };
-
-        startSkillList.appendChild(card);
-    });
-
-    // Toggle skill grid removed as it's now a side-by-side permanent layout
-
-    // --- Tab Logic ---
-    const tabButtons = stageModal.querySelectorAll('.stage-tab-btn');
-    const tabContents = stageModal.querySelectorAll('.stage-tab-content');
-
-    // --- Circuit Logic ---
-    let selectedChip = null;
-
-    const renderCircuitUI = () => {
-        const capacityUsedEl = document.getElementById('circuit-capacity-used');
-        const capacityMaxEl = document.getElementById('circuit-capacity-max');
-        const capacityFillEl = document.getElementById('circuit-capacity-fill');
-        const chipListEl = document.getElementById('chip-list');
-        const chipSlotsEl = document.getElementById('chip-slots');
-        const detailPanelEl = document.getElementById('chip-detail-panel');
-
-        const circuit = game.player.circuit;
-        if (!circuit || !detailPanelEl) return;
-
-        // Update Capacity
-        capacityUsedEl.textContent = circuit.usedCapacity;
-        capacityMaxEl.textContent = circuit.maxCapacity;
-        const percent = Math.min((circuit.usedCapacity / circuit.maxCapacity) * 100, 100);
-        capacityFillEl.style.width = percent + '%';
-
-        // Render Detail Panel
-        if (selectedChip) {
-            const isEquipped = game.player.circuit.slots.includes(selectedChip);
-            const catClass = {
-                '洞察': 'cat-insight',
-                '技巧': 'cat-technique',
-                '耐久': 'cat-durability',
-                '俊敏': 'cat-agility'
-            }[selectedChip.data.category] || '';
-
-            const getFormattedEffect = (chip) => {
-                const value = chip.getCurrentEffect();
-                const type = chip.data.effectType;
-                let text = '';
-                const isPositive = value > 0;
-
-                if (type.endsWith('_mult')) {
-                    const percent = Math.round(value * 100);
-                    text = `${isPositive ? '+' : ''}${percent}%`;
-                } else {
-                    text = `${isPositive ? '+' : ''}${value}`;
-                }
-
-                const colorClass = isPositive ? 'stat-plus' : 'stat-minus';
-                return `<span class="${colorClass}">${text}</span>`;
-            };
-
-            detailPanelEl.innerHTML = `
-                <div class="detail-header">
-                    <div class="chip-category ${catClass}">${selectedChip.data.category}</div>
-                    <div class="detail-cost-value">${selectedChip.getCurrentCost()}</div>
-                    <div class="detail-title">${selectedChip.data.name}</div>
-                </div>
-                <div class="chip-rank-dots">
-                    ${Array.from({ length: 5 }).map((_, i) => `<span class="dot ${i < selectedChip.level ? 'filled' : ''}"></span>`).join('')}
-                </div>
-                <div class="detail-description">
-                    ${selectedChip.data.description}${getFormattedEffect(selectedChip)}
-                </div>
-               <div class="detail-footer">
-                    <button class="detail-action-btn ${isEquipped ? 'unequip' : ''}">
-                        ${isEquipped ? '解除' : '装着'}
-                    </button>
-                </div>
-          `;
-
-            detailPanelEl.querySelector('.detail-action-btn').onclick = () => {
-                if (isEquipped) {
-                    const idx = circuit.slots.indexOf(selectedChip);
-                    circuit.unequipChip(idx);
-                } else {
-                    const emptyIdx = circuit.slots.indexOf(null);
-                    if (emptyIdx !== -1) {
-                        circuit.equipChip(selectedChip, emptyIdx);
-                    }
-                }
-                renderCircuitUI();
-            };
-        } else {
-            detailPanelEl.innerHTML = '<div class="detail-placeholder">チップを選択して詳細を表示</div>';
-        }
-
-        // Render Inventory (Owned Chips)
-        chipListEl.innerHTML = '';
-        circuit.ownedChips.forEach(chip => {
-            const item = document.createElement('div');
-            item.className = 'chip-item';
-            if (game.player.circuit.slots.includes(chip)) item.classList.add('equipped');
-            if (selectedChip === chip) item.classList.add('selected');
-
-            const catClass = {
-                '洞察': 'cat-insight',
-                '技巧': 'cat-technique',
-                '耐久': 'cat-durability',
-                '俊敏': 'cat-agility'
-            }[chip.data.category] || '';
-
-            item.innerHTML = `
-                <div class="chip-name">${chip.data.name}</div>
-                <div class="chip-rank-dots">
-                    ${Array.from({ length: 5 }).map((_, i) => `<span class="dot ${i < chip.level ? 'filled' : ''}"></span>`).join('')}
-                </div>
-            `;
-
-            item.onclick = () => {
-                selectedChip = chip;
-                renderCircuitUI();
-            };
-            chipListEl.appendChild(item);
-        });
-
-        // Render Slots
-        chipSlotsEl.innerHTML = '';
-        game.player.circuit.slots.forEach((chip, idx) => {
-            if (chip) {
-                const item = document.createElement('div');
-                item.className = 'chip-item';
-                if (selectedChip === chip) item.classList.add('selected');
-
-                const catClass = {
-                    '洞察': 'cat-insight',
-                    '技巧': 'cat-technique',
-                    '耐久': 'cat-durability',
-                    '俊敏': 'cat-agility'
-                }[chip.data.category] || '';
-
-                item.innerHTML = `
-                    <div class="chip-name">${chip.data.name}</div>
-                    <div class="chip-rank-dots">
-                        ${Array.from({ length: 5 }).map((_, i) => `<span class="dot ${i < chip.level ? 'filled' : ''}"></span>`).join('')}
-                    </div>
-                `;
-                item.onclick = () => {
-                    selectedChip = chip;
-                    renderCircuitUI();
-                };
-                chipSlotsEl.appendChild(item);
-            } else {
-                const empty = document.createElement('div');
-                empty.className = 'chip-slot-empty';
-                empty.textContent = 'Empty';
-                chipSlotsEl.appendChild(empty);
-            }
-        });
-    };
-
-    tabButtons.forEach(btn => {
-        btn.onclick = () => {
-            const tabId = btn.dataset.tab;
-
-            // Update buttons
-            tabButtons.forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-
-            // Update contents
-            tabContents.forEach(content => {
-                if (content.id === `tab-${tabId}`) {
-                    content.style.display = 'block';
-                    content.classList.add('active');
-                    if (tabId === 'circuits') renderCircuitUI();
-                } else {
-                    content.style.display = 'none';
-                    content.classList.remove('active');
-                }
-            });
-        };
-    });
-
-    // Reset to default tab (Skills)
-    const skillsTabBtn = Array.from(tabButtons).find(b => b.dataset.tab === 'skills');
-    if (skillsTabBtn) skillsTabBtn.click();
-
-    // Footer buttons
-    btnStartAdventure.onclick = () => {
-        if (!selectedSkillId) return;
-
-        // Final hide of title screen (if it was transparently visible)
-        const titleScreen = document.getElementById('title-screen');
-        if (titleScreen) titleScreen.style.display = 'none';
-
-        hideStageSettings();
-        if (onStartCallback) onStartCallback({ difficulty: selectedDifficulty, skillId: selectedSkillId });
-    };
-
-    btnBackToTitle.onclick = () => {
-        hideStageSettings();
-        if (onBackCallback) onBackCallback();
-    };
-
-    stageModal.style.display = 'flex';
+    SkillSelectionUI.show(game, skills, onStartCallback, onBackCallback);
 }
 
 export function hideStageSettings() {
-    if (stageModal) stageModal.style.display = 'none';
+    SkillSelectionUI.hide();
 }

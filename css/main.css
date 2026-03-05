@@ -24,9 +24,7 @@ canvas {
     background-color: #000;
 }
 
-   Collection Modal Styles
-   =========================== */
-#collection-modal {
+Collection Modal Styles===========================*/ #collection-modal {
     position: fixed;
     top: 0;
     left: 0;
@@ -192,4 +190,3 @@ canvas {
         opacity: 0;
     }
 }
-

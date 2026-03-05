@@ -1,0 +1,293 @@
+/* css/inventory.css */
+.inventory-equip-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    padding: 10px;
+}
+
+.inv-equip-slot {
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 8px;
+    padding: 15px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.inv-equip-slot:hover {
+    background: rgba(40, 40, 40, 0.6);
+    border-color: #ffd700;
+}
+
+.inv-equip-slot.selected {
+    border-color: #ffd700;
+    box-shadow: 0 0 10px rgba(255, 215, 0, 0.3);
+    background: rgba(60, 60, 40, 0.6);
+}
+
+.inv-equip-slot .slot-label {
+    width: 100px;
+    font-size: 12px;
+    color: #aaa;
+    flex-shrink: 0;
+}
+
+.inv-equip-slot .slot-item {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    font-size: 16px;
+    color: #fff;
+    font-weight: bold;
+}
+
+.inv-equip-slot .slot-item img {
+    width: 40px;
+    height: 40px;
+    object-fit: contain;
+}
+
+.inventory-backpack-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, 56px);
+    gap: 12px;
+    padding: 10px;
+    max-height: 280px;
+    overflow-y: auto;
+    align-content: start;
+}
+
+.inv-backpack-item {
+    width: 56px;
+    height: 56px;
+    background: rgba(0, 0, 0, 0.5);
+    border: 2px solid #555;
+    border-radius: 6px;
+    cursor: pointer;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    transition: all 0.2s;
+}
+
+.inv-backpack-item img {
+    width: 48px;
+    height: 48px;
+    object-fit: contain;
+}
+
+.inv-backpack-item:hover {
+    border-color: #fff;
+    transform: scale(1.05);
+}
+
+.inv-backpack-item.selected {
+    border-color: #ffd700;
+    box-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+}
+
+.inv-backpack-item.equipped::after {
+    content: 'E';
+    position: absolute;
+    bottom: -5px;
+    right: -5px;
+    background: #00cc66;
+    color: white;
+    font-size: 10px;
+    font-weight: bold;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    border: 1px solid #111;
+}
+
+.inventory-filters {
+    padding: 0 10px;
+}
+
+.filter-btn {
+    font-family: 'Noto Sans JP', sans-serif !important;
+}
+
+/* --- Redesigned Inventory UI --- */
+.inventory-modal-wrapper {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 9000;
+    /* Back to top */
+    background: rgba(0, 0, 0, 0.5);
+    /* Modal feel */
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding-top: 5px;
+    pointer-events: none;
+}
+
+.inventory-box {
+    pointer-events: auto;
+    /* Active box */
+    width: 720px;
+    height: 360px;
+    /* Slightly taller to accommodate content */
+    box-sizing: border-box;
+    background: rgba(10, 15, 20, 0.98);
+    border: 2px solid #00ffff;
+    border-radius: 8px;
+    box-shadow: 0 0 30px rgba(0, 255, 255, 0.2);
+    display: flex;
+    flex-direction: column;
+    padding: 15px;
+}
+
+.inventory-content-row {
+    display: flex;
+    flex: 1;
+    gap: 20px;
+    overflow: hidden;
+}
+
+/* Left Side: Category Tabs & Item Grid */
+.inventory-left-side {
+    flex: 6;
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid rgba(0, 255, 255, 0.3);
+    padding-right: 20px;
+}
+
+.inventory-backpack-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, 56px);
+    gap: 12px;
+    padding: 10px;
+    overflow-y: auto;
+    align-content: start;
+    flex: 1;
+}
+
+/* Right Side: Skill Info & Description */
+.inventory-right-side {
+    flex: 4;
+    display: flex;
+    flex-direction: column;
+    padding-left: 10px;
+}
+
+.inventory-focus-box {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.inventory-focus-name {
+    font-size: 20px;
+    /* Reduced from 22px */
+    font-weight: bold;
+    color: #ffd700;
+    text-shadow: 0 0 5px rgba(255, 215, 0, 0.5);
+    border-bottom: 1px solid rgba(255, 215, 0, 0.3);
+    padding-bottom: 5px;
+}
+
+.inventory-focus-type {
+    font-size: 12px;
+    color: #00ffff;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+}
+
+.inventory-stats-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    background: rgba(0, 0, 0, 0.3);
+    padding: 8px;
+    border-radius: 4px;
+}
+
+.stat-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    color: #aaa;
+}
+
+.stat-row span:last-child {
+    color: #fff;
+    font-weight: bold;
+}
+
+.inventory-focus-desc {
+    font-size: 12px;
+    color: #ddd;
+    line-height: 1.5;
+    margin-top: 5px;
+}
+
+/* Footer: Close Button */
+.inventory-footer {
+    display: flex;
+    justify-content: center;
+    margin-top: 20px;
+    padding-top: 10px;
+}
+
+/* Backpack Item Styling */
+.inv-backpack-item {
+    width: 56px;
+    height: 56px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(0, 255, 255, 0.3);
+    border-radius: 4px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+}
+
+.inv-backpack-item:hover {
+    background: rgba(0, 255, 255, 0.1);
+    border-color: #00ffff;
+    box-shadow: 0 0 10px rgba(0, 255, 255, 0.3);
+    transform: scale(1.05);
+}
+
+.inv-backpack-item.selected {
+    border-color: #ffd700;
+    box-shadow: 0 0 15px rgba(255, 215, 0, 0.4);
+    background: rgba(255, 215, 0, 0.1);
+}
+
+.inv-backpack-item.equipped::after {
+    content: 'E';
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    background: #00ff00;
+    color: black;
+    font-size: 10px;
+    font-weight: bold;
+    padding: 2px 4px;
+    border-radius: 3px;
+    box-shadow: 0 0 5px rgba(0, 255, 0, 0.5);
+}
+
+.inv-backpack-item img {
+    width: 40px;
+    height: 40px;
+    object-fit: contain;
+}
