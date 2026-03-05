@@ -1093,11 +1093,7 @@ class Game {
 
         if (this.isGameOver) {
             if (this.input.isDown('Space')) {
-                this.showLoading();
-                setTimeout(() => {
-                    this.init();
-                    this.hideLoading();
-                }, 100);
+                window.location.reload();
             }
             return;
         }

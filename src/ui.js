@@ -130,7 +130,7 @@ export function drawUI(ctx, game, width, height) {
 
         ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
         ctx.font = '12px "Press Start 2P", cursive';
-        ctx.fillText("Press [SPACE] to Restart", width / 2, height / 2 + 120);
+        ctx.fillText("Press [SPACE] to Return to Title", width / 2, height / 2 + 120);
 
         ctx.textAlign = 'left'; // Reset for other UI elements
         return;
