@@ -508,7 +508,9 @@ class Game {
                     [SkillType.SECONDARY]: null,
                     [SkillType.ULTIMATE]: null
                 };
-                this.player.currency = oldPlayer.currency || 0;
+                this.player.dungeonCoins = oldPlayer.dungeonCoins || 0;
+                this.player.aetherShards = oldPlayer.aetherShards || 0;
+                this.player.aetherFragments = oldPlayer.aetherFragments || 0;
                 this.player.hp = oldPlayer.hp;
                 this.player.maxHp = oldPlayer.maxHp;
                 this.player.aether = 0; // Reset aether rush on floor change

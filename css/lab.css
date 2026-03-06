@@ -99,7 +99,8 @@
     font-weight: bold;
 }
 
-#lab-shard-value {
+#lab-shard-value,
+#lab-fragment-value {
     color: #ffffff;
 }
 

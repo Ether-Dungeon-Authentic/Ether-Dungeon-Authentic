@@ -111,17 +111,20 @@ export class Player extends Entity {
 
     loadAetherCircuit() {
         const saveData = SaveManager.getSaveData();
-        if (saveData && saveData.aetherCircuit) {
+        if (saveData) {
             this.aetherShards = saveData.aetherShards || saveData.gold || 0; // Migration support
             this.aetherFragments = saveData.aetherFragments || 0;
-            if (saveData.aetherCircuit.ownedChips) {
-                this.circuit.deserialize(saveData.aetherCircuit);
-            } else if (saveData.aetherCircuit.ownedChipIds) {
-                // Initialize from IDs for new players
-                saveData.aetherCircuit.ownedChipIds.forEach(id => {
-                    const chip = new ChipInstance(id);
-                    this.circuit.ownedChips.push(chip);
-                });
+
+            if (saveData.aetherCircuit) {
+                if (saveData.aetherCircuit.ownedChips) {
+                    this.circuit.deserialize(saveData.aetherCircuit);
+                } else if (saveData.aetherCircuit.ownedChipIds) {
+                    // Initialize from IDs for new players
+                    saveData.aetherCircuit.ownedChipIds.forEach(id => {
+                        const chip = new ChipInstance(id);
+                        this.circuit.ownedChips.push(chip);
+                    });
+                }
             }
         }
     }
@@ -265,23 +268,23 @@ export class Player extends Entity {
             finalAmount = Math.ceil(amount * 0.5);
         }
         this.aetherShards += finalAmount;
+        console.log(`[Player] Shards added: ${finalAmount} (Total: ${this.aetherShards})`);
         this.saveAetherData();
     }
 
     addAetherFragments(amount) {
         this.aetherFragments += amount;
+        console.log(`[Player] Fragments added: ${amount} (Total: ${this.aetherFragments})`);
         this.saveAetherData();
     }
 
     saveAetherData() {
-        // Prevent debug mode from overwriting persistent save with cheated values
-        if (this.game.debugMode) return;
-
         const data = SaveManager.getSaveData();
         data.aetherShards = this.aetherShards;
         data.aetherFragments = this.aetherFragments;
         data.aetherCircuit = this.circuit.serialize();
         SaveManager.saveData(data);
+        console.log(`[Player] Aether data saved. Shards: ${this.aetherShards}`);
     }
 
     acquireSkill(skill) {

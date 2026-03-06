@@ -69,10 +69,10 @@ export class LabUI {
     }
 
     static updateMaterialDisplay() {
-        const goldEl = document.getElementById('lab-gold-value');
         const shardEl = document.getElementById('lab-shard-value');
-        if (goldEl) goldEl.textContent = this.game.player.aetherShards;
-        if (shardEl) shardEl.textContent = this.game.player.aetherFragments;
+        const fragmentEl = document.getElementById('lab-fragment-value');
+        if (shardEl) shardEl.textContent = this.game.player.aetherShards;
+        if (fragmentEl) fragmentEl.textContent = this.game.player.aetherFragments;
     }
 
     static renderTabContent() {
