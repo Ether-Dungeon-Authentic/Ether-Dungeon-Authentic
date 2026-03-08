@@ -98,6 +98,7 @@ export class Player extends Entity {
 
         this.bloodBlessings = [];
         this.voltDriveTimer = 0;
+        this.enrageCooldownTimer = 0;
         this.voltDriveParams = null;
         this.isCheatInvincible = false;
         this.slowTimer = 0;
@@ -107,6 +108,11 @@ export class Player extends Entity {
         // Aether Circuit System
         this.circuit = new AetherCircuitManager(this);
         this.loadAetherCircuit();
+
+        // Sync HP after chips are loaded to include bonuses
+        this.hp = this.maxHp;
+        this.killCount = 0;
+        this.accelerationTime = 0; // Cumulative movement time for "Acceleration" chip
     }
 
     loadAetherCircuit() {
@@ -175,7 +181,15 @@ export class Player extends Entity {
         }
     }
 
+    // Base multiplier for UI/General display (no target context)
     get damageMultiplier() {
+        return this.getDamageMultiplier(null);
+    }
+
+    /**
+     * Calculates the full damage multiplier based on target context (e.g., Boss)
+     */
+    getDamageMultiplier(target = null) {
         let mult = 1.0;
         if (this.bloodBlessings) {
             this.bloodBlessings.forEach(b => {
@@ -186,9 +200,27 @@ export class Player extends Entity {
 
         // Aether Circuit Bonus
         if (this.circuit) {
-            mult += this.circuit.getBonuses().damageMult;
+            const bonuses = this.circuit.getBonuses();
+            mult += bonuses.damageMult;
             if (this.enrageTimer > 0) {
                 mult += this.enrageBonus;
+            }
+            // Training Chip: Every kill gives bonuses.trainingKillBuff % damage
+            if (bonuses.trainingKillBuff > 0) {
+                const stacks = Math.min(100, this.killCount || 0);
+                mult += bonuses.trainingKillBuff * stacks;
+            }
+            // Inertia Chip: Skill damage per 1% speed increase
+            if (bonuses.inertiaScaling > 0) {
+                const speedBonus = bonuses.speedMult || 0;
+                // speedMult is a multiplier (e.g., 0.3 for 30%). 1% = 0.01.
+                const speedPercent = speedBonus * 100;
+                mult += speedPercent * bonuses.inertiaScaling;
+            }
+
+            // Move Courage (Boss Damage) to Additive Group A
+            if (target && (target.isBoss || target.data?.isBoss) && bonuses.bossDamageMult > 0) {
+                mult += bonuses.bossDamageMult;
             }
         }
 
@@ -203,10 +235,50 @@ export class Player extends Entity {
         return mult;
     }
 
+    get thunderDamageMultiplier() {
+        let mult = 1.0;
+        if (this.circuit) {
+            mult += this.circuit.getBonuses().thunderDamageMult;
+        }
+        return mult;
+    }
+
+    get iceDamageMultiplier() {
+        let mult = 1.0;
+        if (this.circuit) {
+            mult += this.circuit.getBonuses().iceDamageMult;
+        }
+        return mult;
+    }
+
+    get bloodDamageMultiplier() {
+        let mult = 1.0;
+        if (this.circuit) {
+            mult += this.circuit.getBonuses().bloodDamageMult;
+        }
+        return mult;
+    }
+
+    get takenDamageMultiplier() {
+        let mult = 1.0;
+        if (this.circuit) {
+            mult += this.circuit.getBonuses().takenDamageMult;
+        }
+        return mult;
+    }
+
     get critRateBonus() {
         let bonus = 0;
         if (this.circuit) {
             bonus += this.circuit.getBonuses().critRateAdd;
+        }
+        return bonus;
+    }
+
+    get critDamageBonus() {
+        let bonus = 0;
+        if (this.circuit) {
+            bonus += this.circuit.getBonuses().critDamageAdd;
         }
         return bonus;
     }
@@ -227,7 +299,15 @@ export class Player extends Entity {
 
         // Aether Circuit Bonus
         if (this.circuit) {
-            mult += this.circuit.getBonuses().speedMult;
+            const bonuses = this.circuit.getBonuses();
+            mult += bonuses.speedMult;
+
+            // Acceleration Chip Bonus
+            const maxAccelBonus = bonuses.accelerationScaling || 0;
+            if (maxAccelBonus > 0 && this.accelerationTime > 0) {
+                // Reaches max bonus after 4 seconds of continuous movement
+                mult += (this.accelerationTime / 4.0) * maxAccelBonus;
+            }
         }
 
         return this.speed * mult;
@@ -325,7 +405,11 @@ export class Player extends Entity {
     update(dt) {
         if (this.invulnerable > 0) this.invulnerable -= dt;
         if (this.slowTimer > 0) this.slowTimer -= dt;
-        if (this.enrageTimer > 0) this.enrageTimer -= dt;
+        if (this.enrageTimer > 0) {
+            this.enrageTimer -= dt;
+        } else if (this.enrageCooldownTimer > 0) {
+            this.enrageCooldownTimer -= dt;
+        }
 
         if (this.isDemo) {
             this.frameTimer += dt;
@@ -445,9 +529,12 @@ export class Player extends Entity {
                 if (this.frameX >= this.maxFrames) this.frameX = 0;
                 this.frameTimer = 0;
             }
+            this.accelerationTime = Math.min(4.0, this.accelerationTime + dt);
         } else {
             this.frameX = 0;
             this.frameTimer = 0;
+            // Gradually decrease (approx 2.6s to empty from full)
+            this.accelerationTime = Math.max(0, this.accelerationTime - dt * 1.5);
         }
 
         if (this.facing.includes('down')) this.frameY = 0;
@@ -488,12 +575,20 @@ export class Player extends Entity {
         // Note: super.update(dt) handles vx/vy application
         super.update(dt);
 
+        // Calculate current bonus for UI display
+        const bonuses = this.circuit.getBonuses();
+        const maxAccelBonus = bonuses.accelerationScaling || 0;
+        let accelBonus = 0;
+        if (maxAccelBonus > 0 && this.accelerationTime > 0) {
+            accelBonus = (this.accelerationTime / 4.0) * maxAccelBonus;
+        }
+
         for (let key in this.equippedSkills) {
             const skill = this.equippedSkills[key];
             if (!skill) continue;
 
             const wasReady = skill.isReady();
-            skill.update(dt);
+            skill.update(dt); // Removed attackSpeedMult (now applies to movement speed)
             const isReady = skill.isReady();
 
             // Notify user when a non-normal skill becomes ready
@@ -501,6 +596,7 @@ export class Player extends Entity {
                 this.triggerSkillReadyVisual(skill);
             }
         }
+        this.currentAccelerationBonus = accelBonus; // Store for UI/VFX if needed
 
         // 6. Skill Input
         const inputMap = [
@@ -816,13 +912,13 @@ export class Player extends Entity {
         // --- Screen Damage Flash (Radial Red Flare) ---
         if (this.hitFlashTimer > 0) {
             ctx.save();
-            const alpha = (this.hitFlashTimer / 0.2) * 0.4;
+            const alpha = Math.max(0, Math.min(0.4, (this.hitFlashTimer / 0.2) * 0.4));
             const grad = ctx.createRadialGradient(
                 this.game.width / 2, this.game.height / 2, 0,
                 this.game.width / 2, this.game.height / 2, this.game.width
             );
             grad.addColorStop(0, 'rgba(255, 0, 0, 0)');
-            grad.addColorStop(1, `rgba(255, 0, 0, ${alpha})`);
+            grad.addColorStop(1, `rgba(255, 0, 0, ${alpha.toFixed(2)})`);
             ctx.fillStyle = grad;
             ctx.setTransform(1, 0, 0, 1, 0, 0); // Overlay in screen space
             ctx.fillRect(0, 0, this.game.width, this.game.height);
@@ -830,12 +926,22 @@ export class Player extends Entity {
         }
     }
 
+    onEnemyKill() {
+        this.killCount = (this.killCount || 0) + 1;
+    }
+
     takeDamage(amount) {
         if (this.invulnerable > 0) return;
 
         let scaledDamage = amount;
+
+        // Apply Berserker / Taken Damage Multiplier
+        scaledDamage *= this.takenDamageMultiplier;
+
         if (this.game.difficulty === 'easy') {
-            scaledDamage = Math.ceil(amount * 0.5);
+            scaledDamage = Math.round(scaledDamage * 0.5);
+        } else {
+            scaledDamage = Math.round(scaledDamage);
         }
 
         // 1. Camera Shake (Intensity based on damage)
@@ -867,6 +973,46 @@ export class Player extends Entity {
             ky = Math.sin(angle) * 300;
         }
 
+        // Apply Ukemi (half damage chance)
+        if (this.circuit && !this.isCheatInvincible) {
+            const bonuses = this.circuit.getBonuses();
+            if (bonuses.ukemiChance > 0 && Math.random() < bonuses.ukemiChance) {
+                scaledDamage = Math.ceil(scaledDamage * 0.5);
+                // Visual feedback for Ukemi (Icon animation similar to Enrage)
+                this.game.spawnParticles(this.x + this.width / 2, this.y + this.height / 2, 5, '#00ffcc');
+                const ukemiIcon = getCachedImage('assets/ui/chips/icon_ukemi.png');
+                const player = this;
+                this.game.animations.push({
+                    type: 'vfx',
+                    x: player.x + player.width / 2,
+                    y: player.y - 20,
+                    life: 1.0,
+                    maxLife: 1.0,
+                    update: function (dt) {
+                        this.life -= dt;
+                        this.y -= 25 * dt; // Float up slightly faster than Enrage
+                        this.x = player.x + player.width / 2;
+                        this.renderY = player.y - 30 - (1.0 - this.life) * 25;
+                    },
+                    draw: function (ctx) {
+                        if (!ukemiIcon || !ukemiIcon.complete) return;
+                        ctx.save();
+                        let alpha = 1.0;
+                        const age = this.maxLife - this.life;
+                        if (age < 0.2) alpha = age / 0.2;
+                        else if (this.life < 0.3) alpha = this.life / 0.3;
+
+                        ctx.globalAlpha = alpha * 0.9;
+                        ctx.filter = 'drop-shadow(0 0 5px #00ffcc) brightness(1.2)';
+
+                        const size = 32;
+                        ctx.drawImage(ukemiIcon, this.x - size / 2, this.renderY - size / 2, size, size);
+                        ctx.restore();
+                    }
+                });
+            }
+        }
+
         // Use base Entity.takeDamage to apply HP loss and KNOCKBACK
         // But if cheat invincible, we pass 0 damage to super.takeDamage for actual HP loss, 
         // while keeping the visual amount for other effects.
@@ -876,10 +1022,46 @@ export class Player extends Entity {
         // Enrage (逆上) Chip Effect
         if (this.circuit && !this.isCheatInvincible && scaledDamage > 0) {
             const bonuses = this.circuit.getBonuses();
-            if (bonuses.onHitDamageBuff > 0) {
-                this.enrageTimer = 5.0; // 5 seconds
+            if (bonuses.onHitDamageBuff > 0 && this.enrageTimer <= 0 && this.enrageCooldownTimer <= 0) {
+                this.enrageTimer = 5.0; // 5 seconds duration
                 this.enrageBonus = bonuses.onHitDamageBuff;
+                this.enrageCooldownTimer = 10.0; // Fixed to 10s
                 this.game.spawnParticles(this.x + this.width / 2, this.y + this.height / 2, 5, '#ff4400');
+
+                // Icon Fade-in/out Animation
+                const enrageIcon = getCachedImage('assets/ui/chips/icon_enrage.png');
+                const player = this;
+                this.game.animations.push({
+                    type: 'vfx',
+                    x: player.x + player.width / 2,
+                    y: player.y - 20,
+                    life: 1.2,
+                    maxLife: 1.2,
+                    update: function (dt) {
+                        this.life -= dt;
+                        this.y -= 20 * dt; // Float up
+                        this.x = player.x + player.width / 2; // Follow player x
+                        // Keep y relative to player but with offset
+                        this.renderY = player.y - 25 - (1.2 - this.life) * 20;
+                    },
+                    draw: function (ctx) {
+                        if (!enrageIcon || !enrageIcon.complete) return;
+                        ctx.save();
+                        // 0.3s fade in, then stay, last 0.4s fade out
+                        let alpha = 1.0;
+                        const age = this.maxLife - this.life;
+                        if (age < 0.3) alpha = age / 0.3;
+                        else if (this.life < 0.4) alpha = this.life / 0.4;
+
+                        ctx.globalAlpha = alpha * 0.8;
+                        ctx.filter = 'drop-shadow(0 0 5px #ff0000) brightness(1.2)';
+
+                        const size = 32;
+                        ctx.drawImage(enrageIcon, this.x - size / 2, this.renderY - size / 2, size, size);
+                        ctx.restore();
+                    }
+                });
+                console.log(`Enrage Triggered! Cooldown: ${this.enrageCooldownTimer.toFixed(1)}s`);
             }
         }
 
@@ -922,7 +1104,7 @@ export class Player extends Entity {
             }
         );
 
-        if (this.hp <= 0) {
+        if (this.hp <= 0 && !this.isCheatInvincible) {
             this.hp = 0;
             this.game.gameState = 'GAME_OVER';
         }

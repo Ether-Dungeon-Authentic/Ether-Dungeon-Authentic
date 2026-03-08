@@ -4,11 +4,12 @@ import { getCachedJson } from '../utils.js';
 
 export class Ghost extends Enemy {
     constructor(game, x, y) {
-        // Ghost: lower health than goblin, spectral appearance, increased speed (80 -> 120)
-        super(game, x, y, 40, 48, 'rgba(150, 200, 255, 0.5)', 30, 120, 'ghost', 150);
+        // Ghost: lower health than goblin, spectral appearance, reduced speed (120 -> 84)
+        super(game, x, y, 40, 48, 'rgba(150, 200, 255, 0.5)', 30, 84, 'ghost', 150);
         this.displayName = 'ゴースト';
         this.ignoreWalls = true;
         this.damage = 8;
+        this.knockbackResistance = -0.5; // 50% more knockback
 
         // Sprite Sheet Data
         this.animTimer = 0;
@@ -28,11 +29,59 @@ export class Ghost extends Enemy {
     }
 
     update(dt) {
-        super.update(dt);
-        // Floating effect (physics/visual)
-        this.floatPhase += dt * 3;
+        if (this.isSpawning) {
+            this.floatPhase += dt * 3;
+            // Spawning logic (rings, etc.) is handled in BaseEnemy's update(dt) if we call super.update(dt)
+            // But we need to call super.update(dt) only when NOT spawning?
+            // Actually, BaseEnemy.js handles isSpawning at the start of its update.
+        }
 
-        // Advance frame animation
+        if (this.game.player && !this.isSpawning && !this.isTelegraphing) {
+            const dx = this.game.player.x - this.x;
+            const dy = this.game.player.y - this.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+
+            if (dist > 0) {
+                const speedMult = this.statusManager.getSpeedMultiplier();
+                const maxSpeed = this.speed * speedMult;
+
+                // 1. Core Tracking Force (much smoother than base)
+                const trackingAcc = this.speed * 2.0; // Moderate acceleration
+                this.vx += (dx / dist) * trackingAcc * dt;
+                this.vy += (dy / dist) * trackingAcc * dt;
+
+                // 2. Wavy Force (Perpendicular to tracking direction)
+                // Periodically shift the ghost left/right relative to its path
+                const waveFreq = 2.5;
+                const waveAmp = 180; // Force amplitude
+                const wavePhase = (this.game.lastTime / 1000) * waveFreq;
+
+                // Perpendicular vector (-dy, dx)
+                const px = -dy / dist;
+                const py = dx / dist;
+
+                const waveForce = Math.sin(wavePhase + this.floatPhase) * waveAmp;
+                this.vx += px * waveForce * dt;
+                this.vy += py * waveForce * dt;
+
+                // 3. Apply Max Speed and Friction
+                const currentSpeed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+                if (currentSpeed > maxSpeed) {
+                    this.vx = (this.vx / currentSpeed) * maxSpeed;
+                    this.vy = (this.vy / currentSpeed) * maxSpeed;
+                }
+
+                // Slightly lower friction for smoother "drifting" feel
+                this.vx *= 0.97;
+                this.vy *= 0.97;
+            }
+        }
+
+        // Base update handles physics, collisions, and spawning logic
+        super.update(dt);
+
+        // Visual effects
+        this.floatPhase += dt * 3;
         if (this.frames.length > 0) {
             this.animTimer += dt * 8; // 8 FPS
         }

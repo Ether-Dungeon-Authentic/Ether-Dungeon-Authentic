@@ -92,6 +92,21 @@ export function createSkill(data) {
                 if (finalParams.minDamage !== undefined) finalParams.minDamage *= user.fireDamageMultiplier;
                 if (finalParams.maxDamage !== undefined) finalParams.maxDamage *= user.fireDamageMultiplier;
             }
+            if ((data.element === 'lightning' || data.element === 'thunder') && user.thunderDamageMultiplier !== undefined) {
+                if (finalParams.damage !== undefined) finalParams.damage *= user.thunderDamageMultiplier;
+                if (finalParams.minDamage !== undefined) finalParams.minDamage *= user.thunderDamageMultiplier;
+                if (finalParams.maxDamage !== undefined) finalParams.maxDamage *= user.thunderDamageMultiplier;
+            }
+            if (data.element === 'ice' && user.iceDamageMultiplier !== undefined) {
+                if (finalParams.damage !== undefined) finalParams.damage *= user.iceDamageMultiplier;
+                if (finalParams.minDamage !== undefined) finalParams.minDamage *= user.iceDamageMultiplier;
+                if (finalParams.maxDamage !== undefined) finalParams.maxDamage *= user.iceDamageMultiplier;
+            }
+            if (data.element === 'blood' && user.bloodDamageMultiplier !== undefined) {
+                if (finalParams.damage !== undefined) finalParams.damage *= user.bloodDamageMultiplier;
+                if (finalParams.minDamage !== undefined) finalParams.minDamage *= user.bloodDamageMultiplier;
+                if (finalParams.maxDamage !== undefined) finalParams.maxDamage *= user.bloodDamageMultiplier;
+            }
 
             // Apply Critical Rate Bonus
             if (user.critRateBonus !== undefined && finalParams.critChance !== undefined) {

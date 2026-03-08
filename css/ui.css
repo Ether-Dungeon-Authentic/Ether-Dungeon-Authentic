@@ -187,6 +187,61 @@
     height: 24px;
 }
 
+#chip-status-bar {
+    position: absolute;
+    bottom: 75px;
+    /* Above skill bar (60px height + 10px spacing) */
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 8px;
+    pointer-events: none;
+    z-index: 3000;
+}
+
+.chip-status-item {
+    width: 24px;
+    height: 24px;
+    background: rgba(0, 0, 0, 0.7);
+    border: 1px solid #444;
+    border-radius: 4px;
+    position: relative;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    /* overflow: hidden;  -- Removed to allow textOverride (+X.XX%) to show below */
+}
+
+.chip-status-icon {
+    width: 18px;
+    height: 18px;
+    object-fit: contain;
+    filter: brightness(0.8);
+}
+
+.chip-status-cooldown {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    background: rgba(0, 255, 255, 0.4);
+    transition: height 0.1s linear;
+    border-radius: 0 0 4px 4px;
+    /* Maintain rounded bottom corners */
+}
+
+.chip-status-text {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 8px;
+    color: white;
+    font-weight: bold;
+    text-shadow: 1px 1px 1px black;
+    z-index: 5;
+}
+
 /* Skill Bar UI */
 #skill-bar {
     position: absolute;

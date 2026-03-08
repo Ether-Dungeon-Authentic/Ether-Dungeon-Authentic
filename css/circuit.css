@@ -1,320 +1,391 @@
-/* Aether Circuit System Styles */
-
-.circuit-layout {
-    display: flex;
+/* Grid Layout */
+.circuit-grid-container {
+    display: inline-flex;
     flex-direction: column;
-    gap: 8px;
-    padding: 0 10px 10px 10px;
-    height: 100%;
+    align-items: center;
+    background: rgba(0, 0, 0, 0.4);
+    padding: 6px;
+    /* Reduced from 10px */
+    border-radius: 8px;
+    width: fit-content;
+    overflow: visible;
+    /* Ensure shadows aren't clipped */
 }
 
-.capacity-gauge-container {
-    padding: 8px 0;
+.circuit-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 38px);
+    grid-template-rows: repeat(5, 38px);
+    gap: 3px;
+    background: #111;
+    padding: 8px;
+    /* Reduced from 12px */
+    /* Increased again to provide more glow room */
+    margin: 2px;
+    /* Small margin to ensure outer border-shadow isn't clipped */
+    border: 1px solid rgba(0, 255, 255, 0.2);
+    border-radius: 4px;
+    overflow: visible;
+}
+
+.grid-cell {
+    width: 38px;
+    height: 38px;
+    background: #1a1a1a;
+    border: 1px solid #333;
+    position: relative;
     display: flex;
     align-items: center;
-    gap: 15px;
-}
-
-.capacity-gauge-container span {
-    display: inline-block;
-    margin-bottom: 0;
-    font-size: 10px;
-    color: #00ffff;
-    font-family: 'Press Start 2P', cursive;
-    white-space: nowrap;
-}
-
-.capacity-bar-track {
-    flex-grow: 1;
-    height: 8px;
-    background: #222;
-    border: 1px solid #555;
-    border-radius: 4px;
-    overflow: hidden;
-}
-
-.capacity-bar-fill {
-    height: 100%;
-    width: 0%;
-    background: linear-gradient(90deg, #0088ff, #00ffff);
-    box-shadow: 0 0 10px #00ffff;
-    transition: width 0.3s ease;
-}
-
-.circuit-main {
-    display: flex;
-    flex-direction: row;
-    gap: 15px;
-    align-items: stretch;
-    flex: 1;
-    min-height: 0;
-}
-
-/* Left Column: Slots + Detail */
-.chip-slots-area {
-    flex: 0 0 210px;
-    /* Updated from 255px (60*3 + 15*2) */
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
-}
-
-.chip-slots {
-    display: grid;
-    grid-template-columns: repeat(3, 60px);
-    grid-template-rows: repeat(2, 48px);
-    gap: 10px;
-}
-
-.chip-detail-panel {
-    margin-top: 10px;
-    width: 210px;
-    flex: 0 0 auto;
-    /* Changed from flex: 1 to prevent stretching */
-    min-height: 100px;
-    /* Reduced from 120px */
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid #444;
-    border-radius: 8px;
-    padding: 8px;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
+    justify-content: center;
+    cursor: pointer;
     box-sizing: border-box;
+    overflow: visible;
 }
 
-/* Right Column: Inventory List */
-.chip-inventory-area {
-    flex: 1;
-    min-width: 0;
+.grid-cell:hover {
+    background: #222;
+    border-color: #555;
+}
+
+.grid-cell.selected {
+    border-color: #00ffff;
+    box-shadow: inset 0 0 6px rgba(0, 255, 255, 0.5), 0 0 4px rgba(0, 255, 255, 0.3);
+}
+
+.grid-cell.drag-over {
+    background: #333;
+    border-color: #00ffff;
+    box-shadow: inset 0 0 8px rgba(0, 255, 255, 0.4);
+}
+
+.core-cell {
+    background: #442200;
+    border: 2px solid #ffaa00;
+    box-shadow: 0 0 5px #ffaa00;
+    color: #ffaa00;
+    font-size: 8px;
+    font-weight: bold;
+    text-shadow: 0 0 3px #ffaa00;
+    cursor: default;
+    width: 38px;
+    height: 38px;
     display: flex;
-    flex-direction: column;
-    height: 100%;
-}
-
-.chip-list {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    /* Force 3 columns */
-    gap: 8px;
-    justify-items: center;
-    background: rgba(0, 0, 0, 0.2);
-    padding: 10px;
-    border-radius: 8px;
-    border: 1px solid #333;
-    flex: 1;
-    max-height: 260px;
-    /* Adjusted to fit within 450px height */
-    overflow-y: auto;
-    align-content: start;
-    /* Ensure chips stick to the top */
-}
-
-/* Chip Item Common Styles */
-.chip-list .chip-item {
-    padding: 4px;
-    /* Slightly tighter padding for list items */
+    align-items: center;
+    justify-content: center;
 }
 
 .chip-item {
-    width: 60px;
-    height: 48px;
-    background: #333;
-    border: 2px solid #555;
-    border-radius: 4px;
-    cursor: pointer;
+    width: 38px;
+    height: 38px;
+    aspect-ratio: 1 / 1;
+    position: relative;
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: flex-start;
-    padding: 5px;
-    position: relative;
-    transition: all 0.2s;
+    justify-content: center;
+    transition: transform 0.1s;
+    box-sizing: border-box;
+    flex-shrink: 0;
+    overflow: visible;
+    /* Removed z-index: 1 to allow global layering between chips */
+}
+
+.chip-item::before {
+    content: '';
+    position: absolute;
+    top: 1px;
+    left: 1px;
+    right: 1px;
+    bottom: 1px;
+    background: #444;
+    border: 2px solid #555;
+    border-radius: 2px;
+    z-index: 10;
+    /* Global layer for chip bodies - Above nodes (5) */
     box-sizing: border-box;
 }
 
-.chip-item:hover {
-    border-color: #fff;
-    transform: translateY(-2px);
+.chip-item.active::before {
+    box-shadow: 0 0 6px rgba(0, 255, 255, 0.6);
+    filter: brightness(1.1);
 }
 
-.chip-item.equipped {
-    border-color: #00ffff;
-    background: rgba(0, 255, 255, 0.1);
+/* Special Chips - Robust Overrides */
+.chip-item.rarity-special::before {
+    background: #2a1a1f !important;
+    border-color: #ff66aa !important;
+    box-shadow: inset 0 0 10px rgba(255, 102, 170, 0.2) !important;
 }
 
-.chip-item.selected {
-    box-shadow: 0 0 10px #fff;
-    border-color: #fff;
+.chip-item.rarity-special.active::before {
+    box-shadow: 0 0 12px #ff66aa, inset 0 0 8px rgba(255, 102, 170, 0.3) !important;
+    filter: brightness(1.2) !important;
 }
 
-.chip-category {
-    font-size: 8px;
-    padding: 2px 4px;
-    border-radius: 2px;
-    color: white;
-    text-transform: uppercase;
-    margin-bottom: 2px;
+
+
+
+.chip-item.inactive::before {
+    box-shadow: 0 0 4px rgba(255, 0, 0, 0.6);
+    background-color: #442222;
 }
 
-.cat-insight {
-    background: #9b59b6;
+.chip-item.inactive .chip-name-mini {
+    color: #ffaaaa;
 }
 
-.cat-technique {
-    background: #e67e22;
+.chip-item.selected-chip {
+    z-index: 20;
 }
 
-.cat-durability {
-    background: #2ecc71;
+.chip-item.selected-chip::before {
+    outline: 2px solid #fff;
 }
 
-.cat-agility {
-    background: #3498db;
+.chip-icon {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 34px;
+    height: 34px;
+    object-fit: contain;
+    z-index: 11;
+    /* Global layer for icons - Top level */
+    pointer-events: none;
+    user-select: none;
+    filter: grayscale(1) brightness(2) drop-shadow(0 0 2px rgba(255, 255, 255, 0.3));
+    /* Silhouette look */
 }
 
-.chip-name {
-    font-size: 9px;
-    text-align: center;
-    word-break: break-all;
-    line-height: 1.1;
-    margin: auto 0;
-    /* Center vertically in the item */
+.chip-icon.mini {
+    width: 30px;
+    height: 30px;
 }
 
-/* Rank Dots */
-.chip-rank-dots {
-    display: flex;
-    gap: 3px;
-    margin-top: auto;
-    /* Push to bottom */
-    justify-content: center;
-    width: 100%;
-}
-
-.dot {
-    width: 5px;
-    height: 5px;
-    background: #444;
-    border-radius: 50%;
-    border: 1px solid #222;
-}
-
-.dot.filled {
-    background: #ffcc00;
-    box-shadow: 0 0 5px #ffcc00;
-    border-color: #fff;
-}
-
-/* Detail Panel Internal Styles */
-.detail-header {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-    padding-bottom: 5px;
-}
-
-.detail-title {
-    font-size: 11px;
-    font-weight: bold;
+/* Tooltip for effects */
+.chip-tooltip {
+    /* Style for both legacy and global chips */
+    background: rgba(0, 0, 0, 0.95);
+    border: 1px solid #00ffff;
     color: #fff;
-    font-family: 'Segoe UI', 'Meiryo', 'Hiragino Kaku Gothic ProN', sans-serif;
-}
-
-.detail-description {
-    font-size: 11px;
-    color: #ccc;
-    line-height: 1.4;
-    flex-grow: 1;
-    overflow-y: auto;
-    font-family: 'Segoe UI', 'Meiryo', 'Hiragino Kaku Gothic ProN', sans-serif;
-}
-
-.detail-footer {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    border-top: 1px solid rgba(255, 255, 255, 0.1);
-    padding-top: 8px;
-}
-
-.detail-cost-value {
-    font-size: 11px;
-    color: #ffd700;
-    font-weight: bold;
-    font-family: 'Segoe UI', 'Meiryo', 'Hiragino Kaku Gothic ProN', sans-serif;
-    background: rgba(0, 0, 0, 0.4);
-    padding: 2px 5px;
-    border-radius: 3px;
-}
-
-.detail-action-btn {
-    background: #0088ff;
-    color: white;
-    border: none;
+    padding: 6px 10px;
     border-radius: 4px;
-    padding: 4px 12px;
-    cursor: pointer;
     font-size: 9px;
+    white-space: normal;
+    min-width: 80px;
+    max-width: 150px;
+    text-align: center;
+    z-index: 30000;
+    pointer-events: none;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.8);
+    line-height: 1.3;
+}
+
+.tooltip-title {
     font-weight: bold;
-}
-
-.detail-action-btn:hover {
-    background: #00aaff;
-}
-
-.detail-action-btn.unequip {
-    background: #e74c3c;
-}
-
-.detail-action-btn.unequip:hover {
-    background: #ff5e4d;
-}
-
-.detail-placeholder {
-    height: 100%;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    color: #666;
-    font-style: italic;
-    font-size: 11px;
-}
-
-/* Labels */
-.grid-label {
     font-size: 10px;
-    color: #888;
-    margin-bottom: 5px;
-    text-transform: uppercase;
-    letter-spacing: 1px;
+    color: #00ffff;
+    border-bottom: 1px solid rgba(0, 255, 255, 0.3);
+    margin-bottom: 4px;
+    padding-bottom: 2px;
 }
 
-/* Empty Slot */
-.chip-slot-empty {
-    width: 60px;
-    height: 48px;
-    background: rgba(255, 255, 255, 0.05);
-    border: 2px dashed #444;
-    border-radius: 4px;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    color: #444;
-    font-size: 8px;
-    /* Slightly smaller for smaller slot */
+.tooltip-desc {
+    font-size: 9px;
+    color: #eee;
 }
 
-/* Stat Effects Colors */
 .stat-plus {
-    color: #2ecc71;
-    /* Green */
+    color: #44ff44;
     font-weight: bold;
 }
 
 .stat-minus {
-    color: #e74c3c;
-    /* Red */
+    color: #ff4444;
     font-weight: bold;
+}
+
+.chip-item:hover {
+    z-index: 100;
+}
+
+
+
+.vertical-inventory {
+    overflow-y: auto !important;
+    overflow-x: hidden;
+    max-height: 190px;
+}
+
+/* Hide tooltip during drag */
+.chip-item.dragging .chip-tooltip {
+    display: none !important;
+}
+
+/* Ensure the inventory container itself doesn't clip tooltips if they go up */
+.chip-list {
+    overflow: visible !important;
+}
+
+.node-indicator {
+    position: absolute;
+    display: flex;
+    gap: 2px;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    z-index: 5;
+    /* Global layer for nodes - Above grid lines, below ALL chip bodies (10) */
+}
+
+.node-dot {
+    background: #777;
+    box-shadow: 0 0 2px rgba(0, 0, 0, 0.5);
+    border-radius: 1px;
+}
+
+.node-indicator.active .node-dot {
+    background: #00ffff;
+    box-shadow: 0 0 6px #00ffff;
+}
+
+.node-indicator.up .node-dot,
+.node-indicator.down .node-dot {
+    width: 4px;
+    height: 10px;
+}
+
+.node-indicator.left .node-dot,
+.node-indicator.right .node-dot {
+    width: 10px;
+    height: 4px;
+}
+
+/* Universal Node: Wide Bar Style */
+.node-universal-bar {
+    background: #555;
+    border-radius: 1px;
+    box-shadow: 0 0 2px rgba(0, 0, 0, 0.5);
+    transition: all 0.3s;
+}
+
+.node-indicator.up.universal .node-universal-bar,
+.node-indicator.down.universal .node-universal-bar {
+    width: 24px;
+    height: 6px;
+}
+
+.node-indicator.left.universal .node-universal-bar,
+.node-indicator.right.universal .node-universal-bar {
+    width: 6px;
+    height: 24px;
+}
+
+/* Active Universal Bar: Standard Cyan Style */
+.node-indicator.universal.active .node-universal-bar {
+    background: #00ffff;
+    box-shadow: 0 0 10px #00ffff;
+}
+
+.node-indicator.up {
+    top: -5px;
+    left: 0;
+    right: 0;
+    flex-direction: row;
+}
+
+.node-indicator.down {
+    bottom: -5px;
+    left: 0;
+    right: 0;
+    flex-direction: row;
+}
+
+.node-indicator.left {
+    left: -5px;
+    top: 0;
+    bottom: 0;
+    flex-direction: column;
+}
+
+.node-indicator.right {
+    right: -5px;
+    top: 0;
+    bottom: 0;
+    flex-direction: column;
+}
+
+/* Rarity colors */
+.rarity-common::before {
+    background-color: #444;
+}
+
+.rarity-rare::before {
+    background-color: #1a3a5a;
+    border-color: #0088ff;
+}
+
+.rarity-epic::before {
+    background-color: #3b1a5a;
+    border-color: #aa00ff;
+}
+
+.rarity-legendary::before {
+    background-color: #5a4a1a;
+    border-color: #ffcc00;
+}
+
+.chip-list {
+    display: grid;
+    grid-template-columns: repeat(5, 38px);
+    grid-auto-rows: 38px;
+    gap: 12px;
+    padding: 16px;
+    justify-content: center;
+    align-content: start;
+    width: 100%;
+    box-sizing: border-box;
+    /* IMPORTANT: Must be visible to show tooltips without clipping */
+    overflow: visible !important;
+}
+
+.chip-list.vertical-inventory {
+    max-height: 232px;
+    /* Independent scrolling for the inventory list */
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    margin-top: 0;
+    padding-top: 5px;
+}
+
+.chip-list.vertical-inventory::-webkit-scrollbar {
+    width: 6px;
+}
+
+.chip-list.vertical-inventory::-webkit-scrollbar-thumb {
+    background: #444;
+    border-radius: 3px;
+}
+
+/* Layout tightening */
+.circuit-header {
+    margin-bottom: 2px;
+    /* Tightened from 4px */
+}
+
+.grid-label {
+    font-size: 10px;
+    color: #888;
+    margin-bottom: 2px;
+    /* Tightened from 4px */
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.capacity-gauge-container {
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
 }

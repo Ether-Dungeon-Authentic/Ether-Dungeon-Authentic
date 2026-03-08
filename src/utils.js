@@ -182,7 +182,7 @@ export class Entity {
             currentVy += this.knockbackVy;
 
             // Decay knockback (Smoother glide)
-            const decay = Math.pow(0.92, dt * 60);
+            const decay = Math.pow(0.96, dt * 60);
             this.knockbackVx *= decay;
             this.knockbackVy *= decay;
 
@@ -286,9 +286,21 @@ export class Entity {
         return false;
     }
 
-    takeDamage(amount, color = null, aetherAmount = 0, isCrit = false, kx = 0, ky = 0, kDuration = 0.2, silent = false) {
+    takeDamage(amount, color = null, aetherAmount = 0, isCrit = false, kx = 0, ky = 0, kDuration = 0.2, silent = false, source = null) {
         if (this.invulnerable > 0) return;
-        this.hp -= amount;
+
+        // Gambler's Dice Randomization (Player attacks)
+        if (this.game.player && this.game.player.circuit && this !== this.game.player) {
+            const gamblerRange = this.game.player.circuit.getBonuses().damageRandomRange || 0;
+            if (gamblerRange > 0) {
+                const multiplier = 1 + (Math.random() * 2 - 1) * gamblerRange;
+                amount *= multiplier;
+            }
+        }
+
+        let finalDamage = amount;
+
+        this.hp -= finalDamage;
 
         // Apply knockback if provided
         if (kx !== 0 || ky !== 0) {
@@ -301,7 +313,7 @@ export class Entity {
         if (!silent) {
             this.game.animations.push({
                 type: 'text',
-                text: amount,
+                text: Math.ceil(finalDamage),
                 x: this.x + this.width / 2,
                 y: this.y,
                 vx: (Math.random() - 0.5) * 50,
@@ -309,7 +321,7 @@ export class Entity {
                 life: 0.8,
                 maxLife: 0.8,
                 color: this.damageColor,
-                font: '20px sans-serif'
+                font: "bold 20px 'Meiryo', sans-serif"
             });
         }
 

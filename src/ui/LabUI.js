@@ -6,6 +6,10 @@ export class LabUI {
         this.game = game;
         this.currentTab = 'build';
         this.selectedChip = null;
+        this.selectedGridCell = null; // {x, y}
+        this.selectedSynthesisTarget = null;
+        this.selectedSynthesisMaterials = [];
+        this.buildSubTab = 'circuit';
 
         const modal = document.getElementById('lab-modal');
         const closeBtn = document.getElementById('btn-close-lab');
@@ -19,17 +23,71 @@ export class LabUI {
             executeBtn.onclick = () => this.executeAction();
         }
 
+
         const tabBtns = modal.querySelectorAll('.stage-tab-btn');
         tabBtns.forEach(btn => {
             btn.onclick = () => {
                 tabBtns.forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
-                this.currentTab = btn.dataset.tab;
+                this.currentTab = btn.dataset.tab === 'upgrade' ? 'modify' : btn.dataset.tab;
                 this.selectedChip = null;
+                this.selectedSynthesisTarget = null;
+                this.selectedSynthesisMaterials = [];
                 this.render();
             };
         });
+
+        this.createGlobalTooltip();
     }
+
+    static createGlobalTooltip() {
+        if (document.getElementById('lab-global-tooltip')) return;
+        const tt = document.createElement('div');
+        tt.id = 'lab-global-tooltip';
+        tt.className = 'chip-tooltip'; // Use existing base styles
+        tt.style.position = 'fixed';
+        tt.style.display = 'none';
+        tt.style.zIndex = '50000'; // Higher than modal
+        tt.style.pointerEvents = 'none';
+        tt.style.opacity = '1';
+        tt.style.transition = 'none';
+        tt.style.whiteSpace = 'normal';
+        tt.style.maxWidth = '200px';
+        document.body.appendChild(tt);
+        this.globalTooltip = tt;
+
+        // Hide tooltip on resize to prevent it from floating out of place
+        window.addEventListener('resize', () => this.hideTooltip());
+    }
+
+    static showTooltip(chip, x, y, rawTitle = null, rawDesc = null) {
+        if (!this.globalTooltip) return;
+
+        const title = rawTitle || (chip ? chip.data.name : '');
+        const desc = rawDesc || (chip ? this.formatDescription(chip) : '');
+
+        this.globalTooltip.innerHTML = `
+            <div class="tooltip-title">${title}</div>
+            <div class="tooltip-desc">${desc}</div>
+            <div class="tooltip-note" style="font-size: 8px; color: #888; margin-top: 4px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 2px;">
+                ※最大値はそのチップの全ノードを接続した時の効果量です
+            </div>
+        `;
+        this.globalTooltip.style.display = 'block';
+        const zoom = (window._gameInstance && window._gameInstance.zoom) ? window._gameInstance.zoom : 1.0;
+
+        // Position it centered above the point
+        this.globalTooltip.style.left = `${x}px`;
+        this.globalTooltip.style.top = `${y - 12 * zoom}px`;
+        this.globalTooltip.style.transform = `translate(-50%, -100%) scale(${zoom})`;
+    }
+
+    static hideTooltip() {
+        if (this.globalTooltip) {
+            this.globalTooltip.style.display = 'none';
+        }
+    }
+
 
     static open() {
         const modal = document.getElementById('lab-modal');
@@ -62,6 +120,63 @@ export class LabUI {
         }
     }
 
+    static formatDescription(chip) {
+        const getDisplay = (prop) => {
+            const current = getFormattedEffect(chip, prop);
+            const potentialValue = chip.getPotentialValue(prop);
+            const activeValue = chip.getScaledValue(prop);
+
+            if (activeValue !== potentialValue) {
+                const potential = getFormattedEffect(chip, prop, potentialValue);
+                return `${current} <span style="font-size: 0.8em; color: #888;">(最大:${potential})</span>`;
+            }
+            return current;
+        };
+
+        let desc = chip.data.description;
+        if (desc.includes('{value}')) {
+            desc = desc.replace('{value}', getDisplay('nodeScaling'));
+        }
+        if (desc.includes('{value2}')) {
+            desc = desc.replace('{value2}', getDisplay('takenDamageScaling'));
+        }
+
+        if (!chip.isSpecial && !chip.data.description.includes('{value}') && !chip.data.description.includes('{value2}')) {
+            desc += getDisplay('nodeScaling');
+        }
+        return desc;
+    }
+
+    static renderChip(chip, isEquipped = false, isSelected = false) {
+        let activeNodes = chip.activeNodes;
+
+        // If not equipped but we have a grid cell selected, show "virtual" connectivity
+        if (!isEquipped && this.selectedGridCell) {
+            activeNodes = this.getVirtualActiveNodes(chip, this.selectedGridCell.x, this.selectedGridCell.y);
+        }
+
+        const isAnyNodeActive = activeNodes && Object.values(activeNodes).some(v => v > 0);
+
+        let classes = `grid-cell chip-item rarity-${chip.getRarity()}`;
+        if (isEquipped) {
+            classes += chip.isActive ? ' active' : ' inactive';
+        } else if (isAnyNodeActive) {
+            // Inventory chip that would be active if placed
+            classes += ' active virtual-active';
+        }
+
+        if (isSelected) {
+            classes += isEquipped ? ' selected-chip' : ' selected';
+        }
+
+        return `
+            <div class="${classes}" draggable="true">
+                <img src="${chip.data.icon}" class="chip-icon ${isEquipped ? 'mini' : ''}" onerror="this.style.display='none'">
+                ${this.renderNodeIndicators(chip, activeNodes)}
+            </div>
+        `;
+    }
+
     static render() {
         this.updateMaterialDisplay();
         this.renderTabContent();
@@ -79,6 +194,8 @@ export class LabUI {
         const container = document.getElementById('lab-tab-content');
         if (!container) return;
         container.innerHTML = '';
+        // Reset overflow for non-build tabs
+        container.style.overflowY = 'auto';
 
         if (this.currentTab === 'build') {
             this.renderBuildTab(container);
@@ -87,12 +204,26 @@ export class LabUI {
 
         const grid = document.createElement('div');
         grid.className = 'lab-item-grid';
+        grid.style.display = 'grid'; // Ensure grid is used for these categories
+        grid.style.gridTemplateColumns = 'repeat(8, 46px)';
+        grid.style.gridAutoRows = '46px';
+        grid.style.gap = '12px';
+        grid.style.padding = '10px';
+        grid.style.justifyContent = 'center';
+        grid.style.overflowY = 'auto'; // Let the grid itself scroll
 
         let chips = [];
-        if (this.currentTab === 'upgrade') {
-            chips = this.game.player.circuit.ownedChips.filter(c => c.isIdentified && c.level < 10);
-        } else if (this.currentTab === 'dismantle') {
-            chips = this.game.player.circuit.ownedChips.filter(c => c.isIdentified);
+        const circuit = this.game.player.circuit;
+
+        if (this.currentTab === 'modify' || this.currentTab === 'dismantle') {
+            chips = circuit.ownedChips.filter(chip => {
+                if (!chip.isIdentified) return false;
+                // Filter out chips equipped on the grid
+                for (let gy = 0; gy < 5; gy++) {
+                    if (circuit.grid[gy].includes(chip)) return false;
+                }
+                return true;
+            });
         } else if (this.currentTab === 'synthesis') {
             this.renderSynthesisOptions(grid);
             container.appendChild(grid);
@@ -104,42 +235,117 @@ export class LabUI {
             return;
         }
 
-        chips.forEach(chip => {
-            const card = document.createElement('div');
-            card.className = `chip-item rarity-${chip.data.rarity || 'common'}`;
-            if (this.selectedChip === chip) card.classList.add('selected');
+        // Render slots (at least 24 slots, multiple of 8)
+        const slotCount = Math.max(24, Math.ceil(chips.length / 8) * 8);
+        for (let i = 0; i < slotCount; i++) {
+            const cell = document.createElement('div');
+            cell.className = 'grid-cell';
 
-            card.innerHTML = `
-                <div class="chip-name">${chip.data.name}</div>
-                <div class="chip-rank-dots">
-                    ${Array.from({ length: 10 }).map((_, i) => `<span class="dot ${i < chip.level ? 'filled' : ''}"></span>`).join('')}
-                </div>
-            `;
+            const chip = chips[i];
+            if (chip) {
+                const html = this.renderChip(chip, false, this.selectedChip === chip);
+                const temp = document.createElement('div');
+                temp.innerHTML = html.trim();
+                const card = temp.firstChild;
 
-            card.onclick = () => {
-                this.selectedChip = chip;
-                this.render();
-            };
+                card.onmouseenter = (e) => {
+                    const rect = card.getBoundingClientRect();
+                    this.showTooltip(chip, rect.left + rect.width / 2, rect.top);
+                };
+                card.onmouseleave = () => this.hideTooltip();
 
-            grid.appendChild(card);
-        });
+                card.onclick = (e) => {
+                    e.stopPropagation();
+                    this.selectedChip = chip;
+                    this.render();
+                };
+
+                cell.appendChild(card);
+            }
+
+            grid.appendChild(cell);
+        }
 
         container.appendChild(grid);
     }
 
+    static getVirtualActiveNodes(chip, x, y) {
+        const circuit = this.game.player.circuit;
+        const virtualActive = { up: 0, down: 0, left: 0, right: 0 };
+
+        const neighbors = [
+            { nx: x, ny: y - 1, dir: 'up', opp: 'down' },
+            { nx: x, ny: y + 1, dir: 'down', opp: 'up' },
+            { nx: x - 1, ny: y, dir: 'left', opp: 'right' },
+            { nx: x + 1, ny: y, dir: 'right', opp: 'left' }
+        ];
+
+        for (const { nx, ny, dir, opp } of neighbors) {
+            if (nx < 0 || nx >= 5 || ny < 0 || ny >= 5) continue;
+            const neighbor = circuit.grid[ny][nx];
+            if (!neighbor) continue;
+
+            if (neighbor === 'core') {
+                if (chip.nodes[dir] > 0) virtualActive[dir] = chip.nodes[dir];
+            } else if (neighbor.isActive) {
+                // neighbor's side facing the center is `opp`, chip's side facing the neighbor is `dir`
+                if (neighbor.nodes[opp] > 0 && neighbor.nodes[opp] === chip.nodes[dir]) {
+                    virtualActive[dir] = chip.nodes[dir];
+                }
+            }
+        }
+        return virtualActive;
+    }
+
+    static getChipConnectivityScore(chip, x, y) {
+        const circuit = this.game.player.circuit;
+        let score = 0;
+
+        const neighbors = [
+            { nx: x, ny: y - 1, dir: 'up', opp: 'down' },
+            { nx: x, ny: y + 1, dir: 'down', opp: 'up' },
+            { nx: x - 1, ny: y, dir: 'left', opp: 'right' },
+            { nx: x + 1, ny: y, dir: 'right', opp: 'left' }
+        ];
+
+        for (const { nx, ny, dir, opp } of neighbors) {
+            if (nx < 0 || nx >= 5 || ny < 0 || ny >= 5) continue;
+            const neighbor = circuit.grid[ny][nx];
+            if (!neighbor) continue;
+
+            if (neighbor === 'core') {
+                // If adjacent to core, chip needs AT LEAST 1 node facing the core (`dir`) to connect
+                if (chip.nodes[dir] > 0) score += 10;
+            } else {
+                // If adjacent to another chip, node counts must match EXACTLY (and be > 0)
+                // neighbor's node facing the center is `opp`, chip's node facing the neighbor is `dir`
+                if (neighbor.nodes[opp] > 0 && neighbor.nodes[opp] === chip.nodes[dir]) {
+                    score += 5;
+                    // If the neighbor is already active, this is even better
+                    if (neighbor.isActive) score += 5;
+                }
+            }
+        }
+
+        return score;
+    }
+
     static renderBuildTab(container) {
+        // Prevent vertical scrolling while allowing horizontal overflow for glows
+        container.style.overflowY = 'hidden';
+        container.style.overflowX = 'visible';
+
         const circuit = this.game.player.circuit;
 
         // Capacity Gauge
         const percent = Math.min((circuit.usedCapacity / circuit.maxCapacity) * 100, 100);
         const header = document.createElement('div');
         header.className = 'circuit-header';
-        header.style.padding = '0 10px 10px 0';
         header.innerHTML = `
             <div class="capacity-gauge-container">
-                <span style="font-size: 8px;">容量出力: ${circuit.usedCapacity} / ${circuit.maxCapacity}</span>
-                <div class="capacity-bar-track" style="height: 6px;">
-                    <div class="capacity-bar-fill" style="width: ${percent}%;"></div>
+                <span style="font-size: 9px; font-weight: bold; color: #fff;">容量出力: ${circuit.usedCapacity} / ${circuit.maxCapacity}</span>
+                <div class="capacity-bar-track" style="height: 6px; background: #222; border-radius: 3px; overflow: hidden;">
+                    <div class="capacity-bar-fill" style="width: ${percent}%; height: 100%; background: ${percent > 100 ? '#ff4444' : '#00ffff'}; transition: width 0.3s;"></div>
                 </div>
             </div>
         `;
@@ -147,93 +353,442 @@ export class LabUI {
 
         const main = document.createElement('div');
         main.className = 'circuit-main';
-        main.style.flexDirection = 'column';
-        main.style.gap = '10px';
+        main.style.display = 'flex';
+        main.style.flexDirection = 'row';
+        main.style.alignItems = 'flex-start';
+        main.style.gap = '24px';
+        main.style.padding = '0';
+        main.style.flex = '1'; // Stretch to fill container
+        main.style.minHeight = '0'; // Essential for flex-child with overflow
 
-        // Slots
-        const slotSection = document.createElement('div');
-        slotSection.innerHTML = '<div class="grid-label">回路スロット</div>';
-        const slotsGrid = document.createElement('div');
-        slotsGrid.className = 'chip-slots';
-        slotsGrid.style.gridTemplateColumns = 'repeat(auto-fill, 60px)';
-        slotsGrid.style.gridTemplateRows = 'auto';
+        // Left Section: Circuit Grid or Status View
+        const leftColumn = document.createElement('div');
+        leftColumn.className = 'circuit-left-column';
+        leftColumn.style.flex = '0 0 260px'; // Increased from 240px to give more breathing room
 
-        circuit.slots.forEach((chip, idx) => {
-            if (chip) {
-                const item = document.createElement('div');
-                item.className = `chip-item rarity-${chip.data.rarity || 'common'}`;
-                if (this.selectedChip === chip) item.classList.add('selected');
-                item.innerHTML = `
-                    <div class="chip-name">${chip.data.name}</div>
-                    <div class="chip-rank-dots">
-                        ${Array.from({ length: 10 }).map((_, i) => `<span class="dot ${i < chip.level ? 'filled' : ''}"></span>`).join('')}
-                    </div>
-                `;
-                item.onclick = () => {
-                    this.selectedChip = chip;
-                    this.render();
-                };
-                slotsGrid.appendChild(item);
-            } else {
-                const empty = document.createElement('div');
-                empty.className = 'chip-slot-empty';
-                empty.textContent = 'Empty';
-                slotsGrid.appendChild(empty);
-            }
+        // Sub-tabs Header
+        const subTabHeader = document.createElement('div');
+        subTabHeader.className = 'build-subtabs';
+        subTabHeader.style.display = 'flex';
+        subTabHeader.style.gap = '8px';
+        subTabHeader.style.marginBottom = '6px'; // Tightened from 10px
+        subTabHeader.style.borderBottom = '1px solid rgba(0, 255, 255, 0.2)';
+        subTabHeader.style.paddingBottom = '4px';
+
+        const tabs = [
+            { id: 'circuit', label: 'エーテル回路' },
+            { id: 'status', label: 'ステータス' }
+        ];
+
+        tabs.forEach(tab => {
+            const btn = document.createElement('div');
+            btn.className = `subtab-btn ${this.buildSubTab === tab.id ? 'active' : ''}`;
+            btn.textContent = tab.label;
+            btn.style.fontSize = '12px';
+            btn.style.fontWeight = 'bold';
+            btn.style.padding = '4px 12px';
+            btn.style.cursor = 'pointer';
+            btn.style.color = this.buildSubTab === tab.id ? '#00ffff' : '#888';
+            btn.style.borderBottom = this.buildSubTab === tab.id ? '2px solid #00ffff' : 'none';
+            btn.style.transition = 'all 0.2s';
+            btn.onclick = () => {
+                this.buildSubTab = tab.id;
+                this.render();
+            };
+            subTabHeader.appendChild(btn);
         });
-        slotSection.appendChild(slotsGrid);
-        main.appendChild(slotSection);
+        leftColumn.appendChild(subTabHeader);
+
+        if (this.buildSubTab === 'status') {
+            this.renderStatusView(leftColumn);
+        } else {
+            const gridSection = document.createElement('div');
+            gridSection.className = 'circuit-grid-container';
+            gridSection.innerHTML = '<div class="grid-label" style="display:none">エーテル回路 (5x5)</div>';
+
+            const gridTable = document.createElement('div');
+            gridTable.className = 'circuit-grid';
+
+            for (let y = 0; y < 5; y++) {
+                for (let x = 0; x < 5; x++) {
+                    const item = circuit.grid[y][x];
+                    let cell;
+
+                    if (item === 'core') {
+                        cell = document.createElement('div');
+                        cell.className = 'grid-cell core-cell';
+                        cell.innerHTML = '<div class="core-icon">CORE</div>';
+                    } else if (item) {
+                        const chip = item;
+                        const html = this.renderChip(chip, true, this.selectedChip === chip);
+                        const temp = document.createElement('div');
+                        temp.innerHTML = html.trim();
+                        cell = temp.firstChild;
+
+                        cell.onmouseenter = (e) => {
+                            const rect = cell.getBoundingClientRect();
+                            this.showTooltip(chip, rect.left + rect.width / 2, rect.top);
+                        };
+                        cell.onmouseleave = () => this.hideTooltip();
+                        cell.ondragstart = (e) => {
+                            this.hideTooltip();
+                            e.dataTransfer.setData('text/plain', chip.instanceId);
+                            e.dataTransfer.setData('source-pos', JSON.stringify({ x, y }));
+                            this.selectedChip = chip;
+                            cell.classList.add('dragging');
+                            if (e.dataTransfer.setDragImage) {
+                                e.dataTransfer.setDragImage(cell, 19, 19);
+                            }
+                        };
+                        cell.ondragend = () => {
+                            cell.classList.remove('dragging');
+                        };
+                        cell.oncontextmenu = (e) => {
+                            e.preventDefault();
+                            circuit.unequipChip(x, y);
+                            this.render();
+                        };
+                        cell.onclick = (e) => {
+                            e.stopPropagation();
+                            if (this.selectedGridCell && this.selectedGridCell.x === x && this.selectedGridCell.y === y) {
+                                this.selectedChip = null;
+                                this.selectedGridCell = null;
+                            } else {
+                                this.selectedChip = chip;
+                                this.selectedGridCell = { x, y };
+                            }
+                            this.render();
+                        };
+                    } else {
+                        cell = document.createElement('div');
+                        cell.className = 'grid-cell empty-cell';
+                        if (this.selectedGridCell && this.selectedGridCell.x === x && this.selectedGridCell.y === y) {
+                            cell.classList.add('selected');
+                        }
+                        cell.onclick = () => {
+                            if (this.selectedGridCell && this.selectedGridCell.x === x && this.selectedGridCell.y === y) {
+                                this.selectedGridCell = null;
+                            } else {
+                                this.selectedGridCell = { x, y };
+                            }
+                            this.render();
+                        };
+                    }
+
+                    // Common drag-over for all cells (except core)
+                    if (item !== 'core') {
+                        cell.ondragover = (e) => {
+                            e.preventDefault();
+                            cell.classList.add('drag-over');
+                        };
+                        cell.ondragleave = () => {
+                            cell.classList.remove('drag-over');
+                        };
+                        cell.ondrop = (e) => {
+                            e.preventDefault();
+                            cell.classList.remove('drag-over');
+                            const instanceId = e.dataTransfer.getData('text/plain');
+                            const chip = circuit.ownedChips.find(c => c.instanceId === instanceId);
+                            if (chip) {
+                                const result = circuit.equipChip(chip, x, y);
+                                if (result === true) {
+                                    this.selectedChip = chip;
+                                    this.selectedGridCell = { x, y };
+                                    this.render();
+                                } else if (result && result.duplicatePos) {
+                                    // Visual feedback for duplication
+                                    const { x: dx, y: dy } = result.duplicatePos;
+                                    // Correctly map grid coordinates to DOM element index (y * 5 + x)
+                                    const gridEl = document.querySelector('.circuit-grid');
+                                    if (gridEl) {
+                                        const duplicateCell = gridEl.children[dy * 5 + dx];
+                                        // The cell itself is the chip-item when equipped
+                                        const chipIcon = (duplicateCell?.classList.contains('chip-item')) ? duplicateCell : duplicateCell?.querySelector('.chip-item');
+
+                                        if (chipIcon) {
+                                            chipIcon.classList.remove('duplicate-flash');
+                                            void chipIcon.offsetWidth; // Force reflow
+                                            chipIcon.classList.add('duplicate-flash');
+
+                                            // Remove class after animation finishes (1s)
+                                            setTimeout(() => {
+                                                chipIcon.classList.remove('duplicate-flash');
+                                            }, 1000);
+                                        }
+                                    }
+                                }
+                            }
+                        };
+                    }
+
+                    gridTable.appendChild(cell);
+                }
+            }
+            gridSection.appendChild(gridTable);
+            leftColumn.appendChild(gridSection);
+        }
+
+        main.appendChild(leftColumn);
 
         // Inventory
         const invSection = document.createElement('div');
-        invSection.innerHTML = '<div class="grid-label">所持チップ</div>';
+        const isSortedByConnection = this.selectedGridCell !== null;
+        invSection.innerHTML = `<div class="grid-label">未装着のチップ${isSortedByConnection ? ' <span style="color:#00ffff; font-size:9px;">(接続順)</span>' : ''}</div>`;
         const invGrid = document.createElement('div');
-        invGrid.className = 'chip-list';
-        invGrid.style.gridTemplateColumns = 'repeat(auto-fill, 60px)';
-        invGrid.style.maxHeight = '150px';
+        invGrid.className = 'chip-list vertical-inventory';
+        invGrid.style.gridTemplateColumns = 'repeat(4, 38px)';
 
-        circuit.ownedChips.forEach(chip => {
-            const item = document.createElement('div');
-            item.className = `chip-item rarity-${chip.data.rarity || 'common'}`;
-            if (circuit.slots.includes(chip)) item.classList.add('equipped');
-            if (this.selectedChip === chip) item.classList.add('selected');
-            item.innerHTML = `
-                <div class="chip-name">${chip.data.name}</div>
-                <div class="chip-rank-dots">
-                    ${Array.from({ length: 10 }).map((_, i) => `<span class="dot ${i < chip.level ? 'filled' : ''}"></span>`).join('')}
-                </div>
-            `;
-            item.onclick = () => {
-                this.selectedChip = chip;
+        invGrid.ondragover = (e) => e.preventDefault();
+        invGrid.ondrop = (e) => {
+            e.preventDefault();
+            const sourcePosStr = e.dataTransfer.getData('source-pos');
+            if (sourcePosStr) {
+                const sourcePos = JSON.parse(sourcePosStr);
+                circuit.unequipChip(sourcePos.x, sourcePos.y);
                 this.render();
-            };
-            invGrid.appendChild(item);
+            }
+        };
+
+        let inventoryChips = circuit.ownedChips.filter(chip => {
+            for (let gy = 0; gy < 5; gy++) {
+                if (circuit.grid[gy].includes(chip)) return false;
+            }
+            return true;
         });
+
+        // Sort by connectivity if a cell is selected
+        if (this.selectedGridCell) {
+            const { x, y } = this.selectedGridCell;
+            inventoryChips.sort((a, b) => {
+                const scoreA = this.getChipConnectivityScore(a, x, y);
+                const scoreB = this.getChipConnectivityScore(b, x, y);
+                return scoreB - scoreA; // Descending
+            });
+        }
+
+        const slotCount = Math.max(24, Math.ceil(inventoryChips.length / 4) * 4);
+        for (let i = 0; i < slotCount; i++) {
+            const chip = inventoryChips[i];
+            let cell;
+
+            if (chip) {
+                const html = this.renderChip(chip, false, this.selectedChip === chip);
+                const temp = document.createElement('div');
+                temp.innerHTML = html.trim();
+                cell = temp.firstChild;
+
+                cell.onmouseenter = (e) => {
+                    const rect = cell.getBoundingClientRect();
+                    this.showTooltip(chip, rect.left + rect.width / 2, rect.top);
+                };
+                cell.onmouseleave = () => this.hideTooltip();
+                cell.ondragstart = (e) => {
+                    this.hideTooltip();
+                    e.dataTransfer.setData('text/plain', chip.instanceId);
+                    this.selectedChip = chip;
+                    cell.classList.add('dragging');
+                    if (e.dataTransfer.setDragImage) {
+                        e.dataTransfer.setDragImage(cell, 19, 19);
+                    }
+                };
+                cell.ondragend = () => {
+                    cell.classList.remove('dragging');
+                };
+                cell.onclick = (e) => {
+                    e.stopPropagation();
+                    if (this.selectedChip === chip && !this.selectedGridCell) {
+                        this.selectedChip = null;
+                    } else {
+                        this.selectedChip = chip;
+                        this.selectedGridCell = null;
+                    }
+                    this.render();
+                };
+            } else {
+                cell = document.createElement('div');
+                cell.className = 'grid-cell empty-cell';
+            }
+
+            invGrid.appendChild(cell);
+        }
         invSection.appendChild(invGrid);
         main.appendChild(invSection);
 
         container.appendChild(main);
     }
 
+    static renderNodeIndicators(chip, forcedActiveNodes = null) {
+        const activeNodes = forcedActiveNodes || chip.activeNodes || { up: 0, down: 0, left: 0, right: 0 };
+
+        const renderSide = (side) => {
+            const count = chip.nodes[side];
+            const isActive = activeNodes[side] > 0;
+            const isUniversal = count === 'universal';
+
+            let content = '';
+            if (isUniversal) {
+                content = '<span class="node-universal-bar"></span>';
+            } else {
+                content = Array.from({ length: count }).map(() => '<span class="node-dot"></span>').join('');
+            }
+
+            return `<div class="node-indicator ${side} ${isActive ? 'active' : ''} ${isUniversal ? 'universal' : ''}">${content}</div>`;
+        };
+
+        return `
+            ${renderSide('up')}
+            ${renderSide('down')}
+            ${renderSide('left')}
+            ${renderSide('right')}
+        `;
+    }
+
     static renderSynthesisOptions(grid) {
-        const categories = ['洞察', '技巧', '耐久', '俊敏'];
-        categories.forEach(cat => {
-            const card = document.createElement('div');
-            card.className = 'chip-item synthesis-card';
-            if (this.selectedSynthesisCategory === cat) card.classList.add('selected');
+        grid.style.display = 'flex';
+        grid.style.flexDirection = 'column';
+        grid.style.gap = '10px';
+        grid.style.width = '100%';
+        grid.style.boxSizing = 'border-box';
+        grid.style.overflowX = 'hidden';
+        grid.style.justifyContent = 'flex-start'; // Override CSS class vertical centering
+        grid.style.paddingTop = '5px'; // Tighten top margin
 
-            card.innerHTML = `
-                <div class="chip-name">${cat}</div>
-                <div style="font-size: 7px; color: #888; margin-top: 2px;">合成</div>
-            `;
+        // 1. Slots Area (Target + 3 Materials)
+        const slotsArea = document.createElement('div');
+        slotsArea.style.display = 'flex';
+        slotsArea.style.gap = '10px'; // Reduced gap to save horizontal space
+        slotsArea.style.justifyContent = 'center';
+        slotsArea.style.padding = '5px';
+        slotsArea.style.background = 'rgba(0,0,0,0.3)';
+        slotsArea.style.borderRadius = '8px';
+        slotsArea.style.boxSizing = 'border-box';
+        slotsArea.style.width = '100%';
+        slotsArea.style.maxWidth = '100%';
 
-            card.onclick = () => {
-                this.selectedSynthesisCategory = cat;
-                this.selectedChip = null;
-                this.render();
-            };
-            grid.appendChild(card);
+        // Helper to render a slot
+        const createSlot = (chip, label, index) => {
+            const wrapper = document.createElement('div');
+            wrapper.style.display = 'flex';
+            wrapper.style.flexDirection = 'column';
+            wrapper.style.alignItems = 'center';
+            wrapper.style.gap = '5px';
+
+            const cell = document.createElement('div');
+            cell.className = 'grid-cell';
+            cell.style.width = '46px';
+            cell.style.height = '46px';
+
+            if (chip) {
+                const html = this.renderChip(chip, false, false);
+                const temp = document.createElement('div');
+                temp.innerHTML = html.trim();
+                const card = temp.firstChild;
+
+                card.onmouseenter = (e) => {
+                    const rect = card.getBoundingClientRect();
+                    this.showTooltip(chip, rect.left + rect.width / 2, rect.top);
+                };
+                card.onmouseleave = () => this.hideTooltip();
+
+                card.onclick = () => {
+                    this.selectedSynthesisMaterials.splice(index, 1);
+                    this.render();
+                };
+                cell.appendChild(card);
+            } else {
+                cell.innerHTML = '<span style="color:#333; font-size:20px;">+</span>';
+            }
+
+            const lbl = document.createElement('div');
+            lbl.style.fontSize = '8px';
+            lbl.style.color = '#888';
+            lbl.textContent = label;
+
+            wrapper.appendChild(cell);
+            wrapper.appendChild(lbl);
+            return wrapper;
+        };
+
+        for (let i = 0; i < 5; i++) {
+            slotsArea.appendChild(createSlot(this.selectedSynthesisMaterials[i], `素材 ${i + 1}`, i));
+        }
+        grid.appendChild(slotsArea);
+
+        // 2. Filtered Chip List
+        const listTitle = document.createElement('div');
+        listTitle.style.fontSize = '10px';
+        listTitle.style.color = '#aaa';
+        listTitle.textContent = '同じレアリティのチップを5枚選択してください';
+        grid.appendChild(listTitle);
+
+        const listContainer = document.createElement('div');
+        listContainer.className = 'lab-item-grid';
+        listContainer.style.background = 'rgba(0,0,0,0.2)';
+        listContainer.style.borderRadius = '4px';
+        listContainer.style.height = '140px';
+        listContainer.style.overflowY = 'auto';
+        listContainer.style.overflowX = 'hidden';
+        listContainer.style.boxSizing = 'border-box';
+        listContainer.style.width = '100%';
+        listContainer.style.display = 'grid';
+        listContainer.style.gridTemplateColumns = 'repeat(8, 46px)';
+        listContainer.style.gridAutoRows = '46px';
+        listContainer.style.gap = '12px';
+        listContainer.style.padding = '10px';
+        listContainer.style.justifyContent = 'center';
+
+        const circuit = this.game.player.circuit;
+        let availableChips = circuit.ownedChips.filter(chip => {
+            // Cannot synthesize special chips
+            if (chip.isSpecial) return false;
+            // Not equipped
+            for (let gy = 0; gy < 5; gy++) {
+                if (circuit.grid[gy].includes(chip)) return false;
+            }
+            // Not already picked for synthesis
+            if (this.selectedSynthesisMaterials.includes(chip)) return false;
+            return true;
         });
+
+        if (this.selectedSynthesisMaterials.length > 0) {
+            const targetRarity = this.selectedSynthesisMaterials[0].getRarity();
+            availableChips = availableChips.filter(chip =>
+                chip.getRarity() === targetRarity
+            );
+        }
+
+        // Render slots for selection (at least 16 slots, multiple of 8)
+        const displayCount = Math.max(16, Math.ceil(availableChips.length / 8) * 8);
+        for (let i = 0; i < displayCount; i++) {
+            const cell = document.createElement('div');
+            cell.className = 'grid-cell';
+            cell.style.width = '46px';
+            cell.style.height = '46px';
+
+            const chip = availableChips[i];
+            if (chip) {
+                const html = this.renderChip(chip, false, false);
+                const temp = document.createElement('div');
+                temp.innerHTML = html.trim();
+                const card = temp.firstChild;
+
+                card.onmouseenter = (e) => {
+                    const rect = card.getBoundingClientRect();
+                    this.showTooltip(chip, rect.left + rect.width / 2, rect.top);
+                };
+                card.onmouseleave = () => this.hideTooltip();
+
+                card.onclick = () => {
+                    if (this.selectedSynthesisMaterials.length < 5) {
+                        this.selectedSynthesisMaterials.push(chip);
+                    }
+                    this.render();
+                };
+                cell.appendChild(card);
+            }
+            listContainer.appendChild(cell);
+        }
+        grid.appendChild(listContainer);
     }
 
     static renderFocusArea() {
@@ -245,7 +800,7 @@ export class LabUI {
         const content = document.createElement('div');
         content.className = 'lab-focus-content';
 
-        if (this.currentTab === 'synthesis' && this.selectedSynthesisCategory) {
+        if (this.currentTab === 'synthesis') {
             this.renderSynthesisFocus(content);
             if (executeBtn) {
                 executeBtn.textContent = '合成する';
@@ -255,15 +810,38 @@ export class LabUI {
             this.renderItemFocus(content);
             if (executeBtn) {
                 if (this.currentTab === 'build') {
-                    const isEquipped = this.game.player.circuit.slots.includes(this.selectedChip);
-                    executeBtn.textContent = isEquipped ? '解除する' : '装着する';
-                    executeBtn.style.display = 'block';
-                } else if (this.currentTab === 'upgrade') {
-                    executeBtn.textContent = '強化する';
-                    executeBtn.style.display = 'block';
+                    let equippedPos = null;
+                    for (let y = 0; y < 5; y++) {
+                        for (let x = 0; x < 5; x++) {
+                            if (this.game.player.circuit.grid[y][x] === this.selectedChip) equippedPos = { x, y };
+                        }
+                    }
+
+                    if (equippedPos) {
+                        // Removed Unequip button - now handled by drag-to-inventory or right-click
+                        executeBtn.style.display = 'none';
+                    } else if (this.selectedGridCell) {
+                        // Removed Equip button - now handled by drag-and-drop
+                        executeBtn.style.display = 'none';
+                    } else {
+                        executeBtn.style.display = 'none';
+                    }
+                } else if (this.currentTab === 'modify') {
+                    if (this.selectedChip.isSpecial) {
+                        content.innerHTML += `<div style="color:red; font-size:10px; margin-top:5px;">特殊チップは改造できません。</div>`;
+                        executeBtn.style.display = 'none';
+                    } else {
+                        executeBtn.textContent = '改造する';
+                        executeBtn.style.display = 'block';
+                    }
                 } else if (this.currentTab === 'dismantle') {
-                    executeBtn.textContent = '分解する';
-                    executeBtn.style.display = 'block';
+                    if (this.selectedChip.isSpecial) {
+                        content.innerHTML += `<div style="color:red; font-size:10px; margin-top:5px;">特殊チップは分解できません。</div>`;
+                        executeBtn.style.display = 'none';
+                    } else {
+                        executeBtn.textContent = '分解する';
+                        executeBtn.style.display = 'block';
+                    }
                 }
             }
         } else {
@@ -277,13 +855,13 @@ export class LabUI {
     static renderItemFocus(content) {
         const chip = this.selectedChip;
         const title = document.createElement('div');
-        title.className = `lab-focus-title rarity-${chip.data.rarity || 'common'}`;
+        title.className = `lab-focus-title rarity-${chip.getRarity()}`;
         title.textContent = chip.data.name;
         content.appendChild(title);
 
         const desc = document.createElement('div');
         desc.className = 'lab-focus-desc';
-        desc.innerHTML = `${chip.data.description}${getFormattedEffect(chip)}`;
+        desc.innerHTML = this.formatDescription(chip);
         content.appendChild(desc);
 
         if (this.currentTab === 'build') {
@@ -292,22 +870,22 @@ export class LabUI {
             stats.innerHTML = `<div style="font-size: 8px; color: #888; margin-bottom: 5px;">チップ詳細</div>
                 <div class="cost-row">
                     <span>カテゴリー:</span>
-                    <span>${chip.data.category}</span>
-                </div>
-                <div class="cost-row">
-                    <span>必要容量:</span>
-                    <span style="color: #00ffff;">${chip.getCurrentCost()}</span>
+                    <span class="rarity-${chip.getRarity()}">${chip.data.category}</span>
                 </div>`;
             content.appendChild(stats);
             return;
         }
 
         // Costs
+        if (chip.isSpecial && (this.currentTab === 'modify' || this.currentTab === 'dismantle')) {
+            return; // We already showed the warning message above, no need to show costs
+        }
+
         let costLabel = '';
         let costData = { gold: 0, fragments: 0 };
-        if (this.currentTab === 'upgrade') {
-            costLabel = '強化コスト (Lv.' + chip.level + ' → ' + (chip.level + 1) + ')';
-            costData = AetherLabManager.getUpgradeCost(chip);
+        if (this.currentTab === 'modify') {
+            costLabel = '強化コスト (ノード追加)';
+            costData = AetherLabManager.getModifyCost(chip);
         } else if (this.currentTab === 'dismantle') {
             costLabel = '分解報酬';
             costData = AetherLabManager.getDismantleYield(chip);
@@ -321,9 +899,9 @@ export class LabUI {
             costDisplay.innerHTML += `
                 <div class="cost-row sufficient">
                     <div class="cost-label-with-icon">
-                        <img src="assets/ui/aether_fragment.png" class="currency-icon"> 報酬
+                        <img src="assets/ui/aether_shard.png" class="currency-icon"> 報酬
                     </div>
-                    <span>+${costData.fragments}</span>
+                    <span>+${costData.shards}</span>
                 </div>
             `;
         } else {
@@ -351,36 +929,43 @@ export class LabUI {
     static renderSynthesisFocus(content) {
         const title = document.createElement('div');
         title.className = 'lab-focus-title';
-        title.textContent = this.selectedSynthesisCategory + ' チップ合成';
+        title.textContent = 'ランクアップ合成';
         content.appendChild(title);
 
         const desc = document.createElement('div');
         desc.className = 'lab-focus-desc';
-        desc.textContent = '指定されたカテゴリーのランダムなチップを生成します。';
+        desc.innerHTML = `
+            同じレアリティのチップ5枚を合成し、<br>
+            ワンランク上のランダムなチップを獲得します。<br>
+            <span style="color: #666; font-size: 8px;">※5枚のチップ効果が全て同じ場合、完成品も同じ効果になります。</span>
+        `;
         content.appendChild(desc);
 
-        const costDisplay = document.createElement('div');
-        costDisplay.className = 'lab-cost-display';
-        const costData = { gold: 200, fragments: 20 };
-        const goldOk = this.game.player.aetherShards >= costData.gold;
-        const shardOk = this.game.player.aetherFragments >= costData.fragments;
+        if (this.selectedSynthesisMaterials.length === 5) {
+            const status = document.createElement('div');
+            status.className = 'lab-cost-display';
+            const canSyn = AetherLabManager.canSynthesizeRankUp(this.game.player, this.selectedSynthesisMaterials);
 
-        costDisplay.innerHTML = `
-            <div style="font-size: 8px; color: #888; margin-bottom: 5px;">合成コスト</div>
-            <div class="cost-row ${goldOk ? 'sufficient' : 'insufficient'}">
-                <div class="cost-label-with-icon">
-                    <img src="assets/ui/aether_shard.png" class="currency-icon">
+            const matRarity = this.selectedSynthesisMaterials[0].getRarity();
+            let nextRarity = matRarity === 'common' ? 'rare' : matRarity === 'rare' ? 'epic' : 'legendary';
+            if (matRarity === 'legendary') nextRarity = 'legendary';
+
+            status.innerHTML = `
+                <div style="font-size: 8px; color: ${canSyn ? '#00ff88' : '#ff4444'}; margin-bottom: 5px;">
+                    ${canSyn ? `合成結果予想: <span class="rarity-${nextRarity}">${nextRarity.toUpperCase()}</span> チップ` : 'レアリティが一致しません'}
                 </div>
-                <span>${costData.gold}</span>
-            </div>
-            <div class="cost-row ${shardOk ? 'sufficient' : 'insufficient'}">
-                <div class="cost-label-with-icon">
-                    <img src="assets/ui/aether_fragment.png" class="currency-icon">
+            `;
+            content.appendChild(status);
+        } else {
+            const status = document.createElement('div');
+            status.className = 'lab-cost-display';
+            status.innerHTML = `
+                <div style="font-size: 8px; color: #888; margin-bottom: 5px;">
+                    同じレアリティのチップを5枚選択してください
                 </div>
-                <span>${costData.fragments}</span>
-            </div>
-        `;
-        content.appendChild(costDisplay);
+            `;
+            content.appendChild(status);
+        }
     }
 
     static executeAction() {
@@ -389,24 +974,30 @@ export class LabUI {
 
         if (this.currentTab === 'build' && this.selectedChip) {
             const circuit = player.circuit;
-            const isEquipped = circuit.slots.includes(this.selectedChip);
-            if (isEquipped) {
-                const idx = circuit.slots.indexOf(this.selectedChip);
-                circuit.unequipChip(idx);
-                success = true;
-            } else {
-                const emptyIdx = circuit.slots.indexOf(null);
-                if (emptyIdx !== -1) {
-                    success = circuit.equipChip(this.selectedChip, emptyIdx);
+            let equippedPos = null;
+            for (let y = 0; y < 5; y++) {
+                for (let x = 0; x < 5; x++) {
+                    if (circuit.grid[y][x] === this.selectedChip) equippedPos = { x, y };
                 }
             }
-        } else if (this.currentTab === 'upgrade' && this.selectedChip) {
-            success = AetherLabManager.upgradeChip(player, this.selectedChip);
+
+            if (equippedPos) {
+                circuit.unequipChip(equippedPos.x, equippedPos.y);
+                success = true;
+            } else if (this.selectedGridCell) {
+                success = circuit.equipChip(this.selectedChip, this.selectedGridCell.x, this.selectedGridCell.y);
+                if (success) this.selectedGridCell = null;
+            }
+        } else if (this.currentTab === 'modify' && this.selectedChip) {
+            success = AetherLabManager.modifyChip(player, this.selectedChip);
         } else if (this.currentTab === 'dismantle' && this.selectedChip) {
             success = AetherLabManager.dismantleChip(player, this.selectedChip);
             if (success) this.selectedChip = null;
-        } else if (this.currentTab === 'synthesis' && this.selectedSynthesisCategory) {
-            success = AetherLabManager.synthesisChip(player, this.selectedSynthesisCategory);
+        } else if (this.currentTab === 'synthesis') {
+            success = AetherLabManager.synthesizeRankUp(player, this.selectedSynthesisMaterials);
+            if (success) {
+                this.selectedSynthesisMaterials = [];
+            }
         }
 
         if (success) {
@@ -414,5 +1005,120 @@ export class LabUI {
         } else {
             console.warn("Lab Action Failed: Insufficient resources or no item selected.");
         }
+    }
+    static renderStatusView(container) {
+        const statusView = document.createElement('div');
+        statusView.className = 'circuit-status-view';
+        statusView.style.padding = '10px';
+        statusView.style.background = 'rgba(0, 0, 0, 0.4)';
+        statusView.style.borderRadius = '4px';
+        statusView.style.height = '184px'; // Match grid height
+        statusView.style.overflowY = 'auto';
+        statusView.style.border = '1px solid rgba(0, 255, 255, 0.1)';
+
+        const bonuses = this.game.player.circuit.getDetailedBonuses();
+
+        const labels = {
+            damageMult: 'スキルダメージ',
+            maxHp: '最大HP',
+            speedMult: '移動速度',
+            aetherChargeMult: 'エーテル充填速度',
+            fireDamageMult: '火属性ダメージ',
+            thunderDamageMult: '雷属性ダメージ',
+            iceDamageMult: '氷属性ダメージ',
+            bloodDamageMult: '血属性ダメージ',
+            critRateAdd: 'クリティカル率',
+            critDamageAdd: '会心倍率',
+            onHitDamageBuff: '逆上(力)',
+            takenDamageMult: '被ダメージ軽減',
+            trainingKillBuff: '鍛錬(1体毎)',
+            bossDamageMult: 'ボスダメージ',
+            inertiaScaling: '慣性(移動速度1%毎)',
+            ukemiChance: '受け身(発動率)',
+            accelerationScaling: '加速(最大)',
+            damageRandomRange: '一発逆転(変動幅)'
+        };
+
+        const list = document.createElement('div');
+        list.style.display = 'flex';
+        list.style.flexDirection = 'column';
+        list.style.gap = '6px';
+
+        let hasAnyBonus = false;
+
+        Object.keys(labels).forEach(key => {
+            const data = bonuses[key];
+            const curr = data.current;
+            const pot = data.potential;
+
+            if (curr === 0 || Math.abs(curr) < 0.0001) return;
+
+            hasAnyBonus = true;
+            const row = document.createElement('div');
+            row.style.display = 'flex';
+            row.style.justifyContent = 'space-between';
+            row.style.alignItems = key === 'trainingKillBuff' ? 'flex-start' : 'center'; // Align top if multiline
+            row.style.fontSize = '12px';
+            row.style.borderBottom = '1px solid rgba(255,255,255,0.05)';
+            row.style.paddingBottom = '4px';
+
+            const label = document.createElement('div');
+            label.textContent = labels[key];
+            label.style.color = '#888';
+
+            const valContainer = document.createElement('div');
+            valContainer.style.textAlign = 'right';
+
+            const value = document.createElement('div');
+            value.style.fontWeight = 'bold';
+
+            // Formatting
+            const isPercentage = !['maxHp', 'critDamageAdd'].includes(key);
+            const formatValue = (v) => {
+                if (key === 'critDamageAdd') return `+${(v).toFixed(2)}x`;
+                if (isPercentage) {
+                    const percent = (v * 100).toFixed(2);
+                    return `${v >= 0 ? '+' : ''}${percent}%`;
+                }
+                return `${v >= 0 ? '+' : ''}${v.toFixed(2)}`;
+            };
+
+            const getColor = (v) => {
+                const isPositiveGood = key !== 'takenDamageMult';
+                const isGood = v >= 0 ? isPositiveGood : !isPositiveGood;
+                return isGood ? '#00ffff' : '#ff4444';
+            };
+
+            value.textContent = formatValue(curr);
+            value.style.color = getColor(curr);
+            valContainer.appendChild(value);
+
+            // Special handling for Training: 100 kills potency
+            if (key === 'trainingKillBuff') {
+                const maxRow100 = document.createElement('div');
+                maxRow100.style.fontSize = '9px';
+                maxRow100.style.color = '#00ffff';
+                maxRow100.style.opacity = '0.7';
+                maxRow100.textContent = `(100体撃破時:${formatValue(data.fullPotency)})`;
+                valContainer.appendChild(maxRow100);
+            }
+
+            row.appendChild(label);
+            row.appendChild(valContainer);
+            list.appendChild(row);
+        });
+
+        if (!hasAnyBonus) {
+            const empty = document.createElement('div');
+            empty.textContent = '有効なバフがありません。回路を接続してください。';
+            empty.style.fontSize = '12px';
+            empty.style.color = '#555';
+            empty.style.textAlign = 'center';
+            empty.style.marginTop = '40px';
+            list.appendChild(empty);
+        }
+
+        statusView.appendChild(list);
+        container.appendChild(statusView);
     }
 }

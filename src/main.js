@@ -1,7 +1,7 @@
 import { InputHandler, Camera, Entity, getCachedImage, filterInPlace } from './utils.js';
 import { Map } from './map.js';
 import { Player } from './player.js';
-import { Enemy, Slime, Bat, Goblin, SkeletonArcher, Ghost, Boss, Chest, Statue, BloodAltar, ShopNPC, WoodCrate, SpikeTrap } from './entities.js';
+import { Enemy, Slime, Bat, Goblin, SkeletonArcher, Ghost, AetherSentinel, AetherPrime, Boss, Chest, Statue, BloodAltar, ShopNPC, WoodCrate, SpikeTrap } from './entities.js';
 import { createSkill } from './skills/index.js';
 import { drawUI, showSkillSelection, hideSkillSelection, showBlessingSelection, hideBlessingSelection, drawDialogue, hideDialogue, initSettingsUI, initRankingUI, showNicknameInput, showStageSettings, hideStageSettings } from './ui.js';
 import { skillsDB } from '../data/skills_db.js';
@@ -58,6 +58,8 @@ class Game {
         this.transitionDuration = 0.5; // 0.5s fade
         this.transitionAlpha = 0;
         this.titleFadeAlpha = 1.0; // Fade in background on startup
+
+        this.bossOverride = null; // Debug override: 'golem' or 'prime'
 
         // Camera Offset (for cinematic effect)
         this.cameraOffsetX = 0;
@@ -514,7 +516,7 @@ class Game {
                 this.player.hp = oldPlayer.hp;
                 this.player.maxHp = oldPlayer.maxHp;
                 this.player.aether = 0; // Reset aether rush on floor change
-                this.player.bloodBlessings = oldPlayer.bloodBlessings || [];
+                this.player.bloodBlessings = []; // Reset Blood Altar buffs on floor change
             } else if (this.debugMode) {
                 // Initial floor in debug mode
                 this.player.unlockAllSkills();
@@ -748,7 +750,7 @@ class Game {
             life: life,
             maxLife: life,
             color: color,
-            font: options.font || "bold 20px 'Press Start 2P', monospace",
+            font: options.font || "bold 20px 'Meiryo', sans-serif",
             update: function (dt) {
                 // Stop rising after 30% of lifetime (suppressing total ascent)
                 if (this.life < this.maxLife * 0.7) {
@@ -1183,9 +1185,17 @@ class Game {
                 this.map.closeRoom(currentRoom);
 
                 if (currentRoom.type === 'boss') {
-                    const bx = (currentRoom.x + currentRoom.w / 2) * this.map.tileSize - 45;
-                    const by = (currentRoom.y + currentRoom.h / 2) * this.map.tileSize - 45;
-                    this.enemies.push(new Boss(this, bx, by));
+                    const bx = (currentRoom.x + currentRoom.w / 2) * this.map.tileSize - 60;
+                    const by = (currentRoom.y + currentRoom.h / 2) * this.map.tileSize - 60;
+
+                    // Randomly pick unless overridden
+                    let bossClass = Math.random() < 0.5 ? Boss : AetherPrime;
+                    if (this.bossOverride === 'golem') bossClass = Boss;
+                    if (this.bossOverride === 'prime') bossClass = AetherPrime;
+                    this.bossOverride = null; // Reset after use
+
+                    this.enemies.push(new bossClass(this, bx, by));
+
                     this.camera.shake(0.5, 10);
                     this.logToScreen("WARNING: BOSS DETECTED!");
                     return;
@@ -1208,7 +1218,8 @@ class Game {
                     { type: 'slime', cost: 2, ew: 32, eh: 32, Class: Slime },
                     { type: 'goblin', cost: 4, ew: 64, eh: 64, Class: Goblin },
                     { type: 'skeleton', cost: 3, ew: 40, eh: 48, Class: SkeletonArcher },
-                    { type: 'ghost', cost: 5, ew: 40, eh: 48, Class: Ghost }
+                    { type: 'ghost', cost: 5, ew: 40, eh: 48, Class: Ghost },
+                    { type: 'sentinel', cost: 6, ew: 48, eh: 48, Class: AetherSentinel }
                 ];
 
                 while (budget > 0) {
@@ -1513,11 +1524,22 @@ class Game {
                         if (p.onHitEnemy) {
                             p.onHitEnemy(e, this, dt);
                         } else {
-                            // Critical hit roll
+                            // Critical hit roll (Unified Calculation)
                             const isCrit = p.critChance > 0 && Math.random() < p.critChance;
-                            const finalDamage = isCrit ? p.damage * (p.critMultiplier || 2.0) : p.damage;
+                            const critMult = p.critMultiplier + this.player.critDamageBonus;
+                            const finalDamage = isCrit ? p.damage * critMult : p.damage;
 
-                            e.takeDamage(finalDamage, p.damageColor, p.aetherCharge, isCrit);
+                            // Knockback calculation
+                            let kx = 0, ky = 0;
+                            if (p.knockback) {
+                                const dx = (e.x + e.width / 2) - (p.x + p.w / 2);
+                                const dy = (e.y + e.height / 2) - (p.y + p.h / 2);
+                                const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+                                kx = (dx / dist) * p.knockback;
+                                ky = (dy / dist) * p.knockback;
+                            }
+
+                            e.takeDamage(finalDamage, p.damageColor, p.aetherCharge, isCrit, kx, ky);
 
                             // Apply Status (Standard Projectiles)
                             if (p.statusEffect && (!p.statusChance || Math.random() < p.statusChance)) {
@@ -1967,7 +1989,7 @@ class Game {
                     e.draw(this.ctx);
                     if (e.showPrompt) {
                         this.ctx.fillStyle = 'white';
-                        this.ctx.font = '14px sans-serif';
+                        this.ctx.font = "14px 'Meiryo', sans-serif";
                         this.ctx.textAlign = 'center';
                         this.ctx.fillText("[SPACE] 開く", e.x + e.width / 2, e.y - 10);
                     }
@@ -2002,7 +2024,7 @@ class Game {
         // Draw Stair Prompt (Always on top of entities?)
         if (this.showStairPrompt) {
             this.ctx.fillStyle = 'white';
-            this.ctx.font = '14px sans-serif';
+            this.ctx.font = "14px 'Meiryo', sans-serif";
             this.ctx.textAlign = 'center';
             this.ctx.fillText("[SPACE] 進む", this.stairPromptX, this.stairPromptY - 20);
         }
@@ -2155,7 +2177,7 @@ class Game {
                 this.ctx.arc(a.x, a.y, currentRadius, 0, Math.PI * 2);
                 this.ctx.stroke();
             } else if (a.type === 'text') {
-                this.ctx.font = a.font || '16px sans-serif';
+                this.ctx.font = a.font || "16px 'Meiryo', sans-serif";
                 this.ctx.fillStyle = a.color || 'white';
                 this.ctx.strokeStyle = 'black';
                 this.ctx.lineWidth = 2;
@@ -2341,7 +2363,7 @@ class Game {
                     vy: -50,
                     life: 2.0,
                     color: '#ffff00',
-                    font: 'bold 16px sans-serif'
+                    font: "bold 16px 'Meiryo', sans-serif"
                 });
 
                 this.spawnParticles(this.player.x + this.player.width / 2, this.player.y + this.player.height / 2, 20, '#ffff00');

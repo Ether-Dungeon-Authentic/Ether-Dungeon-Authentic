@@ -101,7 +101,8 @@ export const areaBehaviors = {
                                 }
 
                                 const isCrit = params.critChance > 0 && Math.random() < params.critChance;
-                                const finalDamage = isCrit ? params.damage * (params.critMultiplier || 2.0) : params.damage;
+                                const critMult = (params.critMultiplier || 1.2) + game.player.critDamageBonus;
+                                const finalDamage = isCrit ? params.damage * critMult : params.damage;
 
                                 enemy.takeDamage(finalDamage, params.damageColor, params.aetherCharge, isCrit, kx, ky);
                                 // Shake on hit
@@ -132,7 +133,8 @@ export const areaBehaviors = {
                     }
 
                     const isCrit = params.critChance > 0 && Math.random() < params.critChance;
-                    const finalDamage = isCrit ? params.damage * (params.critMultiplier || 2.0) : params.damage;
+                    const critMult = (params.critMultiplier || 1.3) + game.player.critDamageBonus;
+                    const finalDamage = isCrit ? params.damage * critMult : params.damage;
 
                     enemy.takeDamage(finalDamage, params.damageColor, params.aetherCharge, isCrit, kx, ky);
                     game.spawnParticles(ex, ey, isCrit ? 15 : 10, isCrit ? '#FFD700' : '#ff0000');
@@ -782,7 +784,8 @@ export const areaBehaviors = {
                                             // Plus some vertical forgiveness
                                             if (dx < (enemy.width / 2 + 10) && dy < 20) {
                                                 const isCrit = params.critChance > 0 && Math.random() < params.critChance;
-                                                const finalDamage = isCrit ? this.damage * (params.critMultiplier || 2.0) : this.damage;
+                                                const critMult = (params.critMultiplier || 1.4) + game.player.critDamageBonus;
+                                                const finalDamage = isCrit ? this.damage * critMult : this.damage;
 
                                                 enemy.takeDamage(finalDamage, this.damageColor, this.aetherCharge, isCrit);
                                                 game.spawnParticles(ex, ey - 10, isCrit ? 10 : 5, isCrit ? '#FFD700' : '#a5f2f3');
@@ -956,7 +959,8 @@ export const areaBehaviors = {
                         const edist = Math.hypot(e.x + e.width / 2 - tx, e.y + e.height / 2 - ty);
                         if (edist < hitRadius) {
                             const isCrit = Math.random() < (params.critChance || 0);
-                            const finalDmg = isCrit ? params.damage * (params.critMultiplier || 2.0) : params.damage;
+                            const critMult = (params.critMultiplier || 1.5) + game.player.critDamageBonus;
+                            const finalDmg = isCrit ? params.damage * critMult : params.damage;
                             e.takeDamage(finalDmg, params.damageColor || '#ffff00', params.aetherCharge || 0, isCrit);
                         }
                     });
@@ -1650,9 +1654,10 @@ export const areaBehaviors = {
                         const ex = (e.x + e.width / 2) - x;
                         const ey = (e.y + e.height / 2) - y;
                         if (Math.hypot(ex, ey) < currentCore) {
-                            // Critical hit roll
+                            // Critical hit roll (Unified Calculation)
                             const isCrit = params.critChance > 0 && Math.random() < params.critChance;
-                            const finalDamage = isCrit ? params.damage * (params.critMultiplier || 2.0) : params.damage;
+                            const critMult = (params.critMultiplier || 1.5) + game.player.critDamageBonus;
+                            const finalDamage = isCrit ? params.damage * critMult : params.damage;
 
                             e.takeDamage(finalDamage, params.damageColor, params.aetherCharge || 0, isCrit);
 
@@ -1936,7 +1941,8 @@ export const areaBehaviors = {
                             // Damage Logic
                             const damage = params.damage || 5;
                             const isCrit = Math.random() < (params.critChance || 0);
-                            const finalDmg = isCrit ? damage * (params.critMultiplier || 2.0) : damage;
+                            const critMult = (params.critMultiplier || 1.5) + user.critDamageBonus;
+                            const finalDmg = isCrit ? damage * critMult : damage;
 
                             nearest.takeDamage(finalDmg, params.damageColor || '#ffff00', 0, isCrit);
 

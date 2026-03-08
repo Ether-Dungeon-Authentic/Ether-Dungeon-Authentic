@@ -110,9 +110,6 @@ export class BloodAltar extends Entity {
 
         // Apply random blood blessing
         this.grantBlessing();
-        this.game.gameState = 'PLAYING';
-
-        import('../ui.js').then(m => m.hideDialogue());
     }
 
     grantBlessing() {
@@ -125,32 +122,36 @@ export class BloodAltar extends Entity {
 
         const selected = blessings[Math.floor(Math.random() * blessings.length)];
 
-        // Show acquisition UI
+        // Show selection UI (with 1 option as requested, mirroring Statue style)
+        this.game.gameState = 'REWARD_SELECT';
         import('../ui.js').then(m => {
-            m.showAcquiredBlessing(selected, () => {
-                // Add to player's active blessings AFTER confirmation
+            m.showBlessingSelection([selected], (selectedOpt) => {
+                // Add to player's active blessings
                 this.game.player.bloodBlessings = this.game.player.bloodBlessings || [];
-                this.game.player.bloodBlessings.push(selected);
+                this.game.player.bloodBlessings.push(selectedOpt);
 
-                this.game.logToScreen(`契約成立: 【${selected.name}】獲得！`);
-                this.game.logToScreen(selected.desc);
+                this.game.logToScreen(`契約成立: 【${selectedOpt.name}】獲得！`);
+                this.game.logToScreen(selectedOpt.desc);
 
                 // Floating notification over player
                 if (this.game.player) {
                     this.game.animations.push({
                         type: 'text',
-                        text: `【${selected.name}】獲得！`,
+                        text: `【${selectedOpt.name}】獲得！`,
                         x: this.game.player.x + this.game.player.width / 2,
                         y: this.game.player.y - 20,
                         vx: 0,
                         vy: -50,
                         life: 2.0,
                         maxLife: 2.0,
-                        color: '#ffd700',
+                        color: '#ff4444',
                         font: 'bold 24px sans-serif'
                     });
                 }
-            });
+
+                m.hideDialogue();
+                this.game.gameState = 'PLAYING';
+            }, 'blood');
         });
     }
 }

@@ -139,9 +139,10 @@ export const projectileBehaviors = {
 
                 // On Enemy Hit Effect
                 proj.onHitEnemy = function (enemy, gameInstance) {
-                    // Critical hit roll
+                    // Critical hit roll (Unified Calculation)
                     const isCrit = this.critChance > 0 && Math.random() < this.critChance;
-                    const finalDamage = isCrit ? this.damage * (this.critMultiplier || 2.0) : this.damage;
+                    const critMult = this.critMultiplier + gameInstance.player.critDamageBonus;
+                    const finalDamage = isCrit ? this.damage * critMult : this.damage;
 
                     // Calculate knockback
                     let kx = 0, ky = 0;
@@ -489,9 +490,10 @@ export const projectileBehaviors = {
                 },
 
                 onHitEnemy: function (enemy, gameInstance) {
-                    // 1. Deal Initial Hit (with crit)
+                    // 1. Deal Initial Hit (with crit) (Unified Calculation)
                     const isCrit = this.critChance > 0 && Math.random() < this.critChance;
-                    const finalDamage = isCrit ? this.damage * (this.critMultiplier || 2.0) : this.damage;
+                    const critMult = this.critMultiplier + gameInstance.player.critDamageBonus;
+                    const finalDamage = isCrit ? this.damage * critMult : this.damage;
 
                     // Calculate knockback
                     let kx = 0, ky = 0;
@@ -902,7 +904,8 @@ export const projectileBehaviors = {
                 if (timeSinceLast === undefined || timeSinceLast >= this.tickInterval) {
                     // Deal Damage (with crit)
                     const isCrit = this.critChance > 0 && Math.random() < this.critChance;
-                    const finalDamage = isCrit ? this.damage * (this.critMultiplier || 2.0) : this.damage;
+                    const critMult = this.critMultiplier + gameInstance.player.critDamageBonus;
+                    const finalDamage = isCrit ? this.damage * critMult : this.damage;
                     enemy.takeDamage(finalDamage, null, this.aetherCharge, isCrit);
                     gameInstance.spawnParticles(enemy.x + enemy.width / 2, enemy.y + enemy.height / 2, isCrit ? 8 : 5, isCrit ? '#FFD700' : 'red');
 
@@ -1034,7 +1037,8 @@ export const projectileBehaviors = {
                 if (now - lastHit > interval) {
                     this.hitTimers.set(enemy.id, now);
                     const isCrit = this.critChance > 0 && Math.random() < this.critChance;
-                    const finalDamage = isCrit ? this.damage * (this.critMultiplier || 2.0) : this.damage;
+                    const critMult = this.critMultiplier + gameObj.player.critDamageBonus;
+                    const finalDamage = isCrit ? this.damage * critMult : this.damage;
                     enemy.takeDamage(finalDamage, this.damageColor, this.aetherCharge, isCrit);
 
                     // Optional: White wind hit particle
@@ -1274,7 +1278,8 @@ export const projectileBehaviors = {
 
                 // 1. Damage (with crit)
                 const isCrit_cl = this.critChance > 0 && Math.random() < this.critChance;
-                const finalDamage_cl = isCrit_cl ? this.damage * (this.critMultiplier || 2.0) : this.damage;
+                const critMult_cl = this.critMultiplier + gameObj.player.critDamageBonus;
+                const finalDamage_cl = isCrit_cl ? this.damage * critMult_cl : this.damage;
                 enemy.takeDamage(finalDamage_cl, this.damageColor, this.aetherCharge, isCrit_cl);
 
                 // 2. Visual Burst
@@ -1391,16 +1396,16 @@ export const projectileBehaviors = {
                 gameObj.camera.shake(0.2, 8);
 
                 // 2. Spawn multiple Eruptions (Magma Puddles + Fire Particles)
-                const eruptionCount = 16;
-                const spread = 120;
+                const eruptionCount = 13; // Balanced count
+                const spread = 180; // Increased spread for less density
 
                 for (let i = 0; i < eruptionCount; i++) {
                     let ox = 0, oy = 0;
                     let dist = 0;
                     if (i > 0) {
-                        // Circular distribution with quadratic falloff for center density
+                        // Reduced center bias (1.25 instead of 2.0)
                         const angle = Math.random() * Math.PI * 2;
-                        dist = Math.pow(Math.random(), 2) * spread; // Squared random for center bias
+                        dist = Math.pow(Math.random(), 1.25) * spread;
                         ox = Math.cos(angle) * dist;
                         oy = Math.sin(angle) * dist;
                     }
@@ -1416,7 +1421,7 @@ export const projectileBehaviors = {
                         layer: 'bottom',
                         x: ex,
                         y: ey,
-                        radius: 20,
+                        radius: 18, // Slightly smaller
                         life: pLife,
                         maxLife: pLife,
                         delay: startDelay,
@@ -1450,16 +1455,15 @@ export const projectileBehaviors = {
                                 if (Math.hypot(ex2, ey2) < this.radius) {
                                     e2.tempSlow = 0.2;
                                     e2.slowMultiplier = this.slow;
-                                    let tickTimer = this.hitEnemies.get(e2) || 0;
-                                    tickTimer -= dt2;
-                                    if (tickTimer <= 0) {
+                                    // Use a shared timer on the enemy to prevent damage stacking from overlapping puddles
+                                    e2.magmaTickTimer = (e2.magmaTickTimer || 0) - dt2;
+
+                                    if (e2.magmaTickTimer <= 0) {
                                         const isCrit = false;
                                         const finalDmg = this.damage;
                                         e2.takeDamage(finalDmg, '#ff4400', params.puddleAetherCharge || 0.1, isCrit);
-                                        this.hitEnemies.set(e2, 0.4); // Faster ticks
+                                        e2.magmaTickTimer = 0.2; // 0.2s shared cooldown for any magma puddle damage
                                         gameObj.spawnParticles(e2.x + e2.width / 2, e2.y + e2.height / 2, 2, '#ff4400');
-                                    } else {
-                                        this.hitEnemies.set(e2, tickTimer);
                                     }
                                 }
                             });
@@ -1520,9 +1524,16 @@ export const projectileBehaviors = {
 
             proj.onHitEnemy = function (enemy, gameInstance) {
                 // 1. Initial Spear Damage
-                const isCrit = params.critChance > 0 && Math.random() < params.critChance;
-                const finalDamage = isCrit ? params.damage * (params.critMultiplier || 2.0) : params.damage;
-                enemy.takeDamage(finalDamage, params.damageColor, params.aetherCharge || 0, isCrit);
+                const isCrit = this.critChance > 0 && Math.random() < this.critChance;
+                const critMult = this.critMultiplier + gameInstance.player.critDamageBonus;
+                const finalDamage = isCrit ? this.damage * critMult : this.damage;
+
+                // Add knockback based on spear rotation
+                const kDist = params.knockback || 150;
+                const kx = Math.cos(this.rotation) * kDist;
+                const ky = Math.sin(this.rotation) * kDist;
+
+                enemy.takeDamage(finalDamage, this.damageColor, this.aetherCharge, isCrit, kx, ky, 0.2);
 
                 if (params.statusEffect && Math.random() < (params.statusChance || 0)) {
                     if (enemy.statusManager) {

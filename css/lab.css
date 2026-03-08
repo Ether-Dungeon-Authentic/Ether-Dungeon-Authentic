@@ -107,13 +107,40 @@
 /* Lab Item List */
 .lab-item-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, 60px);
-    gap: 8px;
-    padding: 10px;
-    justify-content: center;
 }
 
-/* Obsolete lab-item-card replaced by global chip-item */
+.lab-tab-content {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    padding: 4px 10px;
+    /* Reduced vertical padding */
+    flex: 1;
+    /* Stretch to fill remaining space */
+    min-height: 0;
+    /* Allow shrinking if needed */
+    height: auto;
+    /* Reset fixed height */
+    box-sizing: border-box;
+    overflow: hidden;
+}
+
+#lab-modal .grid-cell {
+    width: 46px;
+    height: 46px;
+    background: #1a1a1a;
+    border: 1px solid #333;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+}
+
+#lab-modal .chip-item {
+    width: 42px;
+    height: 42px;
+}
 
 .synthesis-card {
     background: rgba(0, 255, 255, 0.05);
@@ -199,6 +226,11 @@
     text-shadow: 0 0 10px rgba(241, 196, 15, 0.7);
 }
 
+.rarity-special {
+    color: #ff66aa !important;
+    text-shadow: 0 0 8px rgba(255, 102, 170, 0.6);
+}
+
 .chip-item.rarity-common {
     border-color: rgba(255, 255, 255, 0.2);
 }
@@ -216,14 +248,104 @@
     box-shadow: inset 0 0 10px rgba(241, 196, 15, 0.05);
 }
 
+#lab-modal .chip-item.rarity-special,
+.chip-item.rarity-special {
+    background: transparent !important;
+    border-color: transparent !important;
+    box-shadow: none !important;
+}
+
+#lab-modal .chip-item.rarity-special::before,
+.chip-item.rarity-special::before {
+    border-color: #ff66aa !important;
+    background: #2a1a1f !important;
+    /* Dark pinkish-black background */
+    box-shadow: inset 0 0 10px rgba(255, 102, 170, 0.2) !important;
+}
+
+
+
+
+/* Ensure the icon stands out on the solid background */
+.chip-item.rarity-special .chip-icon,
+.chip-item.rarity-special .chip-status-icon {
+    filter: brightness(1) contrast(2) drop-shadow(0 0 2px rgba(0, 0, 0, 0.5)) !important;
+}
+
+/* Enhanced Selection State */
+.chip-item.selected {
+    z-index: 10;
+}
+
+.chip-item.selected::before {
+    border: 3px solid #fff !important;
+}
+
+.chip-item.selected.rarity-common {
+    --glow-color: rgba(255, 255, 255, 0.4);
+}
+
 .chip-item.selected.rarity-rare {
+    --glow-color: rgba(52, 152, 219, 0.8);
     border-color: #3498db;
 }
 
 .chip-item.selected.rarity-epic {
+    --glow-color: rgba(155, 89, 182, 0.8);
     border-color: #9b59b6;
 }
 
 .chip-item.selected.rarity-legendary {
+    --glow-color: rgba(241, 196, 15, 0.8);
     border-color: #f1c40f;
+}
+
+.chip-item.selected::before {
+    box-shadow: 0 0 15px var(--glow-color), inset 0 0 10px var(--glow-color) !important;
+}
+
+/* Duplicate Prevention Visual Feedback */
+.duplicate-flash::before {
+    animation: duplicate-body-red-pulse 0.3s linear 3;
+}
+
+.duplicate-flash .node-dot {
+    animation: duplicate-node-red-pulse 0.3s linear 3;
+}
+
+@keyframes duplicate-body-red-pulse {
+    0% {
+        background-color: inherit;
+        border-color: inherit;
+    }
+
+    50% {
+        background-color: #442222 !important;
+        /* Dark red base */
+        border-color: #ff4444 !important;
+        /* Bright red border */
+        box-shadow: 0 0 10px #ff0000;
+    }
+
+    100% {
+        background-color: inherit;
+        border-color: inherit;
+    }
+}
+
+@keyframes duplicate-node-red-pulse {
+    0% {
+        background: #777;
+        box-shadow: 0 0 2px rgba(0, 0, 0, 0.5);
+    }
+
+    50% {
+        background: #ff0000 !important;
+        box-shadow: 0 0 8px #ff0000 !important;
+    }
+
+    100% {
+        background: #777;
+        box-shadow: 0 0 2px rgba(0, 0, 0, 0.5);
+    }
 }

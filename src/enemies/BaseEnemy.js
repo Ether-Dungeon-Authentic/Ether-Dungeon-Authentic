@@ -2,6 +2,7 @@ import { Entity, getCachedImage } from '../utils.js';
 import { StatusManager } from '../status_effects.js';
 import { DropItem } from '../entities/DropItem.js';
 import { AetherLabManager } from '../AetherLabManager.js';
+import { Chest } from '../entities/Chest.js';
 
 const textures = {
     slime: 'assets/enemies/slime.png',
@@ -49,6 +50,7 @@ export class Enemy extends Entity {
         this.spawnDuration = 0.67;
 
         this.displayName = 'Enemy';
+        this.canDrop = true; // Flag to enable/disable item/chip drops
     }
 
     update(dt) {
@@ -264,11 +266,25 @@ export class Enemy extends Entity {
     takeDamage(amount, damageColor, aetherGain = 1, isCrit = false, kx = 0, ky = 0, kDuration = 0.15, silent = false) {
         if (this.isSpawning) return; // Invulnerable while spawning
 
+        // Gambler's Dice Randomization
+        if (this.game.player && this.game.player.circuit) {
+            const gamblerRange = this.game.player.circuit.getBonuses().damageRandomRange || 0;
+            if (gamblerRange > 0) {
+                const multiplier = 1 + (Math.random() * 2 - 1) * gamblerRange;
+                amount *= multiplier;
+            }
+        }
+
         // Apply knockback if provided
         if (kx !== 0 || ky !== 0) {
-            this.knockbackVx = kx;
-            this.knockbackVy = ky;
+            const resistance = this.knockbackResistance || 0;
+            const factor = Math.max(0, 1 - resistance);
+            this.knockbackVx = kx * factor;
+            this.knockbackVy = ky * factor;
             this.knockbackDuration = kDuration;
+            // Stop current momentum to feel the impact
+            this.vx = 0;
+            this.vy = 0;
         }
 
         // Flash white on hit
@@ -294,7 +310,7 @@ export class Enemy extends Entity {
 
         // Apply Status Effects Damage Multiplier
         let multiplier = this.statusManager.getDamageMultiplier();
-        amount = Math.ceil(amount * multiplier);
+        amount = Math.round(amount * multiplier);
 
         // No invulnerability check for enemies so they can take rapid damage
         this.hp -= amount;
@@ -320,12 +336,17 @@ export class Enemy extends Entity {
             this.markedForDeletion = true;
             this.game.spawnDeathEffect(this);
 
+            // Notify Player of Kill (for Training Chip)
+            if (this.game.player && this.game.player.onEnemyKill) {
+                this.game.player.onEnemyKill();
+            }
+
             // Add Score
             if (this.game.score !== undefined) {
                 this.game.addScore(this.scoreValue);
             }
 
-            if (this.isDemo) return; // No drops in demo
+            if (this.isDemo || !this.canDrop) return; // No drops in demo or if disabled
 
             // Spawn Currency Drops (Aether Coins for Dungeon Shop)
             const scoreValue = this.scoreValue || 50;
@@ -351,8 +372,28 @@ export class Enemy extends Entity {
                 this.game.entities.push(drop);
             }
 
-            // --- Aether Chip Drop Logic (20% chance) ---
-            if (Math.random() < 0.2) {
+            // --- Aether Chip Drop Logic ---
+            if (this.isBoss) {
+                // Boss always drops 5 chips
+                for (let i = 0; i < 5; i++) {
+                    const chipInstance = AetherLabManager.getRandomChipByWeightedRarity();
+                    if (chipInstance) {
+                        const chipDrop = new DropItem(this.game, this.x + this.width / 2 + (Math.random() - 0.5) * 40, this.y + this.height / 2 + (Math.random() - 0.5) * 40, chipInstance, 'chip');
+                        this.game.entities.push(chipDrop);
+                    }
+                }
+
+                // Boss always spawns 3 treasure chests
+                for (let i = 0; i < 3; i++) {
+                    const angle = (i / 3) * Math.PI * 2;
+                    const dist = 60;
+                    const cx = this.x + this.width / 2 + Math.cos(angle) * dist - 15;
+                    const cy = this.y + this.height / 2 + Math.sin(angle) * dist - 15;
+                    const chest = new Chest(this.game, cx, cy);
+                    this.game.chests.push(chest);
+                }
+            } else if (Math.random() < 0.2) {
+                // Normal enemies: 20% chance for 1 chip
                 const chipInstance = AetherLabManager.getRandomChipByWeightedRarity();
                 if (chipInstance) {
                     const chipDrop = new DropItem(this.game, this.x + this.width / 2, this.y + this.height / 2, chipInstance, 'chip');
@@ -360,18 +401,28 @@ export class Enemy extends Entity {
                 }
             }
 
-            // --- Aether Shard/Fragment Drop Logic ---
-            let shardChance = 0.1; // Base 10%
-            const scoreVal = this.game.scoreManager ? this.game.scoreManager.getScoreValue(this.type) : 50;
-            if (scoreVal >= 500) shardChance = 0.3; // Boss 30%
-            else if (scoreVal >= 100) shardChance = 0.2; // Mid 20%
+            // --- Aether Shard/Fragment Drop Logic (50% fixed chance) ---
+            if (Math.random() < 0.5) {
+                const scoreVal = this.game.scoreManager ? this.game.scoreManager.getScoreValue(this.type) : this.scoreValue;
+                let shardCount = 1;
 
-            if (Math.random() < shardChance) {
-                const shardDrop = new DropItem(this.game, this.x + this.width / 2, this.y + this.height / 2, 1, 'shards');
-                this.game.entities.push(shardDrop);
+                if (scoreVal >= 500) { // Boss
+                    shardCount = 5 + Math.floor(Math.random() * 6); // 5-10
+                } else if (scoreVal >= 200) { // Elite
+                    shardCount = 2 + Math.floor(Math.random() * 3); // 2-4
+                } else if (scoreVal >= 100) { // Mid
+                    shardCount = 1 + Math.floor(Math.random() * 3); // 1-3
+                } else { // Weak
+                    shardCount = Math.random() < 0.2 ? 2 : 1; // 1 (20% for 2)
+                }
+
+                for (let i = 0; i < shardCount; i++) {
+                    const shardDrop = new DropItem(this.game, this.x + this.width / 2, this.y + this.height / 2, 1, 'shards');
+                    this.game.entities.push(shardDrop);
+                }
             }
 
-            if (Math.random() < 0.05) { // 5% chance for Fragment
+            if (Math.random() < 0.1) { // 10% chance for Fragment
                 const fragmentDrop = new DropItem(this.game, this.x + this.width / 2, this.y + this.height / 2, 1, 'fragments');
                 this.game.entities.push(fragmentDrop);
             }

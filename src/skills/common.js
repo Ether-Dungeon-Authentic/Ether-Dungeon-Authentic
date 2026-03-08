@@ -39,6 +39,9 @@ export const spawnProjectile = (game, x, y, vx, vy, params) => {
         maxLife: params.life,
         color: params.color,
         damage: params.damage,
+        baseDamage: params.damage, // Store original for multiplier calculation
+        critChance: params.critChance || 0,
+        critMultiplier: params.critMultiplier || 1.5,
         damageColor: params.damageColor,
         aetherCharge: params.aetherCharge !== undefined ? params.aetherCharge : 1.0,
         statusEffect: params.statusEffect,
@@ -69,9 +72,6 @@ export const spawnProjectile = (game, x, y, vx, vy, params) => {
         ghostLife: params.ghostLife,
         ghostFilter: params.ghostFilter,
         trailColor: params.trailColor,
-        critChance: params.critChance || 0,
-        critMultiplier: params.critMultiplier || 2.0,
-        spinSpeed: params.spinSpeed || 0,
         knockback: params.knockback || 0,
         hasAura: params.hasAura || false,
         isEnemy: params.isEnemy || false,
@@ -317,11 +317,15 @@ export const spawnProjectile = (game, x, y, vx, vy, params) => {
                     ky = (dy / dist) * this.knockback;
                 }
 
-                // Critical hit roll for custom handlers
-                const isCrit = this.critChance > 0 && Math.random() < this.critChance;
-                const finalDamage = isCrit ? this.damage * (this.critMultiplier || 2.0) : this.damage;
+                // Calculate final damage with target context (additive Group A)
+                this.damage = this.baseDamage * gameInstance.player.getDamageMultiplier(enemy);
 
-                enemy.takeDamage(finalDamage, this.damageColor, this.aetherCharge, isCrit, kx, ky);
+                // Critical hit roll for custom handlers (Unified Calculation)
+                const isCrit = this.critChance > 0 && Math.random() < this.critChance;
+                const critMult = this.critMultiplier + gameInstance.player.critDamageBonus;
+                const finalDamage = isCrit ? this.damage * critMult : this.damage;
+
+                enemy.takeDamage(finalDamage, this.damageColor, this.aetherCharge, isCrit, kx, ky, 0.2, false, gameInstance.player);
 
                 // Apply Status (Even for custom handlers)
                 if (this.statusEffect && (!this.statusChance || Math.random() < this.statusChance)) {

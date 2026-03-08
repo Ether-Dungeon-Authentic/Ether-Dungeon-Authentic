@@ -26,16 +26,21 @@ export class DropItem extends Entity {
             this.image = getCachedImage('assets/ui/aether_fragment.png');
             this.color = '#00ffff';
         } else if (this.type === 'chip') {
-            this.image = getCachedImage('assets/ui/aether_shard.png'); // Placeholder icon for chip
+            this.width = 20;
+            this.height = 20;
+            this.image = getCachedImage('assets/ui/aether_shard.png'); // Placeholder icon for chip, icons drawn over it
             this.chipInstance = value; // The ChipInstance object
-            const rarity = this.chipInstance.data.rarity || 'common';
+            const rarity = this.chipInstance.getRarity() || 'common';
             const colors = {
-                common: '#ffffff',
-                rare: '#3498db',
-                epic: '#9b59b6',
-                legendary: '#f1c40f'
+                common: { bg: '#444', border: '#555' },
+                rare: { bg: '#1a3a5a', border: '#0088ff' },
+                epic: { bg: '#3b1a5a', border: '#aa00ff' },
+                legendary: { bg: '#5a4a1a', border: '#ffcc00' },
+                special: { bg: '#2a1a1f', border: '#ff66aa' }
             };
-            this.color = colors[rarity] || '#ffffff';
+            const theme = colors[rarity] || colors.common;
+            this.color = theme.border;
+            this.bgColor = theme.bg;
         } else {
             this.image = getCachedImage('assets/ui/aether_shard.png');
             this.color = '#00aaff';
@@ -148,26 +153,149 @@ export class DropItem extends Entity {
     draw(ctx) {
         if (this.image && this.image.complete && this.image.naturalWidth !== 0) {
             ctx.save();
-            // Glow based on type/rarity
-            if (this.type === 'coins') {
-                ctx.shadowColor = 'rgba(255, 215, 0, 0.4)';
-                ctx.shadowBlur = 4;
-            } else if (this.type === 'fragments') {
-                ctx.shadowColor = '#00ffff';
-                ctx.shadowBlur = 10;
-            } else if (this.type === 'chip') {
+            if (this.type === 'chip') {
                 ctx.shadowColor = this.color;
                 ctx.shadowBlur = 15;
-                // Add a small rotation or scale pulse for chips
-                const pulse = 1 + Math.sin(this.floatTimer * 2) * 0.1;
-                ctx.translate(this.x + 8, this.y + 8);
+
+                const drawX = Math.floor(this.x);
+                const drawY = Math.floor(this.y + (this.renderYOffset || 0));
+
+                // Rotation/pulse
+                const pulse = 1 + Math.sin(this.floatTimer * 2) * 0.05;
+                ctx.translate(drawX + this.width / 2, drawY + this.height / 2);
                 ctx.scale(pulse, pulse);
-                ctx.translate(-(this.x + 8), -(this.y + 8));
+                ctx.translate(-(drawX + this.width / 2), -(drawY + this.height / 2));
+
+                // 1. Chip Body
+                ctx.fillStyle = this.bgColor;
+                ctx.strokeStyle = this.color;
+                ctx.lineWidth = 1.5;
+                // Rounded rect
+                const r = 3;
+                ctx.beginPath();
+                ctx.moveTo(drawX + r, drawY);
+                ctx.lineTo(drawX + this.width - r, drawY);
+                ctx.quadraticCurveTo(drawX + this.width, drawY, drawX + this.width, drawY + r);
+                ctx.lineTo(drawX + this.width, drawY + this.height - r);
+                ctx.quadraticCurveTo(drawX + this.width, drawY + this.height, drawX + this.width - r, drawY + this.height);
+                ctx.lineTo(drawX + r, drawY + this.height);
+                ctx.quadraticCurveTo(drawX, drawY + this.height, drawX, drawY + this.height - r);
+                ctx.lineTo(drawX, drawY + r);
+                ctx.quadraticCurveTo(drawX, drawY, drawX + r, drawY);
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+
+                // 2. Chip Icon (Small Silhouette)
+                const iconPath = this.chipInstance.data.icon;
+                const iconImg = getCachedImage(iconPath);
+                if (iconImg && iconImg.complete) {
+                    ctx.save();
+                    // Apply silhouette filter (similar to CSS grayscale(1) brightness(2))
+                    ctx.filter = 'grayscale(1) brightness(2)';
+                    const iconSize = this.width * 0.7;
+                    ctx.drawImage(iconImg, drawX + (this.width - iconSize) / 2, drawY + (this.height - iconSize) / 2, iconSize, iconSize);
+                    ctx.restore();
+                }
+
+                // 3. Node Indicators
+                const drawNode = (side, count) => {
+                    if (count === 0) return;
+                    ctx.fillStyle = '#00ffff';
+                    ctx.shadowColor = '#00ffff';
+                    ctx.shadowBlur = 4;
+
+                    const isUniversal = count === 'universal';
+                    const nodeCount = isUniversal ? 1 : count;
+                    const nodeSpacing = 3;
+                    const nodeW = (side === 'up' || side === 'down') ? 3 : 5;
+                    const nodeH = (side === 'up' || side === 'down') ? 5 : 3;
+
+                    for (let i = 0; i < nodeCount; i++) {
+                        let nx, ny;
+                        const totalW = nodeCount * nodeW + (nodeCount - 1) * nodeSpacing;
+                        if (side === 'up') {
+                            nx = drawX + (this.width - totalW) / 2 + i * (nodeW + nodeSpacing);
+                            ny = drawY - 2;
+                        } else if (side === 'down') {
+                            nx = drawX + (this.width - totalW) / 2 + i * (nodeW + nodeSpacing);
+                            ny = drawY + this.height - 3;
+                        } else if (side === 'left') {
+                            nx = drawX - 2;
+                            ny = drawY + (this.height - totalW) / 2 + i * (nodeH + nodeSpacing);
+                        } else if (side === 'right') {
+                            nx = drawX + this.width - 3;
+                            ny = drawY + (this.height - totalW) / 2 + i * (nodeH + nodeSpacing);
+                        }
+
+                        if (isUniversal) {
+                            // Draw a longer bar
+                            const barW = (side === 'up' || side === 'down') ? 12 : 3;
+                            const barH = (side === 'up' || side === 'down') ? 3 : 12;
+                            ctx.fillRect(drawX + (this.width - barW) / 2, drawY + (this.height - barH) / 2, barW, barH); // Needs offset to edges
+                        } else {
+                            ctx.fillRect(nx, ny, nodeW, nodeH);
+                        }
+                    }
+                };
+
+                // Repositioned node draw for universal and normal
+                const drawNodeFixed = (side) => {
+                    const count = this.chipInstance.nodes[side];
+                    if (!count) return;
+
+                    ctx.fillStyle = '#00ffff';
+                    ctx.shadowColor = '#00ffff';
+                    ctx.shadowBlur = 5;
+
+                    if (count === 'universal') {
+                        const barW = (side === 'up' || side === 'down') ? 12 : 2;
+                        const barH = (side === 'up' || side === 'down') ? 2 : 12;
+                        let nx = drawX + (this.width - barW) / 2;
+                        let ny = drawY + (this.height - barH) / 2;
+                        if (side === 'up') ny = drawY - 1;
+                        if (side === 'down') ny = drawY + this.height - 1;
+                        if (side === 'left') nx = drawX - 1;
+                        if (side === 'right') nx = drawX + this.width - 1;
+                        ctx.fillRect(nx, ny, barW, barH);
+                    } else {
+                        const dotW = (side === 'up' || side === 'down') ? 2 : 4;
+                        const dotH = (side === 'up' || side === 'down') ? 4 : 2;
+                        const spacing = 2;
+                        const totalDim = count * (side === 'up' || side === 'down' ? dotW : dotH) + (count - 1) * spacing;
+
+                        for (let i = 0; i < count; i++) {
+                            let nx, ny;
+                            if (side === 'up' || side === 'down') {
+                                nx = drawX + (this.width - totalDim) / 2 + i * (dotW + spacing);
+                                ny = (side === 'up') ? drawY - 2 : drawY + this.height - 2;
+                            } else {
+                                nx = (side === 'left') ? drawX - 2 : drawX + this.width - 2;
+                                ny = drawY + (this.height - totalDim) / 2 + i * (dotH + spacing);
+                            }
+                            ctx.fillRect(nx, ny, dotW, dotH);
+                        }
+                    }
+                };
+
+                drawNodeFixed('up');
+                drawNodeFixed('down');
+                drawNodeFixed('left');
+                drawNodeFixed('right');
+
             } else {
-                ctx.shadowColor = '#00aaff';
-                ctx.shadowBlur = 10;
+                if (this.type === 'coins') {
+                    ctx.shadowColor = 'rgba(255, 215, 0, 0.4)';
+                    ctx.shadowBlur = 4;
+                } else if (this.type === 'fragments') {
+                    ctx.shadowColor = '#00ffff';
+                    ctx.shadowBlur = 10;
+                } else {
+                    ctx.shadowColor = '#00aaff';
+                    ctx.shadowBlur = 10;
+                }
+                ctx.drawImage(this.image, Math.floor(this.x), Math.floor(this.y + (this.renderYOffset || 0)), this.width, this.height);
             }
-            ctx.drawImage(this.image, Math.floor(this.x), Math.floor(this.y + (this.renderYOffset || 0)), this.width, this.height);
             ctx.restore();
         } else {
             ctx.fillStyle = this.color;

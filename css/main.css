@@ -105,6 +105,19 @@ Collection Modal Styles===========================*/ #collection-modal {
     box-shadow: 0 5px 15px rgba(255, 215, 0, 0.1);
 }
 
+.collection-item.unlocked[data-rarity="special"] {
+    border-color: #ff66aa;
+    background: #2a1a1f;
+}
+
+
+.collection-item.unlocked[data-rarity="special"]:hover {
+    border-color: #ffffff;
+    background: #ff80bf;
+    box-shadow: 0 5px 15px rgba(255, 102, 170, 0.4);
+}
+
+
 .collection-item.locked {
     opacity: 0.6;
     filter: grayscale(1);
@@ -164,6 +177,13 @@ Collection Modal Styles===========================*/ #collection-modal {
     color: #00ccff;
     background: rgba(0, 204, 255, 0.1);
 }
+
+.collection-item-rarity[data-type="special"] {
+    color: #ff66aa;
+    background: rgba(255, 102, 170, 0.15);
+    border: 1px solid rgba(255, 102, 170, 0.4);
+}
+
 
 .collection-footer {
     display: flex;

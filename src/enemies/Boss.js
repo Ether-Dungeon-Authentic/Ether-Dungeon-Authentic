@@ -263,7 +263,7 @@ export class Boss extends Enemy {
         } else if (this.currentAttack === 'jump') {
             this.attackJump();
         }
-        this.attackCooldown = Math.random() * 0.8 + (this.phase === 1 ? 1.5 : 0.3);
+        this.attackCooldown = Math.random() * 1.5 + (this.phase === 1 ? 4.0 : 2.5);
     }
 
     checkPlayerCollision() {

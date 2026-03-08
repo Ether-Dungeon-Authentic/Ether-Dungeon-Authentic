@@ -4,35 +4,48 @@ import { chipsDB } from '../data/chips_db.js';
  * Handles the logic for the Aether Lab.
  */
 export class AetherLabManager {
-    static getUpgradeCost(chip) {
-        // Initial upgrade (Lv 1->2) costs 10 shards. Scales thereafter.
+    static getModifyCost(chip) {
+        const rarity = chip.getRarity();
+        const nodeCount = chip.getConnectedNodeCount();
+        const baseGold = 50 + (chip.data.baseCost * 10);
+        const baseFragments = 5 + (rarity === 'rare' ? 5 : rarity === 'epic' ? 15 : rarity === 'legendary' ? 30 : 0);
+
         return {
-            gold: 10 + (chip.level - 1) * chip.data.baseCost * 15,
-            fragments: chip.level * 5
+            gold: baseGold + (nodeCount * 100),
+            fragments: baseFragments + (nodeCount * 10)
         };
     }
 
 
     static getDismantleYield(chip) {
-        // Returns 50% of upgrade fragments spent + base yield
+        // Returns 50% of upgrade shards spent + base yield
         return {
-            fragments: Math.floor(chip.data.baseCost / 2) + (chip.level - 1) * 2
+            shards: Math.floor(chip.data.baseCost * 5) + (chip.level - 1) * 10
         };
     }
 
-    static canUpgrade(player, chip) {
-        if (chip.level >= 10) return false;
-        const cost = this.getUpgradeCost(chip);
+    static canModify(player, chip) {
+        const cost = this.getModifyCost(chip);
         return player.aetherShards >= cost.gold && player.aetherFragments >= cost.fragments;
     }
 
-    static upgradeChip(player, chip) {
-        if (!this.canUpgrade(player, chip)) return false;
+    static modifyChip(player, chip) {
+        if (!this.canModify(player, chip)) return false;
+        if (chip.getConnectedNodeCount() >= 12) return false;
 
-        const cost = this.getUpgradeCost(chip);
+        const cost = this.getModifyCost(chip);
         player.aetherShards -= cost.gold;
         player.aetherFragments -= cost.fragments;
-        chip.level++;
+
+        // Add a random node (reuse logic from synthesizeNode)
+        const sides = ['up', 'down', 'left', 'right'];
+        const availableSides = sides.filter(side => chip.nodes[side] < 3);
+
+        if (availableSides.length > 0) {
+            const side = availableSides[Math.floor(Math.random() * availableSides.length)];
+            chip.nodes[side]++;
+        }
+
         player.saveAetherData();
         return true;
     }
@@ -40,7 +53,7 @@ export class AetherLabManager {
 
     static dismantleChip(player, chip) {
         const yieldData = this.getDismantleYield(chip);
-        player.aetherFragments += yieldData.fragments;
+        player.aetherShards += yieldData.shards;
         player.saveAetherData();
 
         // Remove from inventory
@@ -49,57 +62,129 @@ export class AetherLabManager {
             player.circuit.ownedChips.splice(index, 1);
         }
 
-        // Ensure it's unequipped
-        const slotIdx = player.circuit.slots.indexOf(chip);
-        if (slotIdx !== -1) {
-            player.circuit.unequipChip(slotIdx);
+        // Ensure it's unequipped from the grid
+        for (let y = 0; y < 5; y++) {
+            for (let x = 0; x < 5; x++) {
+                if (player.circuit.grid[y][x] === chip) {
+                    player.circuit.unequipChip(x, y);
+                }
+            }
         }
 
         return true;
     }
 
-    static synthesisChip(player, category) {
-        const cost = { gold: 200, fragments: 20 };
-        if (player.aetherShards < cost.gold || player.aetherFragments < cost.fragments) return null;
+    static canSynthesizeRankUp(player, materials) {
+        if (!materials || materials.length !== 5) return false;
 
-        player.aetherShards -= cost.gold;
-        player.aetherFragments -= cost.fragments;
+        const firstRarity = materials[0].getRarity();
+        // All must be same rarity
+        for (const mat of materials) {
+            if (!mat) return false;
+            if (mat.getRarity() !== firstRarity) return false;
+        }
+        return true;
+    }
 
-        const available = chipsDB.filter(c => !category || c.category === category);
-        if (available.length === 0) return null;
+    /**
+     * Synthesizes a new chip of higher rarity using 5 material chips.
+     */
+    static synthesizeRankUp(player, materials) {
+        if (!this.canSynthesizeRankUp(player, materials)) return false;
 
-        const selected = available[Math.floor(Math.random() * available.length)];
-        const newChip = new ChipInstance(selected.id, 1, true); // Create as identified
+        const materialRarity = materials[0].getRarity();
+
+        // 1. Determine new rarity
+        let newRarity = materialRarity;
+        if (materialRarity === 'common') newRarity = 'rare';
+        else if (materialRarity === 'rare') newRarity = 'epic';
+        else if (materialRarity === 'epic' || materialRarity === 'legendary') newRarity = 'legendary';
+
+        // 2. Determine effect inheritance
+        const firstEffect = materials[0].data.effectType;
+        const allSameEffect = materials.every(m => m.data.effectType === firstEffect);
+
+        // 3. Select target chip ID
+        let pool = chipsDB;
+        if (allSameEffect) {
+            pool = chipsDB.filter(c => c.effectType === firstEffect);
+        }
+
+        // If for some reason pool is empty (should not happen with chipsDB), fallback to full pool
+        if (pool.length === 0) pool = chipsDB;
+
+        const selectedData = pool[Math.floor(Math.random() * pool.length)];
+
+        // 4. Consume materials
+        materials.forEach(mat => {
+            const index = player.circuit.ownedChips.indexOf(mat);
+            if (index !== -1) {
+                player.circuit.ownedChips.splice(index, 1);
+            }
+        });
+
+        // 5. Create new chip with appropriate node count for the new rarity
+        const newChip = new ChipInstance(selectedData.id, 1, true);
+
+        // Ensure new chip has node count matching the new rarity
+        // ChipInstance.generateNodes uses weighted random based on ALL rarities.
+        // We want to FORCE it to be in the range of the newRarity.
+        let targetRange = { min: 1, max: 3 }; // common
+        if (newRarity === 'legendary') targetRange = { min: 10, max: 12 };
+        else if (newRarity === 'epic') targetRange = { min: 7, max: 9 };
+        else if (newRarity === 'rare') targetRange = { min: 4, max: 6 };
+
+        const totalNodes = Math.floor(Math.random() * (targetRange.max - targetRange.min + 1)) + targetRange.min;
+
+        // Distribute nodes randomly
+        newChip.nodes = { up: 0, down: 0, left: 0, right: 0 };
+        let remaining = totalNodes;
+        const sides = ['up', 'down', 'left', 'right'].sort(() => Math.random() - 0.5);
+
+        for (const side of sides) {
+            const take = Math.min(3, remaining);
+            const amount = Math.floor(Math.random() * (take + 1));
+            newChip.nodes[side] = amount;
+            remaining -= amount;
+        }
+        // Fill remaining
+        if (remaining > 0) {
+            for (const side of sides) {
+                const space = 3 - newChip.nodes[side];
+                const add = Math.min(space, remaining);
+                newChip.nodes[side] += add;
+                remaining -= add;
+            }
+        }
+        // Ensure at least 1 node if it was rare+ (though range min handles it)
+        if (newChip.getConnectedNodeCount() === 0) newChip.nodes[sides[0]] = 1;
+
         player.circuit.ownedChips.push(newChip);
+
+        // 6. 3% chance to get a special utility chip
+        if (Math.random() < 0.03) {
+            const specialId = Math.random() < 0.5 ? 'storage' : 'connector';
+            const specialChip = new ChipInstance(specialId, 1, true);
+            player.circuit.ownedChips.push(specialChip);
+            // We could return an array or flag to indicate bonus drop, 
+            // but just adding it to inventory is fine.
+        }
+
         player.saveAetherData();
-        return newChip;
+        return true;
     }
 
     static getRandomChipByWeightedRarity() {
-        const roll = Math.random() * 100;
-        let selectedRarity = 'common';
-
-        if (roll < 3) selectedRarity = 'legendary';
-        else if (roll < 15) selectedRarity = 'epic';
-        else if (roll < 40) selectedRarity = 'rare';
-        else selectedRarity = 'common';
-
-        // Filter chips by rarity
-        let available = chipsDB.filter(c => c.rarity === selectedRarity);
-
-        // Fallback sequence if no chips of that rarity exist
-        if (available.length === 0) {
-            const fallbackOrder = ['legendary', 'epic', 'rare', 'common'];
-            const currentIndex = fallbackOrder.indexOf(selectedRarity);
-            for (let i = currentIndex + 1; i < fallbackOrder.length; i++) {
-                available = chipsDB.filter(c => fallbackOrder[i] && (c.rarity === fallbackOrder[i]));
-                if (available && (available.length > 0)) break;
-            }
+        // Special chip check: 3% chance to intercept normal drop
+        if (Math.random() < 0.03) {
+            const specialId = Math.random() < 0.5 ? 'storage' : 'connector';
+            return new ChipInstance(specialId, 1, true);
         }
 
-        if (!available || available.length === 0) return null;
-
-        const selected = available[Math.floor(Math.random() * available.length)];
+        // Pick a random normal chip ID from the DB
+        const normalChips = chipsDB.filter(c => !c.isSpecial);
+        const selected = normalChips[Math.floor(Math.random() * normalChips.length)];
+        // The ChipInstance constructor calls generateNodes(), which now handles the weighted rarity roll.
         return new ChipInstance(selected.id, 1, true);
     }
 }

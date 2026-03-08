@@ -64,7 +64,7 @@
 
                     <div class="title-menu">
                         <button id="btn-start-game" class="title-btn">冒険を始める</button>
-                        <button id="btn-open-lab" class="title-btn">エーテル回路</button>
+                        <button id="btn-open-lab" class="title-btn">アップグレード</button>
                     </div>
 
                     <div class="title-footer">
@@ -309,8 +309,10 @@
                         style="display: none; border-top: 1px solid #444; margin-top: 15px; padding-top: 15px;">
                         <h3 style="margin-top: 0; font-size: 16px; color: #ffcc00;">チートメニュー</h3>
                         <div style="display: flex; flex-direction: column; gap: 10px;">
-                            <button id="btn-cheat-teleport-boss" class="title-btn"
-                                style="font-size: 10px; padding: 10px;">ボス部屋へテレポート</button>
+                            <button id="btn-cheat-teleport-golem" class="title-btn"
+                                style="font-size: 10px; padding: 10px;">ボス（ゴーレム）へ</button>
+                            <button id="btn-cheat-teleport-prime" class="title-btn"
+                                style="font-size: 10px; padding: 10px;">ボス（プライム）へ</button>
                             <button id="btn-cheat-teleport-portal" class="title-btn"
                                 style="font-size: 10px; padding: 10px;">ポータルへテレポート</button>
                             <button id="btn-cheat-invincible" class="title-btn"
@@ -383,6 +385,7 @@
                 </div>
             </div>
 
+            <div id="chip-status-bar"></div>
             <div id="skill-bar">
                 <div class="skill-slot" id="skill-normal">
                     <div class="key-hint">Space</div>

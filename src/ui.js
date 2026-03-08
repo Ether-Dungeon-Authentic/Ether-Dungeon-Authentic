@@ -1,27 +1,44 @@
 import { SaveManager } from './SaveManager.js';
 import { SkillSelectionUI } from './ui/SkillSelectionUI.js';
+import { LabUI } from './ui/LabUI.js';
 
 let skillSlots = null;
 
-export const getFormattedEffect = (chip) => {
-    const value = chip.getCurrentEffect();
+export const getFormattedEffect = (chip, propName = 'nodeScaling', forcedValue = null) => {
+    const value = forcedValue !== null ? forcedValue : chip.getScaledValue(propName);
     const type = chip.data.effectType;
     let text = '';
     const isPositive = value > 0;
 
     const isPercentage = type.endsWith('_mult') ||
         type === 'crit_rate_add' ||
-        type === 'on_hit_damage_buff';
+        type === 'on_hit_damage_buff' ||
+        type === 'training_kill_buff' ||
+        type === 'berserker' ||
+        type === 'inertia_scaling' ||
+        type === 'ukemi_chance' ||
+        type === 'crit_damage_add' ||
+        type === 'acceleration_scaling' ||
+        type === 'damage_random_range' ||
+        propName === 'takenDamageScaling';
 
     if (isPercentage) {
-        const percent = Math.round(value * 100);
-        text = `${isPositive ? '+' : ''}${percent}%`;
+        const percent = parseFloat((Math.abs(value * 100)).toFixed(2));
+        const prefix = type === 'damage_random_range' ? '±' : (isPositive ? '+' : '-');
+        text = `${prefix}${percent}%`;
     } else {
-        const roundedValue = Math.round(value);
-        text = `${isPositive ? '+' : ''}${roundedValue}`;
+        const formattedValue = parseFloat(Math.abs(value).toFixed(2));
+        text = `${isPositive ? '+' : '-'}${formattedValue}`;
     }
 
-    const colorClass = isPositive ? 'stat-plus' : 'stat-minus';
+    // Determine color: Normally positive is good, negative is bad.
+    // For specific properties like 'takenDamageScaling', positive is BAD (minus).
+    let isGoodEffect = isPositive;
+    if (propName === 'takenDamageScaling') {
+        isGoodEffect = !isPositive; // Increase in damage taken is BAD.
+    }
+
+    const colorClass = isGoodEffect ? 'stat-plus' : 'stat-minus';
     return ` <span class="${colorClass}">${text}</span>`;
 };
 
@@ -275,8 +292,193 @@ export function drawUI(ctx, game, width, height) {
         hpMax.textContent = Math.ceil(game.player.maxHp);
     }
 
+    // Update Chip Cooldowns
+    updateChipStatus(game);
+
     // Draw Mini-map
     drawMiniMap(ctx, game, width, height);
+}
+
+function updateChipStatus(game) {
+    const bar = document.getElementById('chip-status-bar');
+    if (!bar) return;
+
+    const player = game.player;
+    const activeChips = [];
+
+    if (player.circuit) {
+        const bonuses = player.circuit.getBonuses();
+
+        // Enrage Chip
+        if (bonuses.onHitDamageBuff > 0) {
+            activeChips.push({
+                id: 'enrage',
+                icon: 'assets/ui/chips/icon_enrage.png',
+                current: player.enrageCooldownTimer,
+                max: bonuses.onHitDamageBuffCooldown,
+                isActive: player.enrageTimer > 0,
+                color: '#ff4400'
+            });
+        }
+
+        // Training Chip
+        if (bonuses.trainingKillBuff > 0) {
+            const stacks = Math.min(100, player.killCount || 0);
+            const totalBonus = bonuses.trainingKillBuff * stacks;
+            activeChips.push({
+                id: 'training',
+                icon: 'assets/ui/chips/icon_combat_mastery.png',
+                current: 0,
+                max: 1,
+                isActive: true, // Always show active state
+                color: '#ffd700', // Gold color
+                textOverride: `+${parseFloat((totalBonus * 100).toFixed(2))}%`
+            });
+        }
+
+        // Inertia Chip
+        if (bonuses.inertiaScaling > 0) {
+            const speedBonus = bonuses.speedMult || 0;
+            const speedPercent = speedBonus * 100;
+            const totalBonus = speedPercent * bonuses.inertiaScaling;
+            activeChips.push({
+                id: 'inertia',
+                icon: 'assets/ui/chips/icon_inertia.png',
+                current: 0,
+                max: 1,
+                isActive: true,
+                color: '#00ccff', // Cyan color
+                textOverride: `+${parseFloat((totalBonus * 100).toFixed(2))}%`
+            });
+        }
+
+        // Acceleration Chip
+        if (bonuses.accelerationScaling > 0) {
+            const currentBonus = player.currentAccelerationBonus || 0;
+            activeChips.push({
+                id: 'acceleration',
+                icon: 'assets/ui/chips/icon_acceleration.png',
+                current: 0,
+                max: 1,
+                isActive: currentBonus > 0,
+                color: '#00ffff', // Bright cyan/aqua for speed
+                textOverride: `+${parseFloat((currentBonus * 100).toFixed(2))}%`
+            });
+        }
+
+        // Gambler Chip
+        if (bonuses.damageRandomRange > 0) {
+            activeChips.push({
+                id: 'gambler',
+                icon: 'assets/ui/chips/icon_gambler_dice.png',
+                current: 0,
+                max: 1,
+                isActive: true, // Always show active range
+                color: '#ff00ff', // Purple for unique
+                textOverride: `±${(bonuses.damageRandomRange * 100).toFixed(0)}%`
+            });
+        }
+    }
+
+    // Sync DOM
+    const currentIds = new Set(activeChips.map(c => c.id));
+    const existingItems = bar.querySelectorAll('.chip-status-item');
+
+    // Remove old ones
+    existingItems.forEach(item => {
+        if (!currentIds.has(item.dataset.id)) item.remove();
+    });
+
+    // Add/Update
+    activeChips.forEach(data => {
+        let item = bar.querySelector(`.chip-status-item[data-id="${data.id}"]`);
+        if (!item) {
+            item = document.createElement('div');
+            item.className = 'chip-status-item';
+            item.dataset.id = data.id;
+            item.innerHTML = `
+                <img src="${data.icon}" class="chip-status-icon">
+                <div class="chip-status-cooldown"></div>
+                <div class="chip-status-text"></div>
+            `;
+            item.onmouseenter = () => {
+                const rect = item.getBoundingClientRect();
+                let title = '';
+                let desc = '';
+                if (data.id === 'enrage') {
+                    title = '逆上チップ';
+                    desc = 'ダメージを受けた際、一定時間攻撃力が15%上昇する。';
+                } else if (data.id === 'training') {
+                    title = '鍛錬チップ';
+                    desc = `敵を倒すたびに攻撃力が0.2%上昇する(最大100スタック)。\n現在の合計上昇量: ${data.textOverride || '0%'}`;
+                } else if (data.id === 'inertia') {
+                    title = '慣性チップ';
+                    desc = `移動速度の上昇量に応じて、スキルダメージが上昇する。\n現在の合計上昇量: ${data.textOverride || '0%'}`;
+                } else if (data.id === 'acceleration') {
+                    title = '加速チップ';
+                    desc = `移動を続けることで移動速度が上昇する。\n現在のボーナス: ${data.textOverride || '0%'}`;
+                } else if (data.id === 'gambler') {
+                    title = '一発逆転チップ';
+                    desc = `与えるダメージがランダムに大幅に変動する。\n現在の変動幅: ${data.textOverride || '±0%'}`;
+                }
+                LabUI.showTooltip(null, rect.left + rect.width / 2, rect.top, title, desc);
+            };
+            item.onmouseleave = () => LabUI.hideTooltip();
+
+            bar.appendChild(item);
+        }
+
+        const cdBar = item.querySelector('.chip-status-cooldown');
+        const cdText = item.querySelector('.chip-status-text');
+
+        // Reset text styling
+        cdText.style.fontSize = '';
+        cdText.style.color = '#ffffff'; // Always white as requested
+        cdText.style.bottom = '';
+        cdText.style.width = '';
+        cdText.style.left = '';
+        cdText.style.textAlign = '';
+        cdText.style.textShadow = '';
+        cdText.style.top = '';
+        cdText.style.transform = '';
+
+        if (data.isActive) {
+            const color = '#ffffff';
+            item.style.borderColor = color;
+            item.style.boxShadow = `0 0 5px ${color}`;
+            cdBar.style.height = '0%';
+
+            if (data.textOverride) {
+                cdText.textContent = data.textOverride;
+                cdText.style.fontSize = '8px'; // Smaller text for percentages
+                cdText.style.color = color;
+                cdText.style.top = '50%';
+                cdText.style.bottom = '';
+                cdText.style.width = '200%';
+                cdText.style.left = '50%';
+                cdText.style.transform = 'translate(-50%, -50%)'; // Center perfectly over icon
+                cdText.style.textAlign = 'center';
+                cdText.style.textShadow = '2px 2px 2px black, -2px -2px 2px black, 2px -2px 2px black, -2px 2px 2px black';
+            } else {
+                cdText.textContent = '';
+            }
+            item.style.opacity = '1.0';
+        } else if (data.current > 0) {
+            item.style.borderColor = '#ffffff'; // White border (was #444)
+            item.style.boxShadow = 'none';
+            const ratio = data.current / data.max;
+            cdBar.style.height = `${ratio * 100}%`;
+            cdText.textContent = Math.ceil(data.current);
+            item.style.opacity = '1.0';
+        } else {
+            // READY STATE
+            item.style.borderColor = '#ffffff'; // White border (was #00ff00)
+            item.style.boxShadow = '0 0 3px #ffffff';
+            cdBar.style.height = '0%';
+            cdText.textContent = '';
+            item.style.opacity = '0.6'; // Slightly dim when waiting for trigger
+        }
+    });
 }
 
 function drawMiniMap(ctx, game, screenWidth, screenHeight) {
@@ -424,23 +626,22 @@ const blessingCardsContainer = document.getElementById('blessing-selection-cards
 export function showBlessingSelection(options, onSelectCallback, source = 'default') {
     if (!blessingModal || !blessingCardsContainer) return;
 
+    // Set or Update Title
+    const title = blessingModal.querySelector('h2');
+    if (title) title.textContent = 'バフを選択';
+
     // Clear previous
     blessingCardsContainer.innerHTML = '';
 
     options.forEach(opt => {
         const card = document.createElement('div');
-        card.className = source === 'angel' ? 'blessing-card angel-card' : 'blessing-card';
+        let cardClass = 'blessing-card';
+        if (source === 'angel') cardClass += ' angel-card';
+        if (source === 'blood') cardClass += ' blood-card';
+        card.className = cardClass;
         card.dataset.id = opt.id;
 
-        // Name
-        const name = document.createElement('div');
-        name.className = 'blessing-card-name';
-        name.textContent = opt.name;
-        // Center the name explicitly since icon is gone
-        name.style.marginTop = '20px';
-        card.appendChild(name);
-
-        // Description
+        // Description Only (Centered via CSS)
         const desc = document.createElement('div');
         desc.className = 'blessing-card-desc';
         desc.textContent = opt.description || opt.desc || '';
@@ -675,11 +876,26 @@ export function initSettingsUI(game) {
         }
 
         // Cheat Button Listeners
-        const btnTeleportBoss = document.getElementById('btn-cheat-teleport-boss');
-        if (btnTeleportBoss) {
-            btnTeleportBoss.onclick = () => {
+        const btnTeleportGolem = document.getElementById('btn-cheat-teleport-golem');
+        if (btnTeleportGolem) {
+            btnTeleportGolem.onclick = () => {
                 const bossRoom = game.map.rooms.find(r => r.type === 'boss');
                 if (bossRoom && game.player) {
+                    game.bossOverride = 'golem';
+                    game.player.x = (bossRoom.x + bossRoom.w / 2) * game.map.tileSize;
+                    game.player.y = (bossRoom.y + bossRoom.h / 2) * game.map.tileSize;
+                    if (settingsModal) settingsModal.style.display = 'none';
+                    game.isPaused = false;
+                }
+            };
+        }
+
+        const btnTeleportPrime = document.getElementById('btn-cheat-teleport-prime');
+        if (btnTeleportPrime) {
+            btnTeleportPrime.onclick = () => {
+                const bossRoom = game.map.rooms.find(r => r.type === 'boss');
+                if (bossRoom && game.player) {
+                    game.bossOverride = 'prime';
                     game.player.x = (bossRoom.x + bossRoom.w / 2) * game.map.tileSize;
                     game.player.y = (bossRoom.y + bossRoom.h / 2) * game.map.tileSize;
                     if (settingsModal) settingsModal.style.display = 'none';

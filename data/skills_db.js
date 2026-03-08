@@ -29,8 +29,8 @@ export const skillsDB = [
             statusEffect: 'burn',
             statusChance: 0.2,
             aetherCharge: 2.7, // Calculated: 5.0 / (1.5 hits / 0.8s)
-            critChance: 0.08,      // 8% - 連射型なのでクリ率は低め
-            critMultiplier: 2.0,
+            critChance: 0.15,      // 8% -> 15% (連射型)
+            critMultiplier: 1.2,   // 2.0 -> 1.2 (連射型)
             noShake: true // Bypass universal hit shake in main.js
         }
     },
@@ -38,6 +38,7 @@ export const skillsDB = [
         id: 'slash',
         name: 'スラッシュ', // Restore original name if needed, or keep backup if user preferred
         type: 'normal',
+        element: 'blood',
         icon: 'assets/skills/icons/icon_slash.png',
         cooldown: 0.5,
         behavior: 'crimson_slash_single',
@@ -57,14 +58,15 @@ export const skillsDB = [
             pierce: 999,
             ignoreWallDestruction: true,
             aetherCharge: 2.0,
-            critChance: 0.30,
-            critMultiplier: 1.5
+            critChance: 0.35,      // 30% -> 35%
+            critMultiplier: 1.3    // 1.5 -> 1.3
         }
     },
     {
         id: 'crimson_cross',
         name: 'クリムゾン・クロス', // Crimson Cross
         type: 'normal',
+        element: 'blood',
         icon: 'assets/skills/icons/icon_blood_scythe.png',
         cooldown: 0.3,
         behavior: 'crimson_cross',
@@ -85,8 +87,8 @@ export const skillsDB = [
             pierce: 999, // Allow hitting multiple enemies in the X
             ignoreWallDestruction: true, // Don't vanish on walls
             aetherCharge: 2.0,
-            critChance: 0.10,      // 10% - 出血特化型
-            critMultiplier: 2.5    // クリ時は血飛沫（高倍率）
+            critChance: 0.25,      // 10% -> 25%
+            critMultiplier: 1.3    // 1.5 -> 1.3
         }
     },
 
@@ -94,6 +96,7 @@ export const skillsDB = [
         id: 'ice_signal',
         name: 'アイスシグナル', // Ice Signal
         type: 'normal',
+        element: 'ice',
         icon: 'assets/skills/icons/icon_ice.png', // Placeholder
         cooldown: 0.09, // 2x slower (was 0.045)
         behavior: 'projectile',
@@ -118,14 +121,15 @@ export const skillsDB = [
             shape: 'triangle', // Fallback
             damageColor: '#00ffff', // Cyan (Ice)
             aetherCharge: 0.18, // Calculated: 5.0 / (1 hit / 0.035s)
-            critChance: 0.05,      // 5% - 超高速連射なのでクリ率最低
-            critMultiplier: 2.0
+            critChance: 0.15,      // 5% -> 15% (超高速)
+            critMultiplier: 1.2    // 2.0 -> 1.2
         }
     },
     {
         id: 'lightning_needle',
         name: 'ライトニングニードル', // Lightning Needle
         type: 'normal',
+        element: 'lightning',
         icon: 'assets/skills/icons/icon_needle.png',
         cooldown: 0.3,
         behavior: 'projectile',
@@ -148,8 +152,8 @@ export const skillsDB = [
             onHitEffect: 'lightning_burst', // New param to trigger burst
             damageColor: '#ffff00', // Yellow (Electric)
             aetherCharge: 0.5, // Calculated: 5.0 / (3 hits / 0.3s)
-            critChance: 0.20,      // 20% - 電撃は高クリ率
-            critMultiplier: 2.0
+            critChance: 0.25,      // 20% -> 25%
+            critMultiplier: 1.3    // 2.0 -> 1.3
         },
     },
     {
@@ -158,12 +162,12 @@ export const skillsDB = [
         type: 'primary',
         element: 'fire',
         icon: 'assets/skills/icons/icon_fireball.png',
-        cooldown: 1.0,
+        cooldown: 3.0,
         behavior: 'projectile',
         description: '前方に火の玉を発射する。着弾時に爆発し、敵を大きく吹き飛ばす。',
         params: {
-            knockback: 250,
-            damage: 20,
+            knockback: 400,
+            damage: 15,
             speed: 550,
             width: 64, // 32 * 2
             height: 32, // 16 * 2
@@ -181,30 +185,31 @@ export const skillsDB = [
             frameRate: 0.05, // 0.1 / 2 (2x Speed)
             // Charge Params
             chargeable: true,
-            chargeTime: 0.5,
-            minDamage: 10, // Uncharged
-            maxDamage: 50, // Fully Charged
+            chargeTime: 1.0,
+            minDamage: 15, // Uncharged
+            maxDamage: 30, // Fully Charged
             minSize: 48, // Uncharged (Small)
             maxSize: 128, // Fully Charged (Large) (64*2)
             maxSpeed: 700,
             statusEffect: 'burn',
             statusChance: 0.5,
-            aetherCharge: 5.0, // Calculated: 5.0 / (1 hit / 1.0s)
-            critChance: 0.20,      // 20% - チャージ型は高クリ率
-            critMultiplier: 2.5    // 高倍率
+            aetherCharge: 15.0, // Calculated: 15.0 / (1 hit / 3.0s) = 5.0/s
+            critChance: 0.30,      // 20% -> 30% (チャージ)
+            critMultiplier: 1.5    // 2.0 -> 1.5
         }
     },
     {
         id: 'thunder_burst',
         name: 'サンダーバースト', // Thunder Burst
         type: 'primary',
+        element: 'lightning',
         icon: 'assets/skills/icons/icon_thunder_burst.png',
-        cooldown: 6.0,
+        cooldown: 3.0,
         behavior: 'area_blast',
         description: '周囲に電撃を帯びた爆発を起こし、敵を弾き飛ばす。',
         params: {
-            knockback: 180,
-            damage: 5, // Increased damage (3 -> 5)
+            knockback: 500,
+            damage: 7, // Increased damage (5 -> 7)
             range: 100, // +25% range (was 80)
             duration: 1.0, // Lasts 1 second
             interval: 0.1, // Damage every 0.1s (10 ticks total = 100 dmg)
@@ -221,17 +226,18 @@ export const skillsDB = [
             frameRate: 0.1, // Not used for single frame but good practice
             // scale: 1.0, // Force Fit to 160x160 instead
             randomRotation: true, // Rotate randomly each frame
-            aetherCharge: 1.5, // Halved from 3.0 per user request
-            critChance: 0.10,      // 10%
-            critMultiplier: 2.0
+            aetherCharge: 0.75, // Halved since CD is halved (6.0 -> 3.0)
+            critChance: 0.20,      // 10% -> 20%
+            critMultiplier: 1.5    // 2.0 -> 1.5 (奥義)
         }
     },
     {
         id: 'bounce_spark',
         name: 'バウンスパーク', // Bounce Spark
         type: 'primary',
+        element: 'lightning',
         icon: 'assets/skills/icons/icon_bounce.png', // Placeholder
-        cooldown: 5.0,
+        cooldown: 2.5,
         behavior: 'bouncing_projectile',
         description: '壁に反射する電気の弾を前方に5発扇状に発射する。',
         params: {
@@ -252,9 +258,9 @@ export const skillsDB = [
             burstCount: 8, // More segments
             burstSize: 80, // Larger area
             burstSpeed: 150, // Speed for diffusion
-            aetherCharge: 5.0, // Calculated: 5.0 / (1 hit / 5.0s)
-            critChance: 0.15,      // 15% - 反射弾
-            critMultiplier: 2.0
+            aetherCharge: 2.5, // Calculated: 2.5 / (1 hit / 2.5s) = 1.0/s
+            critChance: 0.25,      // 15% -> 25%
+            critMultiplier: 1.3    // 2.0 -> 1.3
         }
     },
 
@@ -264,7 +270,7 @@ export const skillsDB = [
         type: 'ultimate',
         element: 'fire',
         icon: 'assets/skills/icons/icon_ember_strike.png',
-        cooldown: 10.0,
+        cooldown: 13.0,
         behavior: 'barrage',
         description: '８つの火の玉を連射する奥義。',
         params: {
@@ -292,8 +298,8 @@ export const skillsDB = [
             statusEffect: 'burn',
             statusChance: 0.3,
             aetherCharge: 3.0, // Ultimate (Normal Mode Gain)
-            critChance: 0.15,      // 15%
-            critMultiplier: 2.0
+            critChance: 0.30,      // 15% -> 30%
+            critMultiplier: 1.5    // 2.0 -> 1.5
         },
         aetherRushDesc: '連射数が10発→20発になる。'
     },
@@ -302,6 +308,7 @@ export const skillsDB = [
         id: 'blood_scythe',
         name: 'ブラッドサイス', // Blood Scythe
         type: 'primary',
+        element: 'blood',
         icon: 'assets/skills/icons/icon_blood_scythe.png', // Updated icon path
         cooldown: 2.0,
         behavior: 'blood_scythe',
@@ -325,19 +332,20 @@ export const skillsDB = [
             statusChance: 0.3, // 30% chance per tick
             damageColor: '#880000', // Dark Red (Blood)
             aetherCharge: 0.5, // Calculated: 5.0 / (5 ticks / 2.0s)
-            critChance: 0.12,      // 12% - 鎌は中クリ率
-            critMultiplier: 3.0    // ブラッドクリティカルは超高倍率
+            critChance: 0.25,      // 12% -> 25%
+            critMultiplier: 1.3    // 1.5 -> 1.3
         }
     },
     {
         id: 'ice_spike',
         name: 'アイススパイク', // Ice Spike
         type: 'primary',
+        element: 'ice',
         icon: 'assets/skills/icons/icon_ice_spike.png', // Updated icon path
         // actually, let's use a placeholder or the sprite sheet as icon if logic allows, but usually icon is separate.
         // For now, null is fine or we can reuse `icon_ice.png` if it exists (from ice_signal).
         // icon: 'assets/icon_ice_spike.png', // Placeholder name
-        cooldown: 7.0,
+        cooldown: 3.5,
         behavior: 'ice_spike',
         description: '前方に氷の棘を突き上げる。5秒間持続し、上にいる敵にダメージを与え続ける。',
         params: {
@@ -352,15 +360,16 @@ export const skillsDB = [
             frames: 1,
             damageColor: '#00ffff', // Cyan (Ice)
             pierce: 999,
-            aetherCharge: 2.5, // Reduced to 25% (was 10.0)
-            critChance: 0.10,
-            critMultiplier: 2.0
+            aetherCharge: 1.25, // Calculated: 1.25 / (1 hit / 3.5s) = 0.35/s
+            critChance: 0.20,      // 10% -> 20%
+            critMultiplier: 1.3    // 1.5 -> 1.3
         }
     },
     {
         id: 'ice_garden',
         name: 'アイスガーデン', // Ice Garden
         type: 'ultimate',
+        element: 'ice',
         icon: 'assets/skills/icons/icon_ice_garden.png', // Placeholder
         cooldown: 10.0,
         behavior: 'ice_garden',
@@ -374,8 +383,8 @@ export const skillsDB = [
             visualSpikeCount: 60, // Dense visual spikes
             damageColor: '#00ffff', // Cyan (Ice)
             aetherCharge: 0.5, // Ultimate (Normal Mode Gain)
-            critChance: 0.10,
-            critMultiplier: 2.0
+            critChance: 0.25,      // 10% -> 25%
+            critMultiplier: 1.5    // 2.0 -> 1.5
         },
         aetherRushDesc: '全敵対象に氷棘が展開され、範囲が拡大する。'
     },
@@ -384,7 +393,7 @@ export const skillsDB = [
         name: 'トルネード', // Tornado
         type: 'primary',
         icon: 'assets/skills/icons/icon_wind.png', // Placeholder or use generic
-        cooldown: 8.0,
+        cooldown: 4.0,
         behavior: 'tornado',
         description: '前方に竜巻を発生させる。触れた敵を連続ヒットさせながら継続的にノックバックさせる。',
         params: {
@@ -394,21 +403,22 @@ export const skillsDB = [
             width: 90,
             height: 90,
             life: 5.0, // Lasts 5 seconds
-            knockback: 150, // Push speed
+            knockback: 300, // Push speed
             color: '#88ccff',
             shape: 'tornado',
             damageColor: '#ffffff', // White (Wind) - User requested White for Wind
-            aetherCharge: 1.6, // Calculated: 5.0 / (25 hits / 8.0s)
-            critChance: 0.08,      // 8% - 連続ヒット型
-            critMultiplier: 2.0
+            aetherCharge: 0.8, // Calculated: 0.8 / (25 hits / 4.0s) = 0.2/s
+            critChance: 0.20,      // 8% -> 20%
+            critMultiplier: 1.2    // 2.0 -> 1.2 (連射)
         }
     },
     {
         id: 'chain_lightning',
         name: 'チェーンライトニング', // Chain Lightning
         type: 'primary',
+        element: 'lightning',
         icon: 'assets/skills/icons/icon_chain.png',
-        cooldown: 5.0,
+        cooldown: 2.5,
         behavior: 'chain_lightning',
         description: '敵から敵へと連鎖する雷撃を放つ。',
         params: {
@@ -424,17 +434,18 @@ export const skillsDB = [
             chainRange: 500,
             crackle: true,
             crackleColor: '#ffff00',
-            aetherCharge: 25.0, // Calculated: 5.0 / (1 hit / 5.0s)
-            critChance: 0.25,      // 25% - チェーン雷は高クリ率
-            critMultiplier: 2.0
+            aetherCharge: 12.5, // Calculated: 12.5 / (1 hit / 2.5s) = 5.0/s
+            critChance: 0.35,      // 25% -> 35%
+            critMultiplier: 1.3    // 2.0 -> 1.3
         }
     },
     {
         id: 'thunderfall',
         name: 'サンダーフォール', // Thunderfall
         type: 'primary', // Active skill
+        element: 'lightning',
         icon: 'assets/skills/icons/icon_thunder_fall.png', // Placeholder
-        cooldown: 8.0,
+        cooldown: 4.0,
         behavior: 'thunderfall_storm',
         description: '一定時間、周囲の敵に対してランダムに落雷を発生させる。',
         params: {
@@ -444,15 +455,16 @@ export const skillsDB = [
             spacing: 25, // User requested 25
             zigzagWidth: 30, // Zigzag offset
             damageColor: '#ffff00', // Yellow
-            aetherCharge: 3.25, // Reduced to 25% (was 13.0)
-            critChance: 0.15,
-            critMultiplier: 2.0
+            aetherCharge: 1.625, // Calculated: 1.625 / (12 hits / 4.0s) = 0.4/s
+            critChance: 0.25,      // 15% -> 25%
+            critMultiplier: 1.3    // 2.0 -> 1.3
         }
     },
     {
         id: 'thunder_god_wrath',
         name: 'サンダー・ラス', // Thunder Wrath
         type: 'ultimate',
+        element: 'lightning',
         icon: 'assets/skills/icons/icon_thunder_god.png', // Placeholder
         cooldown: 15.0,
         behavior: 'global_strike',
@@ -462,8 +474,8 @@ export const skillsDB = [
             count: 3, // Waves per direction
             damageColor: '#ffff00', // Yellow
             aetherCharge: 0, // Ultimate (No gain)
-            critChance: 0.30,      // 30% - 神の雷は高クリ率
-            critMultiplier: 3.0    // 高倍率
+            critChance: 0.35,      // 30% -> 35%
+            critMultiplier: 1.5    // 2.0 -> 1.5
         },
         aetherRushDesc: '上下左右に加え、斜め方向を含む8方向に雷槌を落とす。'
     },
@@ -471,6 +483,7 @@ export const skillsDB = [
         id: 'glacial_lotus',
         name: 'グラシアル・ロータス', // Glacial Lotus
         type: 'ultimate',
+        element: 'ice',
         icon: 'assets/skills/icons/icon_glacial_lotus.png',
         cooldown: 15.0,
         behavior: 'glacial_lotus',
@@ -489,8 +502,8 @@ export const skillsDB = [
             fixedOrientation: true,
             rotationOffset: Math.PI / 2,
             aetherCharge: 0, // Ultimate (No gain)
-            critChance: 0.25,      // 25% - 奥義は高クリ率
-            critMultiplier: 2.5
+            critChance: 0.30,      // 25% -> 30%
+            critMultiplier: 1.5    // 2.0 -> 1.5
         },
         aetherRushDesc: '花弁数が16→32枚に増加し、射出速度が加速する。'
     },
@@ -498,6 +511,7 @@ export const skillsDB = [
         id: 'lunatic_snicker',
         name: 'ルナティックスニッカー', // Lunatic Snicker
         type: 'ultimate',
+        element: 'blood',
         icon: 'assets/skills/icons/icon_blood_scythe.png', // Temporary, same as crimson_cross
         cooldown: 15.0,
         behavior: 'lunatic_snicker_strike',
@@ -516,8 +530,8 @@ export const skillsDB = [
             pierce: 999,
             ignoreWallDestruction: true,
             aetherCharge: 0, // Ultimate (No gain)
-            critChance: 0.20,      // 20% - 狂気の奥義
-            critMultiplier: 3.0    // 血に染まる高倍率
+            critChance: 0.30,      // 20% -> 30%
+            critMultiplier: 1.5    // 2.0 -> 1.5
         },
         aetherRushDesc: '画面内の全敵を対象に発動し、ダメージが2倍になる。'
     },
@@ -527,15 +541,15 @@ export const skillsDB = [
         type: 'primary',
         element: 'fire',
         icon: 'assets/skills/icons/icon_phoenix_dive.png',
-        cooldown: 8.0,
+        cooldown: 4.0,
         behavior: 'phoenix_dive',
         description: '炎の鳥となって突撃し、進路上の敵を激しく弾き飛ばす。敵を倒すと即座に再使用可能。',
         params: {
-            knockback: 400,
+            knockback: 1000,
             speed: 1200,
             duration: 0.4,
             damage: 25,
-            aetherCharge: 2.0,
+            aetherCharge: 1.0,
             puddleInterval: 0.01,
             puddleDamage: 5,
             puddleLife: 3.0,
@@ -550,11 +564,11 @@ export const skillsDB = [
         type: 'primary',
         element: 'fire',
         icon: 'assets/skills/icons/icon_magma_spear.png',
-        cooldown: 6.0,
+        cooldown: 3.0,
         behavior: 'magma_spear',
         description: '着弾時に大爆発を起こす槍を放ち、敵を力強くノックバックさせる。',
         params: {
-            knockback: 300,
+            knockback: 800,
             damage: 20, // Increased direct damage since it no longer pierces/bounces
             speed: 900, // Slightly faster for impact feel
             life: 2.0,
@@ -566,7 +580,7 @@ export const skillsDB = [
             spriteSheet: 'assets/skills/vfx/magma_spear.png',
             color: '#ff4400',
             trailColor: '#ffbb00',
-            aetherCharge: 3.0,
+            aetherCharge: 1.5,
             puddleAetherCharge: 0.5,
             critChance: 0.15,
             critMultiplier: 2.0,
@@ -606,6 +620,7 @@ export const skillsDB = [
         id: 'volt_drive',
         name: 'ボルト・ドライブ', // Volt Drive
         type: 'ultimate',
+        element: 'lightning',
         icon: 'assets/skills/icons/icon_volt_drive.png', // Placeholder
         cooldown: 20.0,
         behavior: 'volt_drive',

@@ -7,114 +7,455 @@ import { chipsDB } from '../data/chips_db.js';
 export class AetherCircuitManager {
     constructor(player) {
         this.player = player;
-        this.slots = new Array(6).fill(null); // 6 slots for chips
+        // 5x5 grid. Initialization: null for empty, 'core' for the center.
+        this.grid = Array.from({ length: 5 }, () => new Array(5).fill(null));
+        this.grid[2][2] = 'core';
+
         this.ownedChips = []; // All chips in collection
-        this.maxCapacity = 20; // Initial capacity
+        this.maxCapacity = 20; // Initial base capacity
+        this.updateCapacity();
     }
 
     /**
      * Calculates current capacity based on level (example).
      */
     updateCapacity() {
-        // Implementation could depend on player level or specific upgrades
-        this.maxCapacity = 20 + (this.player.currentFloor * 2);
+        let base = 20 + (this.player.currentFloor * 2);
+        if (this.player.game.debugMode) {
+            base = 100;
+        }
+
+        // Add bonus from active Storage chips
+        let storageBonus = 0;
+        for (let y = 0; y < 5; y++) {
+            for (let x = 0; x < 5; x++) {
+                const chip = this.grid[y][x];
+                if (chip && chip !== 'core' && chip.isActive && chip.isStorage) {
+                    storageBonus += chip.data.ranks[0].value; // +5
+                }
+            }
+        }
+
+        this.maxCapacity = base + storageBonus;
+    }
+
+    /**
+     * Recalculates which chips are connected to the core.
+     * Starts BFS from core (2,2).
+     */
+    refreshConnections() {
+        // 1. Reset all state
+        for (let y = 0; y < 5; y++) {
+            for (let x = 0; x < 5; x++) {
+                const chip = this.grid[y][x];
+                if (chip && chip !== 'core') {
+                    chip.isActive = false;
+                    chip.activeNodes = { up: 0, down: 0, left: 0, right: 0 };
+                }
+            }
+        }
+
+        // 2. BFS to identify active chips
+        const queue = [{ x: 2, y: 2 }];
+        const visited = new Set(['2,2']);
+
+        while (queue.length > 0) {
+            const current = queue.shift();
+            const neighbors = [
+                { nx: current.x, ny: current.y - 1, dir: 'up', opp: 'down' },
+                { nx: current.x, ny: current.y + 1, dir: 'down', opp: 'up' },
+                { nx: current.x - 1, ny: current.y, dir: 'left', opp: 'right' },
+                { nx: current.x + 1, ny: current.y, dir: 'right', opp: 'left' }
+            ];
+
+            for (const { nx, ny, dir, opp } of neighbors) {
+                if (nx < 0 || nx >= 5 || ny < 0 || ny >= 5) continue;
+                const neighborChip = this.grid[ny][nx];
+                if (!neighborChip || neighborChip === 'core' || visited.has(`${nx},${ny}`)) continue;
+
+                // Check if connection exists
+                const currentChip = this.grid[current.y][current.x];
+                let connected = false;
+
+                // Helper to check if a connection is valid
+                const isConnectionValid = (nodeA, nodeB) => {
+                    if (nodeA === 'universal' && nodeB > 0) return true;
+                    if (nodeB === 'universal' && nodeA > 0) return true;
+                    if (nodeA === 'universal' && nodeB === 'universal') return true;
+                    return nodeA > 0 && nodeA === nodeB;
+                };
+
+                if (currentChip === 'core') {
+                    if (neighborChip.nodes[opp] > 0 || neighborChip.nodes[opp] === 'universal') connected = true;
+                } else {
+                    if (isConnectionValid(currentChip.nodes[dir], neighborChip.nodes[opp])) {
+                        connected = true;
+                    }
+                }
+
+                if (connected) {
+                    neighborChip.isActive = true;
+                    visited.add(`${nx},${ny}`);
+                    queue.push({ x: nx, y: ny });
+                }
+            }
+        }
+
+        // 3. Mark ALL valid glowing nodes (between any two active entities)
+        for (let y = 0; y < 5; y++) {
+            for (let x = 0; x < 5; x++) {
+                const chip = this.grid[y][x];
+                if (!chip || chip === 'core' || !chip.isActive) continue;
+
+                const check = [
+                    { nx: x, ny: y - 1, dir: 'up', opp: 'down' },
+                    { nx: x, ny: y + 1, dir: 'down', opp: 'up' },
+                    { nx: x - 1, ny: y, dir: 'left', opp: 'right' },
+                    { nx: x + 1, ny: y, dir: 'right', opp: 'left' }
+                ];
+
+                const isConnectionValid = (nodeA, nodeB) => {
+                    if (nodeA === 'universal' && nodeB > 0) return true;
+                    if (nodeB === 'universal' && nodeA > 0) return true;
+                    if (nodeA === 'universal' && nodeB === 'universal') return true;
+                    return nodeA > 0 && nodeA === nodeB;
+                };
+
+                for (const { nx, ny, dir, opp } of check) {
+                    if (nx < 0 || nx >= 5 || ny < 0 || ny >= 5) continue;
+                    const neighbor = this.grid[ny][nx];
+                    if (!neighbor) continue;
+
+                    if (neighbor === 'core' || neighbor.isActive) {
+                        if (neighbor === 'core') {
+                            if (chip.nodes[dir] > 0 || chip.nodes[dir] === 'universal') {
+                                chip.activeNodes[dir] = chip.nodes[dir] === 'universal' ? 3 : chip.nodes[dir];
+                            }
+                        } else {
+                            if (isConnectionValid(chip.nodes[dir], neighbor.nodes[opp])) {
+                                chip.activeNodes[dir] = chip.nodes[dir] === 'universal' ? neighbor.nodes[opp] : chip.nodes[dir];
+                                if (chip.nodes[dir] === 'universal' && neighbor.nodes[opp] === 'universal') chip.activeNodes[dir] = 3;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // After refreshing connections, update the capacity limits
+        this.updateCapacity();
     }
 
     get usedCapacity() {
-        return this.slots.reduce((total, chip) => {
-            return total + (chip ? chip.getCurrentCost() : 0);
-        }, 0);
+        this.refreshConnections();
+        let total = 0;
+
+        const isConnectionValid = (nodeA, nodeB) => {
+            if (nodeA === 'universal' && nodeB > 0) return true;
+            if (nodeB === 'universal' && nodeA > 0) return true;
+            if (nodeA === 'universal' && nodeB === 'universal') return true;
+            return nodeA > 0 && nodeA === nodeB;
+        };
+
+        const getConnectionCost = (nodeA, nodeB) => {
+            // How much capacity does this connection cost?
+            // Usually it's the number of nodes (which are equal). 
+            // If one is universal, it costs the other's node count.
+            // If both are universal, let's say it costs 3.
+            if (nodeA === 'universal' && nodeB === 'universal') return 3;
+            if (nodeA === 'universal') return nodeB;
+            if (nodeB === 'universal') return nodeA;
+            return nodeA; // They are equal
+        };
+
+        for (let y = 0; y < 5; y++) {
+            for (let x = 0; x < 5; x++) {
+                const current = this.grid[y][x];
+                if (!current || (current !== 'core' && !current.isActive)) continue;
+
+                // Check Right (x+1)
+                if (x < 4) {
+                    const right = this.grid[y][x + 1];
+                    if (right && (right === 'core' || right.isActive)) {
+                        const isCurrentSpecial = current !== 'core' && current.isSpecial;
+                        const isRightSpecial = right !== 'core' && right.isSpecial;
+
+                        if (!isCurrentSpecial && !isRightSpecial) {
+                            if (current === 'core') {
+                                if (right.nodes.left > 0 || right.nodes.left === 'universal') {
+                                    total += right.nodes.left === 'universal' ? 3 : right.nodes.left;
+                                }
+                            } else if (right === 'core') {
+                                if (current.nodes.right > 0 || current.nodes.right === 'universal') {
+                                    total += current.nodes.right === 'universal' ? 3 : current.nodes.right;
+                                }
+                            } else if (isConnectionValid(current.nodes.right, right.nodes.left)) {
+                                total += getConnectionCost(current.nodes.right, right.nodes.left);
+                            }
+                        }
+                    }
+                }
+
+                // Check Down (y+1)
+                if (y < 4) {
+                    const down = this.grid[y + 1][x];
+                    if (down && (down === 'core' || down.isActive)) {
+                        const isCurrentSpecial = current !== 'core' && current.isSpecial;
+                        const isDownSpecial = down !== 'core' && down.isSpecial;
+
+                        if (!isCurrentSpecial && !isDownSpecial) {
+                            if (current === 'core') {
+                                if (down.nodes.up > 0 || down.nodes.up === 'universal') {
+                                    total += down.nodes.up === 'universal' ? 3 : down.nodes.up;
+                                }
+                            } else if (down === 'core') {
+                                if (current.nodes.down > 0 || current.nodes.down === 'universal') {
+                                    total += current.nodes.down === 'universal' ? 3 : current.nodes.down;
+                                }
+                            } else if (isConnectionValid(current.nodes.down, down.nodes.up)) {
+                                total += getConnectionCost(current.nodes.down, down.nodes.up);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return total;
     }
 
     /**
-     * Equips a chip to a specific slot.
+     * Equips a chip to a specific grid coordinate.
+     * Returns true if successful, or an object { duplicatePos: {x, y} } if rejected due to duplication.
      */
-    equipChip(chipInstance, slotIndex) {
-        if (slotIndex < 0 || slotIndex >= 6) return false;
+    equipChip(chipInstance, x, y) {
+        if (x < 0 || x >= 5 || y < 0 || y >= 5) return false;
+        if (this.grid[y][x] === 'core') return false;
 
-        // Remove from existing slot if already equipped
-        const existingSlot = this.slots.indexOf(chipInstance);
-        if (existingSlot !== -1) {
-            this.slots[existingSlot] = null;
+        // 1. Check for duplicate chips of the same type (excluding the one being moved)
+        // [FIX] Skip duplication check for Special chips (Storage, Connector)
+        if (!chipInstance.isSpecial) {
+            for (let gy = 0; gy < 5; gy++) {
+                for (let gx = 0; gx < 5; gx++) {
+                    const existing = this.grid[gy][gx];
+                    if (existing && existing !== 'core' && existing !== chipInstance) {
+                        if (existing.data.id === chipInstance.data.id) {
+                            return { duplicatePos: { x: gx, y: gy } };
+                        }
+                    }
+                }
+            }
         }
 
+        // Save current position for rollback
+        const oldPos = { x: -1, y: -1 };
+        for (let gy = 0; gy < 5; gy++) {
+            for (let gx = 0; gx < 5; gx++) {
+                if (this.grid[gy][gx] === chipInstance) {
+                    oldPos.x = gx; oldPos.y = gy;
+                }
+            }
+        }
+
+        const prevInTarget = this.grid[y][x];
+
+        // Trial placement
+        if (oldPos.x !== -1) this.grid[oldPos.y][oldPos.x] = null;
+        this.grid[y][x] = chipInstance;
+
         // Check capacity
-        const newTotal = this.usedCapacity + chipInstance.getCurrentCost();
-        if (newTotal > this.maxCapacity) {
+        if (this.usedCapacity > this.maxCapacity) {
             console.warn("Aether Circuit: Over capacity!");
+            // Rollback
+            this.grid[y][x] = prevInTarget;
+            if (oldPos.x !== -1) this.grid[oldPos.y][oldPos.x] = chipInstance;
             return false;
         }
 
-        this.slots[slotIndex] = chipInstance;
-        this.player.saveAetherData(); // Persist change
+        this.player.saveAetherData();
         return true;
     }
 
-    unequipChip(slotIndex) {
-        if (slotIndex >= 0 && slotIndex < 6) {
-            this.slots[slotIndex] = null;
-            this.player.saveAetherData(); // Persist change
+    unequipChip(x, y) {
+        if (x >= 0 && x < 5 && y >= 0 && y < 5) {
+            const chip = this.grid[y][x];
+            if (chip && chip !== 'core') {
+                chip.isActive = false;
+                chip.activeNodes = { up: 0, down: 0, left: 0, right: 0 };
+                this.grid[y][x] = null;
+                this.player.saveAetherData();
+            }
         }
     }
 
     /**
-     * Recalculates all bonuses from equipped chips.
+     * Recalculates all bonuses from active chips, providing both current and potential totals.
      */
-    getBonuses() {
-        const bonuses = {
-            damageMult: 0,
-            maxHp: 0,
-            speedMult: 0,
-            aetherChargeMult: 0,
-            fireDamageMult: 0,
-            critRateAdd: 0,
-            onHitDamageBuff: 0
+    getDetailedBonuses() {
+        this.refreshConnections();
+        const stats = {
+            damageMult: { current: 0, potential: 0 },
+            maxHp: { current: 0, potential: 0 },
+            speedMult: { current: 0, potential: 0 },
+            aetherChargeMult: { current: 0, potential: 0 },
+            fireDamageMult: { current: 0, potential: 0 },
+            critRateAdd: { current: 0, potential: 0 },
+            critDamageAdd: { current: 0, potential: 0 },
+            onHitDamageBuff: { current: 0, potential: 0 },
+            onHitDamageBuffCooldown: { current: 999, potential: 999 },
+            thunderDamageMult: { current: 0, potential: 0 },
+            iceDamageMult: { current: 0, potential: 0 },
+            bloodDamageMult: { current: 0, potential: 0 },
+            takenDamageMult: { current: 0, potential: 0 },
+            trainingKillBuff: { current: 0, potential: 0, fullPotency: 0 },
+            bossDamageMult: { current: 0, potential: 0 },
+            inertiaScaling: { current: 0, potential: 0 },
+            ukemiChance: { current: 0, potential: 0 },
+            accelerationScaling: { current: 0, potential: 0 },
+            damageRandomRange: { current: 0, potential: 0 }
         };
 
-        this.slots.forEach(chip => {
-            if (chip) {
-                const effect = chip.getCurrentEffect();
-                if (chip.data.effectType === 'damage_mult') bonuses.damageMult += effect;
-                if (chip.data.effectType === 'max_hp') bonuses.maxHp += effect;
-                if (chip.data.effectType === 'speed_mult') bonuses.speedMult += effect;
-                if (chip.data.effectType === 'aether_charge_mult') bonuses.aetherChargeMult += effect;
-                if (chip.data.effectType === 'fire_damage_mult') bonuses.fireDamageMult += effect;
-                if (chip.data.effectType === 'crit_rate_add') bonuses.critRateAdd += effect;
-                if (chip.data.effectType === 'on_hit_damage_buff') bonuses.onHitDamageBuff += effect;
-            }
-        });
+        for (let y = 0; y < 5; y++) {
+            for (let x = 0; x < 5; x++) {
+                const chip = this.grid[y][x];
+                if (chip && chip !== 'core' && chip.isActive) {
+                    const currentEffect = chip.getCurrentEffect();
+                    const potentialEffect = chip.getPotentialValue('nodeScaling');
+                    const et = chip.data.effectType;
 
+                    if (et === 'damage_mult') {
+                        stats.damageMult.current += currentEffect;
+                        stats.damageMult.potential += potentialEffect;
+                    }
+                    if (et === 'max_hp') {
+                        stats.maxHp.current += currentEffect;
+                        stats.maxHp.potential += potentialEffect;
+                    }
+                    if (et === 'speed_mult') {
+                        stats.speedMult.current += currentEffect;
+                        stats.speedMult.potential += potentialEffect;
+                    }
+                    if (et === 'aether_charge_mult') {
+                        stats.aetherChargeMult.current += currentEffect;
+                        stats.aetherChargeMult.potential += potentialEffect;
+                    }
+                    if (et === 'fire_damage_mult') {
+                        stats.fireDamageMult.current += currentEffect;
+                        stats.fireDamageMult.potential += potentialEffect;
+                    }
+                    if (et === 'crit_rate_add') {
+                        stats.critRateAdd.current += currentEffect;
+                        stats.critRateAdd.potential += potentialEffect;
+                    }
+                    if (et === 'crit_damage_add') {
+                        stats.critDamageAdd.current += currentEffect;
+                        stats.critDamageAdd.potential += potentialEffect;
+                    }
+                    if (et === 'on_hit_damage_buff') {
+                        stats.onHitDamageBuff.current += currentEffect;
+                        stats.onHitDamageBuff.potential += potentialEffect;
+                        const cdCurr = chip.getScaledValue('cooldownScaling');
+                        const cdPot = chip.getPotentialValue('cooldownScaling');
+                        if (cdCurr > 0) stats.onHitDamageBuffCooldown.current = Math.min(stats.onHitDamageBuffCooldown.current, cdCurr);
+                        if (cdPot > 0) stats.onHitDamageBuffCooldown.potential = Math.min(stats.onHitDamageBuffCooldown.potential, cdPot);
+                    }
+                    if (et === 'thunder_damage_mult') {
+                        stats.thunderDamageMult.current += currentEffect;
+                        stats.thunderDamageMult.potential += potentialEffect;
+                    }
+                    if (et === 'ice_damage_mult') {
+                        stats.iceDamageMult.current += currentEffect;
+                        stats.iceDamageMult.potential += potentialEffect;
+                    }
+                    if (et === 'blood_damage_mult') {
+                        stats.bloodDamageMult.current += currentEffect;
+                        stats.bloodDamageMult.potential += potentialEffect;
+                    }
+                    if (et === 'berserker') {
+                        stats.damageMult.current += currentEffect;
+                        stats.damageMult.potential += potentialEffect;
+                        stats.takenDamageMult.current += chip.getScaledValue('takenDamageScaling');
+                        stats.takenDamageMult.potential += chip.getPotentialValue('takenDamageScaling');
+                    }
+                    if (et === 'training_kill_buff') {
+                        stats.trainingKillBuff.current += currentEffect;
+                        stats.trainingKillBuff.potential += potentialEffect;
+                        // Calculation for 100 kills (max stack) assuming potential unit effect
+                        stats.trainingKillBuff.fullPotency += potentialEffect * 100;
+                    }
+                    if (et === 'boss_damage_mult') {
+                        stats.bossDamageMult.current += currentEffect;
+                        stats.bossDamageMult.potential += potentialEffect;
+                    }
+                    if (et === 'inertia_scaling') {
+                        stats.inertiaScaling.current += currentEffect;
+                        stats.inertiaScaling.potential += potentialEffect;
+                    }
+                    if (et === 'ukemi_chance') {
+                        stats.ukemiChance.current += currentEffect;
+                        stats.ukemiChance.potential += potentialEffect;
+                    }
+                    if (et === 'acceleration_scaling') {
+                        stats.accelerationScaling.current += currentEffect;
+                        stats.accelerationScaling.potential += potentialEffect;
+                    }
+                    if (et === 'damage_random_range') {
+                        stats.damageRandomRange.current += currentEffect;
+                        stats.damageRandomRange.potential += potentialEffect;
+                    }
+                }
+            }
+        }
+
+        if (stats.onHitDamageBuffCooldown.current === 999) stats.onHitDamageBuffCooldown.current = 10;
+        if (stats.onHitDamageBuffCooldown.potential === 999) stats.onHitDamageBuffCooldown.potential = 10;
+
+        return stats;
+    }
+
+    getBonuses() {
+        const detailed = this.getDetailedBonuses();
+        const bonuses = {};
+        Object.keys(detailed).forEach(key => {
+            bonuses[key] = detailed[key].current;
+        });
         return bonuses;
     }
 
-    /**
-     * Load data for Aether Circuit.
-     */
     deserialize(data) {
         if (!data) return;
 
-        // Load owned chips
         this.ownedChips = (data.ownedChips || []).map(chipData => {
-            // Pass instanceId as 4th arg to preserve it
             const chip = new ChipInstance(chipData.id, chipData.level, chipData.isIdentified !== false, chipData.instanceId);
+            if (chipData.nodes) chip.nodes = chipData.nodes;
             return chip;
         });
 
-        // Load equipment
-        if (data.equippedChipIds) {
-            data.equippedChipIds.forEach((instanceId, idx) => {
-                if (instanceId && idx < 6) {
-                    const chip = this.ownedChips.find(c => c.instanceId === instanceId);
-                    if (chip) this.slots[idx] = chip;
+        // Load grid placement
+        if (data.gridData) {
+            data.gridData.forEach(entry => {
+                const chip = this.ownedChips.find(c => c.instanceId === entry.instanceId);
+                if (chip && entry.x >= 0 && entry.x < 5 && entry.y >= 0 && entry.y < 5) {
+                    if (this.grid[entry.y][entry.x] !== 'core') {
+                        this.grid[entry.y][entry.x] = chip;
+                    }
                 }
             });
         }
     }
 
     serialize() {
+        const gridData = [];
+        for (let y = 0; y < 5; y++) {
+            for (let x = 0; x < 5; x++) {
+                const item = this.grid[y][x];
+                if (item && item !== 'core') {
+                    gridData.push({ x, y, instanceId: item.instanceId });
+                }
+            }
+        }
         return {
             ownedChips: this.ownedChips.map(c => c.serialize()),
-            equippedChipIds: this.slots.map(c => c ? c.instanceId : null)
+            gridData: gridData
         };
     }
 }
@@ -128,28 +469,135 @@ export class ChipInstance {
         this.instanceId = instanceId || Math.random().toString(36).substr(2, 9);
         this.level = level;
         this.isIdentified = isIdentified;
+
+        // Node data: { up: 0-3, down: 0-3, left: 0-3, right: 0-3 }
+        this.nodes = { up: 0, down: 0, left: 0, right: 0 };
+        this.generateNodes();
+    }
+
+    get isSpecial() {
+        return this.data && this.data.isSpecial === true;
+    }
+
+    get isStorage() {
+        return this.data && this.data.id === 'storage';
+    }
+
+    generateNodes() {
+        const sides = ['up', 'down', 'left', 'right'];
+        this.nodes = { up: 0, down: 0, left: 0, right: 0 };
+
+        if (this.isSpecial) {
+            if (this.data.id === 'storage') {
+                // Storage: 1 to 3 nodes on a SINGLE random side
+                const side = sides[Math.floor(Math.random() * sides.length)];
+                this.nodes[side] = Math.floor(Math.random() * 3) + 1; // 1-3 nodes
+            } else if (this.data.id === 'connector') {
+                // Connector: Universal node ('all' or specifically handle as 99) on TWO random sides
+                const shuffledSides = [...sides].sort(() => Math.random() - 0.5);
+                this.nodes[shuffledSides[0]] = 'universal';
+                this.nodes[shuffledSides[1]] = 'universal';
+            }
+            return;
+        }
+
+        // 1. Roll rarity based on weights
+        const roll = Math.random() * 100;
+        let targetRange = { min: 1, max: 3 }; // common
+
+        if (roll < 0.5) targetRange = { min: 10, max: 12 };       // legendary (0.5%)
+        else if (roll < 5.5) targetRange = { min: 7, max: 9 };   // epic (5%)
+        else if (roll < 30.0) targetRange = { min: 4, max: 6 };  // rare (24.5%)
+        // common (70%)
+
+        let totalNodes = Math.floor(Math.random() * (targetRange.max - targetRange.min + 1)) + targetRange.min;
+
+        // 2. Distribute totalNodes across sides (max 3 per side, total 4 sides)
+        // Ensure we don't end up with more nodes than the sides can hold
+        totalNodes = Math.min(totalNodes, 12);
+
+        let remaining = totalNodes;
+
+        // Randomize side order for distribution
+        const shuffledSides = [...sides].sort(() => Math.random() - 0.5);
+
+        // First pass: give each side 0-3 nodes
+        for (const side of shuffledSides) {
+            const take = Math.min(3, remaining);
+            if (take > 0) {
+                const amount = Math.floor(Math.random() * take) + 1;
+                this.nodes[side] = amount;
+                remaining -= amount;
+            }
+        }
+
+        // Second pass: if we still have remaining nodes, fill up the gaps
+        if (remaining > 0) {
+            for (const side of shuffledSides) {
+                const space = 3 - this.nodes[side];
+                const add = Math.min(space, remaining);
+                this.nodes[side] += add;
+                remaining -= add;
+                if (remaining <= 0) break;
+            }
+        }
+
+        // Final fallback: Ensure at least one node exists (should already be true)
+        if (this.getConnectedNodeCount() === 0) {
+            this.nodes[shuffledSides[0]] = 1;
+        }
+    }
+
+    getConnectedNodeCount() {
+        // Sum of all nodes on the chip. Treat 'universal' as 3 for estimation.
+        const val = (n) => n === 'universal' ? 3 : (n || 0);
+        return val(this.nodes.up) + val(this.nodes.down) + val(this.nodes.left) + val(this.nodes.right);
     }
 
     getCurrentCost() {
-        if (this.data.ranks.length < 2) return this.data.baseCost;
+        if (this.isSpecial) return 0; // Special chips (Storage, Connector) are free
+        // In the new system, cost is based on nodes. 
+        // We'll keep the level-based cost interpolation for now if needed, 
+        // but the spec says "Capacity is consumed by the number of connected nodes".
+        return this.getConnectedNodeCount();
+    }
 
-        const rank1 = this.data.ranks[0];
-        const rank5 = this.data.ranks[this.data.ranks.length - 1]; // Original Max
+    getRarity() {
+        if (this.isSpecial) return 'special';
+        const count = this.getConnectedNodeCount();
+        if (count >= 10) return 'legendary';
+        if (count >= 7) return 'epic';
+        if (count >= 4) return 'rare';
+        return 'common';
+    }
 
-        // Linear interpolation from Level 1 to 10
-        const progress = (this.level - 1) / 9;
-        const interpolated = rank1.cost + (rank5.cost - rank1.cost) * progress;
-        return Math.round(interpolated);
+    getActiveNodeCount() {
+        // Sum of nodes that are actually connected and glowing
+        return (this.activeNodes?.up || 0) +
+            (this.activeNodes?.down || 0) +
+            (this.activeNodes?.left || 0) +
+            (this.activeNodes?.right || 0);
+    }
+
+    getScaledValue(propName) {
+        if (!this.data || !this.data[propName]) return 0;
+        const config = this.data[propName];
+        const activeCount = Math.min(this.getActiveNodeCount(), 12);
+        // Exponential (quadratic) scaling: min + (max - min) * (t^2)
+        const t = activeCount / 12;
+        return config.min + (config.max - config.min) * Math.pow(t, 2);
+    }
+
+    getPotentialValue(propName) {
+        if (!this.data || !this.data[propName]) return 0;
+        const config = this.data[propName];
+        const totalCount = Math.min(this.getConnectedNodeCount(), 12);
+        const t = totalCount / 12;
+        return config.min + (config.max - config.min) * Math.pow(t, 2);
     }
 
     getCurrentEffect() {
-        if (this.data.ranks.length < 2) return 0;
-
-        const rank1 = this.data.ranks[0];
-        const rank5 = this.data.ranks[this.data.ranks.length - 1];
-
-        const progress = (this.level - 1) / 9;
-        return rank1.value + (rank5.value - rank1.value) * progress;
+        return this.getScaledValue('nodeScaling');
     }
 
     serialize() {
@@ -157,7 +605,8 @@ export class ChipInstance {
             id: this.data.id,
             level: this.level,
             instanceId: this.instanceId,
-            isIdentified: this.isIdentified
+            isIdentified: this.isIdentified,
+            nodes: this.nodes
         };
     }
 }

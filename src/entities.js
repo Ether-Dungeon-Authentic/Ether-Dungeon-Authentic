@@ -12,3 +12,5 @@ export { BloodAltar } from './entities/BloodAltar.js';
 export { ShopNPC } from './entities/ShopNPC.js';
 export { WoodCrate } from './entities/WoodCrate.js';
 export { SpikeTrap } from './entities/SpikeTrap.js';
+export { AetherSentinel } from './enemies/AetherSentinel.js';
+export { AetherPrime } from './enemies/AetherPrime.js';

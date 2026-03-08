@@ -39,8 +39,11 @@ export const meleeBehaviors = {
         game.enemies.forEach(enemy => {
             if (hit.x < enemy.x + enemy.width && hit.x + hit.w > enemy.x &&
                 hit.y < enemy.y + enemy.height && hit.y + hit.h > enemy.y) {
+                const currentMult = user.getDamageMultiplier(enemy);
+                const baseDamage = params.damage;
                 const isCrit = params.critChance > 0 && Math.random() < params.critChance;
-                const finalDamage = isCrit ? params.damage * (params.critMultiplier || 2.0) : params.damage;
+                const critMult = (params.critMultiplier || 1.5) + user.critDamageBonus;
+                const finalDamage = isCrit ? (baseDamage * currentMult) * critMult : (baseDamage * currentMult);
 
                 // Knockback
                 let kx = 0, ky = 0;
