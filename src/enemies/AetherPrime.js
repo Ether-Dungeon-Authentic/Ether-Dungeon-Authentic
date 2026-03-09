@@ -449,18 +449,16 @@ export class AetherPrime extends Boss {
     decideAttack() {
         if (this.stunTimer > 0 || this.droneRushTimer > 0) return;
 
-        let picked = 'summon';
+        let picked = 'syncShot';
         const r = Math.random();
         if (this.phase === 1) {
-            if (r < 0.2) picked = 'summon';
-            else if (r < 0.4) picked = 'syncShot';
-            else if (r < 0.65) picked = 'droneRush';
-            else if (r < 0.9) picked = 'droneSweep';
+            if (r < 0.25) picked = 'syncShot';
+            else if (r < 0.55) picked = 'droneRush';
+            else if (r < 0.85) picked = 'droneSweep';
             else picked = 'beam';
         } else {
-            if (r < 0.1) picked = 'summon';
-            else if (r < 0.25) picked = 'nova';
-            else if (r < 0.45) picked = 'syncShot';
+            if (r < 0.2) picked = 'nova';
+            else if (r < 0.4) picked = 'syncShot';
             else if (r < 0.7) picked = 'droneRush';
             else if (r < 0.9) picked = 'droneSweep';
             else picked = 'beam';
@@ -487,7 +485,6 @@ export class AetherPrime extends Boss {
 
         if (this.currentAttack === 'beam') this.attackBeam();
         else if (this.currentAttack === 'nova') this.attackNova();
-        else if (this.currentAttack === 'summon') this.attackSummon();
         else if (this.currentAttack === 'syncShot') this.attackSyncShot();
         else if (this.currentAttack === 'droneRush') this.attackDroneRush();
         else if (this.currentAttack === 'droneSweep') this.executeSweepBeams();
