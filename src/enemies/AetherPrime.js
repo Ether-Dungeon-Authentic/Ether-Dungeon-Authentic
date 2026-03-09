@@ -7,7 +7,7 @@ import { spawnProjectile, spawnExplosion } from '../skills/common.js';
 class AetherDrone extends Enemy {
     constructor(game, owner, index) {
         const droneHp = 150;
-        const droneSpeed = 150; // Match rush speed
+        const droneSpeed = 220; // Match rush speed
         super(game, 0, 0, 24, 24, '#00ffff', droneHp, droneSpeed, null, 0);
         this.width = 24;
         this.height = 24;
@@ -26,7 +26,7 @@ class AetherDrone extends Enemy {
         this.isShielded = false;
         this.vx = 0;
         this.vy = 0;
-        this.rushSpeed = 150;
+        this.rushSpeed = 220;
         this.hitCooldown = 0;
     }
 
@@ -383,15 +383,15 @@ export class AetherPrime extends Boss {
         let picked = 'summon';
         const r = Math.random();
         if (this.phase === 1) {
-            if (r < 0.3) picked = 'summon';
-            else if (r < 0.6) picked = 'syncShot';
-            else if (r < 0.8) picked = 'droneRush';
+            if (r < 0.25) picked = 'summon';
+            else if (r < 0.5) picked = 'syncShot';
+            else if (r < 0.8) picked = 'droneRush'; // 30% chance
             else picked = 'beam';
         } else {
-            if (r < 0.2) picked = 'summon';
-            else if (r < 0.4) picked = 'nova';
-            else if (r < 0.6) picked = 'syncShot';
-            else if (r < 0.8) picked = 'droneRush';
+            if (r < 0.15) picked = 'summon';
+            else if (r < 0.35) picked = 'nova';
+            else if (r < 0.55) picked = 'syncShot';
+            else if (r < 0.85) picked = 'droneRush'; // 30% chance
             else picked = 'beam';
         }
 
@@ -417,7 +417,7 @@ export class AetherPrime extends Boss {
         else if (this.currentAttack === 'syncShot') this.attackSyncShot();
         else if (this.currentAttack === 'droneRush') this.attackDroneRush();
 
-        this.attackCooldown = this.phase === 1 ? (6.0 + Math.random() * 2) : (4.0 + Math.random() * 2);
+        this.attackCooldown = 3.0; // Fixed aggressive cooldown
     }
 
     attackSyncShot() {
