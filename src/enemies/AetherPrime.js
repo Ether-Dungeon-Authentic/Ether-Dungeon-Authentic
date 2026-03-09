@@ -109,11 +109,10 @@ class AetherDrone extends Enemy {
             const delay = 1.0; // 1 second fixed at start
 
             if (elapsed > delay) {
-                // Start rotating after delay
+                // Rotate over the remaining time (sweepMaxTimer - delay)
                 const rotateProgress = (elapsed - delay) / (this.sweepMaxTimer - delay);
-                this.currentAngleForDraw = this.sweepStartAngle + (this.sweepAngleRange * rotateProgress * this.sweepDirection);
+                this.currentAngleForDraw = this.sweepStartAngle + (this.sweepAngleRange * Math.min(1.0, rotateProgress) * this.sweepDirection);
             } else {
-                // Keep fixed for the first 1 second
                 this.currentAngleForDraw = this.sweepStartAngle;
             }
 
@@ -584,8 +583,8 @@ export class AetherPrime extends Boss {
     executeSweepBeams() {
         const drones = this.droneEntities.filter(d => d && !d.markedForDeletion && d.state === 'sweep_aim');
         const direction = Math.random() < 0.5 ? 1 : -1;
-        const sweepAngle = (60 * Math.PI) / 180;
-        const duration = 3.0; // 1.0s fixed + 2.0s sweep
+        const sweepAngle = (90 * Math.PI) / 180;
+        const duration = 6.0; // 1.0s fixed + 5.0s sweep
 
         drones.forEach(d => {
             d.state = 'sweep_beam';
@@ -607,7 +606,7 @@ export class AetherPrime extends Boss {
         const beamLength = 800;
         const x2 = cx + Math.cos(targetAngle) * beamLength;
         const y2 = cy + Math.sin(targetAngle) * beamLength;
-        const beamWidth = 40;
+        const beamWidth = 80; // Doubled from 40
 
         if (this.checkBeamHit(this.game.player.x + this.game.player.width / 2, this.game.player.y + this.game.player.height / 2, 15, cx, cy, x2, y2, beamWidth)) {
             this.game.player.takeDamage(40);
