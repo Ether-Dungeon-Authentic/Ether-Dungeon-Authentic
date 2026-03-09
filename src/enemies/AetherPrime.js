@@ -36,6 +36,9 @@ class AetherDrone extends Enemy {
             return;
         }
 
+        // Shared flash timer update for all states (v1.2.9)
+        if (this.flashTimer > 0) this.flashTimer -= dt;
+
         if (this.state === 'rush') {
             // Manual movement for bouncing projectiles (superUpdate stops at walls)
             this.x += this.vx * dt;
@@ -71,7 +74,6 @@ class AetherDrone extends Enemy {
 
             this.currentAngleForDraw = Math.atan2(this.vy, this.vx);
             this.statusManager.update(dt);
-            if (this.flashTimer > 0) this.flashTimer -= dt; // Ensure flash timer clears during rush
             // Bypass friction and superUpdate in rush mode to maintain speed and bounce
         } else if (this.state === 'sweep_move') {
             const dx = this.sweepTarget.x - (this.x + this.width / 2);
@@ -97,12 +99,10 @@ class AetherDrone extends Enemy {
                 }
             }
             this.statusManager.update(dt);
-            if (this.flashTimer > 0) this.flashTimer -= dt;
         } else if (this.state === 'sweep_aim') {
             // Keep fixed direction
             this.currentAngleForDraw = this.sweepLockedAngle;
             this.statusManager.update(dt);
-            if (this.flashTimer > 0) this.flashTimer -= dt;
         } else if (this.state === 'sweep_beam') {
             this.sweepTimer -= dt;
             const elapsed = this.sweepMaxTimer - this.sweepTimer;
@@ -132,7 +132,6 @@ class AetherDrone extends Enemy {
                 this.state = 'return';
             }
             this.statusManager.update(dt);
-            if (this.flashTimer > 0) this.flashTimer -= dt;
         } else {
             if (this.state === 'return') {
                 const targetX = this.owner.x + this.owner.width / 2 - this.width / 2;

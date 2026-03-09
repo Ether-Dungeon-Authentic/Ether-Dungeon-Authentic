@@ -74,17 +74,16 @@ export class Boss extends Enemy {
         // Aura pulsing
         this.auraTimer = 0;
 
+        this.isStunned = false;
+
+        this.groundSlamRange = 240; // Unified to Phase 2 power (v1.3.0)
+        this.recoveryTimer = 0;
+        this.dashAngle = 0;
+
         // State machine
         this.dashTimer = 0;
         this.isDashing = false;
-        this.dashSpeed = 650;
-        this.dashDirection = { x: 0, y: 0 };
-        this.stunTimer = 0;
-        this.isStunned = false;
-
-        this.groundSlamRange = 160;
-        this.recoveryTimer = 0;
-        this.dashAngle = 0;
+        this.dashSpeed = 975; // Unified to Phase 2 speed (v1.3.0)
 
         // Disabled knockback for boss
         this.knockbackResistance = 1.0;
@@ -118,11 +117,9 @@ export class Boss extends Enemy {
             return;
         }
 
-        // Phase Check
+        // Phase Check (Mainly visual/cool-down trigger now)
         if (this.phase === 1 && this.hp < this.maxHp * 0.5) {
             this.phase = 2;
-            this.groundSlamRange = 240; // Expand range (+50%)
-            this.dashSpeed = 975; // Dash speed (+50%)
             this.attackCooldown = 0.5; // Immediate first attack trigger
             this.game.camera.shake(0.6, 20);
             this.game.spawnParticles(this.x + this.width / 2, this.y + this.height / 2, 60, '#4444ff');
@@ -227,11 +224,8 @@ export class Boss extends Enemy {
 
         choices.push('crystal');
         choices.push('dash');
-        choices.push('jump'); // New jump attack
-
-        if (this.phase === 2) {
-            choices.push('storm');
-        }
+        choices.push('jump');
+        choices.push('storm'); // Available from Phase 1 (v1.3.0)
 
         const picked = choices[Math.floor(Math.random() * choices.length)];
         this.currentAttack = picked;
@@ -263,7 +257,7 @@ export class Boss extends Enemy {
         } else if (this.currentAttack === 'jump') {
             this.attackJump();
         }
-        this.attackCooldown = Math.random() * 1.5 + (this.phase === 1 ? 4.0 : 2.5);
+        this.attackCooldown = Math.random() * 1.5 + 2.5; // Unified and shortened for all phases (v1.3.0)
     }
 
     checkPlayerCollision() {
