@@ -7,8 +7,8 @@ import { AetherCircuitManager, ChipInstance } from './AetherCircuitManager.js';
 
 export class Player extends Entity {
     constructor(game, x, y) {
-        super(game, x, y, 20, 20, '#4488ff', 100);
-        this.baseMaxHp = 100;
+        super(game, x, y, 20, 20, '#4488ff', 300);
+        this.baseMaxHp = 300;
         this.speed = 260; // Increased by 30% from 200
         this.facing = 'right';
         this.isDashing = false;

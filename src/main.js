@@ -369,7 +369,10 @@ class Game {
             'assets/map/wood_crate.png',
             'assets/entities/shop_npc.png',
             'assets/entities/statue_angel.png',
-            'assets/entities/blood_altar.png'
+            'assets/entities/blood_altar.png',
+            'assets/enemies/aether_prime/aether_prime.png',
+            'assets/enemies/aether_prime/aether_prime_drone.png',
+            'assets/enemies/aether_sentinel.png'
         ];
 
         // Also add any icons/spriteSheets from skillsDB that aren't manually listed

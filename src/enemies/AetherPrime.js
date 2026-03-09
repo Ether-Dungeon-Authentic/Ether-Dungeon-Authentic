@@ -6,21 +6,28 @@ import { spawnProjectile, spawnExplosion } from '../skills/common.js';
 
 class AetherDrone extends Enemy {
     constructor(game, owner, index) {
-        // Essential stats for Enemy constructor to avoid NaN
         const droneHp = 150;
-        const droneSpeed = 0;
+        const droneSpeed = 280; // Match rush speed
         super(game, 0, 0, 24, 24, '#00ffff', droneHp, droneSpeed, null, 0);
         this.width = 24;
         this.height = 24;
-        this.isSpawning = false; // Bypass invulnerability
+        this.isSpawning = false;
 
         this.owner = owner;
         this.index = index;
         this.image = owner.bitImage;
         this.isDrone = true;
         this.isBoss = false;
-        this.canDrop = false; // Drones should not drop items
-        this.currentAngleForDraw = 0; // Initialize to avoid NaN in draw
+        this.canDrop = false;
+        this.currentAngleForDraw = 0;
+
+        // Rush mechanics
+        this.state = 'orbit'; // 'orbit', 'rush', 'return'
+        this.isShielded = false;
+        this.vx = 0;
+        this.vy = 0;
+        this.rushSpeed = 280;
+        this.hitCooldown = 0;
     }
 
     update(dt) {
@@ -28,16 +35,77 @@ class AetherDrone extends Enemy {
             this.markedForDeletion = true;
             return;
         }
-        // Handle invulnerable timer decay
-        super.update(dt);
-    }
 
-    draw(ctx) {
-        // Managed by AetherPrime for better layering
+        if (this.state === 'rush') {
+            // Manual movement for bouncing projectiles (superUpdate stops at walls)
+            this.x += this.vx * dt;
+            this.y += this.vy * dt;
+
+            // Wall Bounce
+            if (this.game && this.game.map) {
+                if (this.game.map.isWall(this.x, this.y) || this.game.map.isWall(this.x + this.width, this.y) ||
+                    this.game.map.isWall(this.x, this.y + this.height) || this.game.map.isWall(this.x + this.width, this.y + this.height)) {
+
+                    const cx = this.x + this.width / 2;
+                    const cy = this.y + this.height / 2;
+                    if (this.game.map.isWall(this.x, cy) || this.game.map.isWall(this.x + this.width, cy)) this.vx *= -1;
+                    if (this.game.map.isWall(cx, this.y) || this.game.map.isWall(cx, this.y + this.height)) this.vy *= -1;
+
+                    // Unstuck
+                    this.x += this.vx * dt;
+                    this.y += this.vy * dt;
+                }
+            }
+
+            // Player Collision (Direct Damage)
+            if (this.hitCooldown > 0) {
+                this.hitCooldown -= dt;
+            } else if (this.game.player) {
+                const dist = Math.hypot((this.x + this.width / 2) - (this.game.player.x + this.game.player.width / 2),
+                    (this.y + this.height / 2) - (this.game.player.y + this.game.player.height / 2));
+                if (dist < 25) {
+                    this.game.player.takeDamage(15);
+                    this.hitCooldown = 0.5;
+                }
+            }
+
+            this.currentAngleForDraw = Math.atan2(this.vy, this.vx);
+            this.statusManager.update(dt);
+            // Bypass friction and superUpdate in rush mode to maintain speed and bounce
+        } else {
+            if (this.state === 'return') {
+                const targetX = this.owner.x + this.owner.width / 2 - this.width / 2;
+                const targetY = this.owner.y + this.owner.height / 2 - this.height / 2;
+                const dx = targetX - this.x;
+                const dy = targetY - this.y;
+                const dist = Math.hypot(dx, dy);
+
+                if (dist < 10) {
+                    this.state = 'orbit';
+                    this.isShielded = false;
+                    this.vx = 0;
+                    this.vy = 0;
+                } else {
+                    const speed = 600;
+                    this.vx = (dx / dist) * speed;
+                    this.vy = (dy / dist) * speed;
+                    this.currentAngleForDraw = Math.atan2(this.vy, this.vx);
+                }
+            } else if (this.state === 'orbit') {
+                this.vx = 0;
+                this.vy = 0;
+            }
+
+            this.vx *= 0.95;
+            this.vy *= 0.95;
+            this.statusManager.update(dt);
+            this.superUpdate(dt);
+        }
+        this.checkPlayerCollision();
     }
 
     takeDamage(amount, color, aether, crit, kx, ky, kd, silent, source) {
-        // Pass to standard behavior without knockback
+        if (this.isShielded) amount *= 0.5;
         const res = super.takeDamage(amount, color, aether, crit, 0, 0, kd, silent, source);
         if (this.hp <= 0) {
             spawnExplosion(this.game, this.x + this.width / 2, this.y + this.height / 2, '#00ffff', 0.5);
@@ -69,8 +137,9 @@ export class AetherPrime extends Boss {
         this.droneEntities = [];
 
         this.image = getCachedImage('assets/enemies/aether_prime/aether_prime.png');
-        this.bitImage = getCachedImage('assets/enemies/aether_prime_drone.png');
+        this.bitImage = getCachedImage('assets/enemies/aether_prime/aether_prime_drone.png');
 
+        this.droneRushTimer = 0;
         this.spawnDrones();
     }
 
@@ -150,12 +219,12 @@ export class AetherPrime extends Boss {
             const dy = this.game.player.y - this.y;
             const dist = Math.sqrt(dx * dx + dy * dy);
 
-            if (dist > 150) {
-                this.vx += (dx / dist) * this.speed * dt;
-                this.vy += (dy / dist) * this.speed * dt;
-            } else if (dist < 100 && dist > 0) {
-                this.vx -= (dx / dist) * this.speed * dt;
-                this.vy -= (dy / dist) * this.speed * dt;
+            if (dist > 180) {
+                this.vx += (dx / dist) * this.speed * dt * 2;
+                this.vy += (dy / dist) * this.speed * dt * 2;
+            } else if (dist < 120 && dist > 0) {
+                this.vx -= (dx / dist) * this.speed * dt * 2;
+                this.vy -= (dy / dist) * this.speed * dt * 2;
             }
         }
 
@@ -175,28 +244,57 @@ export class AetherPrime extends Boss {
 
         this.droneEntities.forEach((d, i) => {
             if (!d || d.markedForDeletion) return;
+            d.update(dt); // Crucial: Call drone's specific update
 
-            // Normal Orbit Logic (always maintain during attack now)
-            const orbitDist = 80 + Math.sin(time * 1.2 + i) * 10;
-            const angle = time * 0.5 * (1 + (i % 2 === 0 ? 0.2 : -0.2)) + (i / this.bitCount) * Math.PI * 2;
-            const floatX = Math.sin(time * 2.1 + i) * 15;
-            const floatY = Math.cos(time * 1.7 + i) * 15;
+            if (d.state === 'orbit') {
+                // Erratic "Swarm" Movement Logic (縦横無尽)
+                // Combine multiple sine/cosine waves with different frequencies and phases
+                const baseAngle = (i / this.bitCount) * Math.PI * 2;
+                const orbitSpeed = 0.8;
 
-            const targetX = cx + Math.cos(angle) * orbitDist + floatX - d.width / 2;
-            const targetY = cy + Math.sin(angle) * orbitDist + floatY - d.height / 2;
+                // Angular oscillation
+                const angleOffset = Math.sin(time * 1.2 + i * 0.5) * 0.5 + Math.cos(time * 0.7 - i) * 0.3;
+                const angle = baseAngle + time * orbitSpeed + angleOffset;
 
-            d.x = targetX;
-            d.y = targetY;
+                // Radial oscillation (drifting in and out)
+                const baseDist = 100;
+                const distOffset = Math.sin(time * 1.5 + i * 1.5) * 40 + Math.cos(time * 0.5 + i) * 20;
+                const orbitDist = baseDist + distOffset;
 
-            // Direction Logic
-            if (this.isTelegraphing && this.currentAttack === 'syncShot') {
-                // Aim at player during telegraph
-                d.currentAngleForDraw = Math.atan2(this.game.player.y - (d.y + d.height / 2), this.game.player.x - (d.x + d.width / 2));
-            } else {
-                // Face movement direction
-                d.currentAngleForDraw = angle;
+                // Small erratic floating
+                const floatX = Math.sin(time * 3.5 + i * 2) * 20;
+                const floatY = Math.cos(time * 2.8 + i * 3) * 20;
+
+                const targetX = cx + Math.cos(angle) * orbitDist + floatX - d.width / 2;
+                const targetY = cy + Math.sin(angle) * orbitDist + floatY - d.height / 2;
+
+                // Smooth interpolation to target to make it feel "active" but not teleporting
+                const lerpFactor = 5.0 * dt;
+                d.x += (targetX - d.x) * Math.min(1.0, lerpFactor);
+                d.y += (targetY - d.y) * Math.min(1.0, lerpFactor);
+
+                // Direction Logic
+                if (this.isTelegraphing && this.currentAttack === 'syncShot') {
+                    // Aim at player during telegraph
+                    if (this.game && this.game.player) {
+                        d.currentAngleForDraw = Math.atan2(this.game.player.y - (d.y + d.height / 2), this.game.player.x - (d.x + d.width / 2));
+                    }
+                } else {
+                    // Face "forward" in its orbit/drift path
+                    d.currentAngleForDraw = angle + Math.PI / 2 + angleOffset;
+                }
             }
         });
+
+        // Drone Rush Timer
+        if (this.droneRushTimer > 0) {
+            this.droneRushTimer -= dt;
+            if (this.droneRushTimer <= 0) {
+                this.droneEntities.forEach(d => {
+                    if (d && !d.markedForDeletion) d.state = 'return';
+                });
+            }
+        }
 
         // Sync Shot Charging VFX
         if (this.isTelegraphing && this.currentAttack === 'syncShot' && this.game) {
@@ -240,7 +338,36 @@ export class AetherPrime extends Boss {
             }
         }
 
-        super.update(dt);
+        // Boss logic (Attacks, decideAttack) - Handle Telegraphing manually after bypassing Enemy.update
+        if (this.isTelegraphing) {
+            this.telegraphTimer -= dt;
+            this.vx = 0;
+            this.vy = 0;
+            if (this.telegraphTimer <= 0) {
+                this.isTelegraphing = false;
+                this.executeAttack();
+            }
+        } else {
+            this.attackCooldown -= dt;
+            if (this.attackCooldown <= 0) {
+                this.decideAttack();
+            }
+        }
+        this.updateAnimation(dt);
+        this.auraTimer += dt;
+        this.flashTimer = Math.max(0, (this.flashTimer || 0) - dt);
+
+        this.vx *= 0.95;
+        this.vy *= 0.95;
+        const currentSpeed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+        const maxSpeed = 300;
+        if (currentSpeed > maxSpeed) {
+            this.vx = (this.vx / currentSpeed) * maxSpeed;
+            this.vy = (this.vy / currentSpeed) * maxSpeed;
+        }
+
+        this.statusManager.update(dt);
+        this.superUpdate(dt);
     }
 
     decideAttack() {
@@ -249,13 +376,15 @@ export class AetherPrime extends Boss {
         let picked = 'summon';
         const r = Math.random();
         if (this.phase === 1) {
-            if (r < 0.4) picked = 'summon';
-            else if (r < 0.7) picked = 'syncShot';
+            if (r < 0.3) picked = 'summon';
+            else if (r < 0.6) picked = 'syncShot';
+            else if (r < 0.8) picked = 'droneRush';
             else picked = 'beam';
         } else {
             if (r < 0.2) picked = 'summon';
-            else if (r < 0.5) picked = 'nova';
-            else if (r < 0.8) picked = 'syncShot';
+            else if (r < 0.4) picked = 'nova';
+            else if (r < 0.6) picked = 'syncShot';
+            else if (r < 0.8) picked = 'droneRush';
             else picked = 'beam';
         }
 
@@ -263,14 +392,13 @@ export class AetherPrime extends Boss {
         if (picked === 'beam') {
             this.beamTargetAngle = null;
             this.startTelegraph(1.5);
-        } else if (picked === 'nova') {
+        } else if (picked === 'nova' || picked === 'droneRush') {
             this.startTelegraph(1.2);
         } else if (picked === 'syncShot') {
             this.startTelegraph(1.5);
         } else {
             this.executeAttack();
         }
-        this.attackCooldown = 1.0;
     }
 
     executeAttack() {
@@ -280,6 +408,7 @@ export class AetherPrime extends Boss {
         else if (this.currentAttack === 'nova') this.attackNova();
         else if (this.currentAttack === 'summon') this.attackSummon();
         else if (this.currentAttack === 'syncShot') this.attackSyncShot();
+        else if (this.currentAttack === 'droneRush') this.attackDroneRush();
 
         this.attackCooldown = this.phase === 1 ? (6.0 + Math.random() * 2) : (4.0 + Math.random() * 2);
     }
@@ -291,8 +420,24 @@ export class AetherPrime extends Boss {
             const dcx = d.x + d.width / 2;
             const dcy = d.y + d.height / 2;
             const angle = Math.atan2(this.game.player.y - dcy, this.game.player.x - dcx);
-            this.spawnOrb(dcx, dcy, angle, { speed: 450, size: 30, color: '#00ffff', damage: 15, isBeam: true });
+            this.spawnOrb(dcx, dcy, angle, { speed: 500, size: 50, color: '#00ffff', damage: 10, isBeam: true });
         });
+    }
+
+    attackDroneRush() {
+        if (!this.game || !this.game.player) return;
+        this.droneRushTimer = 10.0;
+        this.droneEntities.forEach((d, i) => {
+            if (!d || d.markedForDeletion) return;
+            d.state = 'rush';
+            d.isShielded = true;
+
+            // Random direction outward initially
+            const angle = (i / this.bitCount) * Math.PI * 2 + Math.random() * 0.5;
+            d.vx = Math.cos(angle) * d.rushSpeed;
+            d.vy = Math.sin(angle) * d.rushSpeed;
+        });
+        if (this.game.logToScreen) this.game.logToScreen("DRONE RUSH INITIATED!");
     }
 
     attackNova() {
@@ -405,9 +550,9 @@ export class AetherPrime extends Boss {
                 ctx.shadowColor = this.color;
 
                 if (options.isBeam) {
-                    // Slender rectangle shape
+                    // Slender rectangle shape (Longer and Thinner)
                     const length = size;
-                    const thickness = 4;
+                    const thickness = 3;
                     ctx.fillRect(-length / 2, -thickness / 2, length, thickness);
 
                     // Core white line
@@ -472,22 +617,43 @@ export class AetherPrime extends Boss {
                 ctx.rotate(droneAngle);
 
                 // Attack Highlight
-                if (this.isTelegraphing && this.currentAttack === 'syncShot') {
+                if (this.isTelegraphing && (this.currentAttack === 'syncShot' || this.currentAttack === 'droneRush')) {
                     const pulse = 0.5 + Math.sin(Date.now() / 100) * 0.5;
                     ctx.shadowBlur = 15 * pulse;
                     ctx.shadowColor = '#00ffff';
                     // Cyan aura overlay
-                    ctx.fillStyle = `rgba(0, 255, 255, ${0.2 * pulse})`;
+                    ctx.fillStyle = `rgba(0, 255, 255, ${0.3 * pulse})`;
                     ctx.beginPath();
-                    ctx.arc(0, 0, 15, 0, Math.PI * 2);
+                    ctx.arc(0, 0, 20, 0, Math.PI * 2);
                     ctx.fill();
                 }
 
-                if (this.bitImage && this.bitImage.complete) {
+                if (this.bitImage && this.bitImage.complete && this.bitImage.naturalWidth !== 0) {
                     ctx.drawImage(this.bitImage, -12, -12, 24, 24);
+                    // Draw Shield if active
+                    if (d.isShielded) {
+                        ctx.beginPath();
+                        ctx.arc(0, 0, 18, 0, Math.PI * 2);
+                        ctx.strokeStyle = 'rgba(0, 255, 255, 0.5)';
+                        ctx.lineWidth = 2;
+                        ctx.stroke();
+
+                        // Subtle inner glow
+                        const grad = ctx.createRadialGradient(0, 0, 12, 0, 0, 18);
+                        grad.addColorStop(0, 'rgba(0, 255, 255, 0)');
+                        grad.addColorStop(1, 'rgba(0, 255, 255, 0.2)');
+                        ctx.fillStyle = grad;
+                        ctx.fill();
+                    }
                 } else {
+                    // Fallback to a glowing cyan circle instead of a plain square
                     ctx.fillStyle = '#00ffff';
-                    ctx.fillRect(-10, -10, 20, 20);
+                    ctx.shadowBlur = 10;
+                    ctx.shadowColor = '#00ffff';
+                    ctx.beginPath();
+                    ctx.arc(0, 0, 10, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.shadowBlur = 0;
                 }
                 ctx.restore();
 
