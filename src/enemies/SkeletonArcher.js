@@ -2,8 +2,8 @@ import { Enemy } from './BaseEnemy.js';
 import { Entity, getCachedImage, getCachedJson } from '../utils.js';
 
 export class SkeletonArcher extends Enemy {
-    constructor(game, x, y) {
-        super(game, x, y, 40, 48, '#ffffff', 45, 120, 'skeleton_archer', 120);
+    constructor(game, x, y, level = 1) {
+        super(game, x, y, 40, 48, '#ffffff', 30, 120, 'skeleton_archer', 120, level);
 
         // Sprite Sheet Assets
         this.fullSheet = getCachedImage('assets/enemies/skeleton_archer_full.png');
@@ -13,7 +13,9 @@ export class SkeletonArcher extends Enemy {
         this.animTimer = 0;
         const initialShootDelay = 1.0 + Math.random() * 2.0;
         this.shootTimer = game.difficulty === 'hard' ? initialShootDelay * 0.5 : initialShootDelay;
-        this.damage = 5; // Re-enable contact damage
+        const scaleFactor = 1 + (level - 1) * 0.05;
+        this.damage = Math.round(5 * scaleFactor); // Re-enable contact damage
+        this.arrowDamage = Math.round(12 * scaleFactor);
 
         // Wander AI state
         this.wanderTimer = 0;
@@ -31,7 +33,7 @@ export class SkeletonArcher extends Enemy {
         });
 
         this.targetAimPos = { x: 0, y: 0 };
-        this.displayName = 'スケルトンアーチャー';
+        this.displayName = `Lv.${level} スケルトンアーチャー`;
     }
 
     update(dt) {
@@ -285,7 +287,7 @@ export class SkeletonArcher extends Enemy {
                 width: 32,
                 height: 32,
                 angle: angle,
-                damage: 12,
+                damage: this.arrowDamage,
                 life: 3.0,
                 image: getCachedImage('assets/skills/vfx/projectile_arrow.png'),
                 update: function (dt, game) {

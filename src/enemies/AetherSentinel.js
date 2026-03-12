@@ -2,10 +2,10 @@ import { Enemy } from './BaseEnemy.js';
 import { getCachedImage } from '../utils.js';
 
 export class AetherSentinel extends Enemy {
-    constructor(game, x, y) {
+    constructor(game, x, y, level = 1) {
         // Stats: HP: 80, Speed: 60, Score: 250
-        super(game, x, y, 48, 48, '#00ffff', 80, 60, 'sentinel', 250);
-        this.displayName = 'エーテル・センチネル';
+        super(game, x, y, 48, 48, '#00ffff', 80, 60, 'sentinel', 250, level);
+        this.displayName = `Lv.${level} エーテル・センチネル`;
 
         // Texture specifically for sentinel
         this.image = getCachedImage('assets/enemies/aether_sentinel.png');
@@ -16,6 +16,9 @@ export class AetherSentinel extends Enemy {
         this.isBarrierActive = false;
         this.barrierDuration = 8.0;
         this.barrierActiveTimer = 0;
+
+        const scaleFactor = 1 + (level - 1) * 0.05;
+        this.projectileDamage = 15; // Fixed projectile damage
 
         this.targetDist = 250; // Ideal distance to maintain
 
@@ -167,7 +170,7 @@ export class AetherSentinel extends Enemy {
             vy: Math.sin(angle) * speed,
             width: 20,
             height: 20,
-            damage: 15,
+            damage: this.projectileDamage,
             color: '#00ffff',
             life: 5.0,
             rotation: 0,

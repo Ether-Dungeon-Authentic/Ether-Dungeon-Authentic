@@ -1,4 +1,4 @@
-﻿import { spawnExplosion, spawnIceShatter, spawnProjectile, spawnAetherExplosion, spawnLightningBolt, spawnLightningBurst, spawnThunderBurstImpact, spawnThunderfallImpact } from '../common.js';
+import { spawnExplosion, spawnIceShatter, spawnProjectile, spawnAetherExplosion, spawnLightningBolt, spawnLightningBurst, spawnThunderBurstImpact, spawnThunderfallImpact } from '../common.js';
 import { getCachedImage } from '../../utils.js';
 
 export const areaBehaviors = {
@@ -1842,12 +1842,32 @@ export const areaBehaviors = {
             user.voltDriveTimer *= 2.0;
         }
 
-        // 2. Global Visual Activation (YELLOW)
-        if (game.camera) game.camera.shake(0.3, 10);
-        spawnAetherExplosion(game, user.x + user.width / 2, user.y + user.height / 2, {
-            ringColor: 'rgba(255, 255, 0, 0.7)',
-            particleColor: 'rgba(255, 255, 100, 0.8)'
-        });
+        // 2. Global Visual Activation (LIGHTNING)
+        if (game.camera) game.camera.shake(0.5, 15);
+        
+        const cx = user.x + user.width / 2;
+        const cy = user.y + user.height / 2;
+        
+        // Large impact burst with lightning textures
+        if (typeof spawnThunderBurstImpact === 'function') {
+            spawnThunderBurstImpact(game, cx, cy, 2.5);
+        }
+        
+        // Extra circular bolts for "activation" feel
+        for (let i = 0; i < 8; i++) {
+            const angle = (i / 8) * Math.PI * 2;
+            const dist = 50 + Math.random() * 50;
+            const tx = cx + Math.cos(angle) * dist;
+            const ty = cy + Math.sin(angle) * dist;
+            
+            if (typeof spawnLightningBurst === 'function') {
+                spawnLightningBurst(game, tx, ty, {
+                    burstCount: 4,
+                    burstSize: 40,
+                    burstSpeed: 150
+                });
+            }
+        }
 
         // 3. Range Indicator (Around Player)
         game.animations.push({

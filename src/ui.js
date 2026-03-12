@@ -169,7 +169,7 @@ export function drawUI(ctx, game, width, height) {
     ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
     ctx.font = '12px sans-serif';
     ctx.textAlign = 'right';
-    ctx.fillText("Last Push: 2026/03/09 20:40 (v1.3.0)", width - 10, height - 10);
+    ctx.fillText("Last Push: 2026/03/09 22:15 (v1.4.0 - Enemy Leveling)", width - 10, height - 10);
     ctx.restore();
 
 
@@ -177,31 +177,33 @@ export function drawUI(ctx, game, width, height) {
 
     // --- HUD Visibility Management ---
     const uiLayerEl = document.getElementById('ui-layer');
-    const skillBarEl = document.getElementById('skill-bar');
+    const hudBottomCenterEl = document.getElementById('hud-bottom-center');
     const healthBarEl = document.getElementById('health-bar-container');
     const currencyDisplayEl = document.getElementById('currency-display');
     const scoreDisplayEl = document.getElementById('score-display');
     const floorDisplayEl = document.getElementById('floor-display');
     const settingsBtnEl = document.getElementById('settings-btn');
+    const chipStatusBarEl = document.getElementById('chip-status-bar');
 
     if (!game.isHUDVisible) {
         if (uiLayerEl) {
-            // We want to keep the UI layer for things like level up, but hide specific HUD elements
-            if (skillBarEl) skillBarEl.style.display = 'none';
+            if (hudBottomCenterEl) hudBottomCenterEl.style.display = 'none';
             if (healthBarEl) healthBarEl.style.display = 'none';
             if (currencyDisplayEl) currencyDisplayEl.style.display = 'none';
             if (scoreDisplayEl) scoreDisplayEl.style.display = 'none';
             if (floorDisplayEl) floorDisplayEl.style.display = 'none';
             if (settingsBtnEl) settingsBtnEl.style.display = 'none';
+            if (chipStatusBarEl) chipStatusBarEl.style.display = 'none';
         }
-        return; // Skip Canvas HUD drawing (Mini-map, etc)
+        return;
     } else {
-        if (skillBarEl) skillBarEl.style.display = 'flex';
+        if (hudBottomCenterEl) hudBottomCenterEl.style.display = 'flex';
         if (healthBarEl) healthBarEl.style.display = 'flex';
         if (currencyDisplayEl) currencyDisplayEl.style.display = 'flex';
         if (scoreDisplayEl) scoreDisplayEl.style.display = 'flex';
         if (floorDisplayEl) floorDisplayEl.style.display = 'flex';
         if (settingsBtnEl) settingsBtnEl.style.display = 'flex';
+        if (chipStatusBarEl) chipStatusBarEl.style.display = 'flex';
     }
 
     // Update Skill DOM UI
@@ -297,6 +299,18 @@ export function drawUI(ctx, game, width, height) {
 
     // Draw Mini-map
     drawMiniMap(ctx, game, width, height);
+
+    // Update Floor Display
+    const floorValue = document.getElementById('floor-value');
+    if (floorValue) {
+        if (game.currentFloor === 0) {
+            floorValue.textContent = 'LOBBY';
+            floorValue.style.fontSize = '12px'; // Slightly smaller to fit
+        } else {
+            floorValue.textContent = game.currentFloor;
+            floorValue.style.fontSize = ''; // Reset
+        }
+    }
 }
 
 function updateChipStatus(game) {

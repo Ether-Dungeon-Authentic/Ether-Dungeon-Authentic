@@ -64,11 +64,10 @@
 
                     <div class="title-menu">
                         <button id="btn-start-game" class="title-btn">冒険を始める</button>
-                        <button id="btn-open-lab" class="title-btn">アップグレード</button>
                     </div>
 
                     <div class="title-footer">
-                        v1.3.0 | created by simmer
+                        v1.4.0 | created by simmer
                     </div>
                 </div>
             </div>
@@ -96,8 +95,11 @@
                     <!-- Right Side: Tabbed Settings -->
                     <div class="stage-right-column">
                         <div class="stage-tabs">
-                            <button class="stage-tab-btn active" data-tab="skills">スキル選択</button>
-                            <button class="stage-tab-btn" data-tab="difficulty">難易度</button>
+                            <button class="stage-tab-btn active" data-tab="normal">通常</button>
+                            <button class="stage-tab-btn" data-tab="primary1">メイン1</button>
+                            <button class="stage-tab-btn" data-tab="primary2">メイン2</button>
+                            <button class="stage-tab-btn" data-tab="secondary">サブ</button>
+                            <button class="stage-tab-btn" data-tab="ultimate">必殺</button>
                         </div>
 
                         <div class="stage-tab-content active" id="tab-skills">
@@ -121,23 +123,6 @@
                         </div>
 
 
-                        <div class="stage-tab-content" id="tab-difficulty" style="display: none;">
-                            <div class="settings-section no-box">
-                                <h3 style="text-align: center; font-size: 14px; margin-bottom: 20px;">難易度を選択
-                                </h3>
-                                <div class="difficulty-options">
-                                    <label class="diff-option" data-difficulty="easy">
-                                        <div class="diff-name">イージー</div>
-                                    </label>
-                                    <label class="diff-option active" data-difficulty="normal">
-                                        <div class="diff-name">ノーマル</div>
-                                    </label>
-                                    <label class="diff-option" data-difficulty="hard">
-                                        <div class="diff-name">ハード</div>
-                                    </label>
-                                </div>
-                            </div>
-                        </div>
                     </div>
                 </div>
             </div>
@@ -163,6 +148,7 @@
                             <button class="stage-tab-btn" data-tab="upgrade">強化</button>
                             <button class="stage-tab-btn" data-tab="dismantle">分解</button>
                             <button class="stage-tab-btn" data-tab="synthesis">合成</button>
+                            <button class="stage-tab-btn" data-tab="research">研究</button>
                         </div>
 
                         <div id="lab-tab-content" class="lab-tab-content">
@@ -261,9 +247,7 @@
                         </div>
                     </div>
                 </div>
-                <div id="aether-gauge-container">
-                    <div id="aether-gauge-fill"></div>
-                </div>
+
 
                 <!-- Aether Coins (Per-run) -->
                 <div id="currency-display">
@@ -386,46 +370,52 @@
             </div>
 
             <div id="chip-status-bar"></div>
-            <div id="skill-bar">
-                <div class="skill-slot" id="skill-normal">
-                    <div class="key-hint">Space</div>
-                    <img class="skill-icon" style="display:none">
-                    <div class="skill-fallback-text" style="display:none"></div>
-                    <div class="cooldown-overlay"></div>
-                    <div class="cooldown-text"></div>
-                    <div class="stack-count"></div>
+            <div id="hud-bottom-center">
+                <div id="skill-bar">
+                    <div class="skill-slot" id="skill-normal">
+                        <div class="key-hint">Space</div>
+                        <img class="skill-icon" style="display:none">
+                        <div class="skill-fallback-text" style="display:none"></div>
+                        <div class="cooldown-overlay"></div>
+                        <div class="cooldown-text"></div>
+                        <div class="stack-count"></div>
+                    </div>
+                    <div class="skill-slot" id="skill-primary1">
+                        <div class="key-hint">Q</div>
+                        <img class="skill-icon" style="display:none">
+                        <div class="skill-fallback-text" style="display:none"></div>
+                        <div class="cooldown-overlay"></div>
+                        <div class="cooldown-text"></div>
+                        <div class="stack-count"></div>
+                    </div>
+                    <div class="skill-slot" id="skill-primary2">
+                        <div class="key-hint">E</div>
+                        <img class="skill-icon" style="display:none">
+                        <div class="skill-fallback-text" style="display:none"></div>
+                        <div class="cooldown-overlay"></div>
+                        <div class="cooldown-text"></div>
+                        <div class="stack-count"></div>
+                    </div>
+                    <div class="skill-slot" id="skill-secondary">
+                        <div class="key-hint">C</div>
+                        <img class="skill-icon" style="display:none">
+                        <div class="skill-fallback-text" style="display:none"></div>
+                        <div class="cooldown-overlay"></div>
+                        <div class="cooldown-text"></div>
+                        <div class="stack-count"></div>
+                    </div>
+                    <div class="skill-slot" id="skill-ultimate">
+                        <div class="key-hint">X</div>
+                        <img class="skill-icon" style="display:none">
+                        <div class="skill-fallback-text" style="display:none"></div>
+                        <div class="cooldown-overlay"></div>
+                        <div class="cooldown-text"></div>
+                        <div class="stack-count"></div>
+                    </div>
                 </div>
-                <div class="skill-slot" id="skill-primary1">
-                    <div class="key-hint">Q</div>
-                    <img class="skill-icon" style="display:none">
-                    <div class="skill-fallback-text" style="display:none"></div>
-                    <div class="cooldown-overlay"></div>
-                    <div class="cooldown-text"></div>
-                    <div class="stack-count"></div>
-                </div>
-                <div class="skill-slot" id="skill-primary2">
-                    <div class="key-hint">E</div>
-                    <img class="skill-icon" style="display:none">
-                    <div class="skill-fallback-text" style="display:none"></div>
-                    <div class="cooldown-overlay"></div>
-                    <div class="cooldown-text"></div>
-                    <div class="stack-count"></div>
-                </div>
-                <div class="skill-slot" id="skill-secondary">
-                    <div class="key-hint">C</div>
-                    <img class="skill-icon" style="display:none">
-                    <div class="skill-fallback-text" style="display:none"></div>
-                    <div class="cooldown-overlay"></div>
-                    <div class="cooldown-text"></div>
-                    <div class="stack-count"></div>
-                </div>
-                <div class="skill-slot" id="skill-ultimate">
-                    <div class="key-hint">X</div>
-                    <img class="skill-icon" style="display:none">
-                    <div class="skill-fallback-text" style="display:none"></div>
-                    <div class="cooldown-overlay"></div>
-                    <div class="cooldown-text"></div>
-                    <div class="stack-count"></div>
+
+                <div id="aether-gauge-container">
+                    <div id="aether-gauge-fill"></div>
                 </div>
             </div>
 

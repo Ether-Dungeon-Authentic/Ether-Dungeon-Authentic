@@ -2,8 +2,8 @@ import { Enemy } from './BaseEnemy.js';
 import { getCachedImage, getCachedJson } from '../utils.js';
 
 export class Goblin extends Enemy {
-    constructor(game, x, y) {
-        super(game, x, y, 64, 64, '#33cc33', 150, 60, 'goblin', 200);
+    constructor(game, x, y, level = 1) {
+        super(game, x, y, 64, 64, '#33cc33', 80, 60, 'goblin', 200, level);
         this.attackCooldown = 0;
         this.bounceAmount = 0; // Disable squash and stretch
 
@@ -26,9 +26,11 @@ export class Goblin extends Enemy {
             }
         });
 
+        const scaleFactor = 1 + (level - 1) * 0.05;
         this.stunTimer = 0;
-        this.damage = 10; // Re-enable contact damage
-        this.displayName = 'ゴブリン';
+        this.damage = Math.round(10 * scaleFactor); // Re-enable contact damage
+        this.slamDamage = Math.round(20 * scaleFactor);
+        this.displayName = `Lv.${level} ゴブリン`;
     }
 
     update(dt) {
@@ -60,7 +62,7 @@ export class Goblin extends Enemy {
 
         // Advance animation if moving
         if (!this.isTelegraphing && (Math.abs(this.vx) > 0.1 || Math.abs(this.vy) > 0.1)) {
-            this.animTimer += dt * 10; // 10 FPS
+            this.animTimer += dt * 30; // Increased to 30 FPS for 32-frame animation
         } else {
             this.animTimer = 0;
         }
@@ -74,7 +76,7 @@ export class Goblin extends Enemy {
 
         if (this.isTelegraphing) {
             currentImg = this.imgTelegraph;
-        } else if (this.attackImageTimer > 0) {
+        } else if (this.attackImageTimer > 0 || this.stunTimer > 0) {
             currentImg = this.imgAttack;
         } else if (this.walkData && this.frameKeys.length > 0 && (Math.abs(this.vx) > 0.1 || Math.abs(this.vy) > 0.1)) {
             currentImg = this.walkSheet;
@@ -210,7 +212,7 @@ export class Goblin extends Enemy {
         this.game.camera.shake(0.2, 12);
 
         if (dist < attackRadius) {
-            this.game.player.takeDamage(20);
+            this.game.player.takeDamage(this.slamDamage);
         }
 
         // 1. Grand White Shockwave (Single Ring, matching Aether Rush style)

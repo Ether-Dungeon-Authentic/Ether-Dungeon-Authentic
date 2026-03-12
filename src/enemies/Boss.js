@@ -3,13 +3,15 @@ import { getCachedImage, getCachedJson } from '../utils.js';
 import { spawnExplosion, spawnProjectile } from '../skills/common.js';
 
 export class Boss extends Enemy {
-    constructor(game, x, y) {
+    constructor(game, x, y, level = 1) {
         // Base stats for Aether Golem
         const hp = 3500;
         const speed = 80; // Reduced from 100 to 80 (20% decrease)
-        super(game, x, y, 90, 90, '#4444ff', hp, speed, 'boss', 5000);
+        super(game, x, y, 90, 90, '#4444ff', hp, speed, 'boss', 5000, level);
 
-        this.displayName = "AETHER GOLEM";
+        this.attackScale = 1.0; // Damage no longer scales with level
+
+        this.displayName = `Lv.${level} AETHER GOLEM`;
         this.isBoss = true;
         this.wallCollisionPadding = 12; // Allow slightly more overlap to prevent snagging on corners
         this.phase = 1;
@@ -58,7 +60,7 @@ export class Boss extends Enemy {
         this.image = this.spriteData.walk; // Fallback image set to walk sprite
         this.frameX = 0;
         this.frameTimer = 0;
-        this.animationFPS = 8;
+        this.animationFPS = 13;
 
         // Jump (Aether Leap) state
         this.isJumping = false;
@@ -75,6 +77,7 @@ export class Boss extends Enemy {
         this.auraTimer = 0;
 
         this.isStunned = false;
+        this.stunTimer = 0;
 
         this.groundSlamRange = 240; // Unified to Phase 2 power (v1.3.0)
         this.recoveryTimer = 0;
@@ -84,6 +87,7 @@ export class Boss extends Enemy {
         this.dashTimer = 0;
         this.isDashing = false;
         this.dashSpeed = 975; // Unified to Phase 2 speed (v1.3.0)
+        this.dashDirection = { x: 0, y: 0 };
 
         // Disabled knockback for boss
         this.knockbackResistance = 1.0;
@@ -347,7 +351,7 @@ export class Boss extends Enemy {
         const dist = Math.hypot(px - bx, py - by);
         const jumpRange = this.groundSlamRange * 0.75; // 120px (50% reduction)
         if (dist < jumpRange) {
-            this.game.player.takeDamage(35);
+            this.game.player.takeDamage(Math.round(35 * this.attackScale));
         }
 
         // Visual impact (medium-large explosion)
@@ -376,7 +380,7 @@ export class Boss extends Enemy {
 
         const dist = Math.hypot(px - bx, py - by);
         if (dist < this.groundSlamRange) {
-            this.game.player.takeDamage(15);
+            this.game.player.takeDamage(Math.round(15 * this.attackScale));
         }
         // Increase explosion scale to 2.5 to match 160px range visually
         spawnExplosion(this.game, bx, by, '#4444ff', 2.5, 0.4);
@@ -400,7 +404,7 @@ export class Boss extends Enemy {
             }
             const angle = Math.random() * Math.PI * 2;
             spawnProjectile(this.game, this.x + this.width / 2, this.y + this.height / 2, Math.cos(angle) * 350, Math.sin(angle) * 350, {
-                damage: 15,
+                damage: Math.round(15 * this.attackScale),
                 color: '#33ccff',
                 width: 12,
                 height: 12,
@@ -432,7 +436,7 @@ export class Boss extends Enemy {
             x: cx - 25, y: cy - 25, w: 50, h: 50,
             spawnDelay: 0.5,
             riseTimer: 0.1, // Further doubled speed (0.2 -> 0.1)
-            life: 7.0, active: true, damage: 15,
+            life: 7.0, active: true, damage: Math.round(15 * this.attackScale),
             canDamagePlayer: true,
             // REMOVED: hp/takeDamage (Crystals are now indestructible)
             game: this.game,

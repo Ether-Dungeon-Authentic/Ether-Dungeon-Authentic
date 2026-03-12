@@ -1,5 +1,7 @@
 import { AetherLabManager } from '../AetherLabManager.js';
 import { getFormattedEffect } from '../ui.js';
+import { SaveManager } from '../SaveManager.js';
+import { skillsDB } from '../../data/skills_db.js';
 
 export class LabUI {
     static init(game) {
@@ -199,6 +201,11 @@ export class LabUI {
 
         if (this.currentTab === 'build') {
             this.renderBuildTab(container);
+            return;
+        }
+
+        if (this.currentTab === 'research') {
+            this.renderResearchTab(container);
             return;
         }
 
@@ -791,6 +798,57 @@ export class LabUI {
         grid.appendChild(listContainer);
     }
 
+    static renderResearchTab(container) {
+        const grid = document.createElement('div');
+        grid.className = 'lab-item-grid';
+        grid.style.display = 'grid';
+        grid.style.gridTemplateColumns = 'repeat(8, 46px)';
+        grid.style.gridAutoRows = '46px';
+        grid.style.gap = '12px';
+        grid.style.padding = '10px';
+        grid.style.justifyContent = 'center';
+        grid.style.overflowY = 'auto';
+
+        // Filter skills that are in collection but NOT in starting skills
+        const researchableSkills = skillsDB.filter(s => {
+            return SaveManager.isSkillUnlocked(s.id) && !SaveManager.isStartingSkillUnlocked(s.id);
+        });
+
+        if (researchableSkills.length === 0) {
+            container.innerHTML = `<div class="detail-placeholder">研究可能な新しいスキルがありません。<br><span style="font-size: 0.8em; color: #888;">(ダンジョンで新しいスキルを見つけるとここに出現します)</span></div>`;
+            return;
+        }
+
+        const slotCount = Math.max(24, Math.ceil(researchableSkills.length / 8) * 8);
+        for (let i = 0; i < slotCount; i++) {
+            const cell = document.createElement('div');
+            cell.className = 'grid-cell';
+
+            const skill = researchableSkills[i];
+            if (skill) {
+                const card = document.createElement('div');
+                card.className = `grid-cell chip-item rarity-common`; // Use chip styles for consistency
+                if (this.selectedChip === skill) card.classList.add('selected');
+
+                card.innerHTML = `<img src="${skill.icon}" class="chip-icon" onerror="this.style.display='none'">`;
+
+                card.onmouseenter = (e) => {
+                    const rect = card.getBoundingClientRect();
+                    this.showTooltip(null, rect.left + rect.width / 2, rect.top, skill.name, skill.description);
+                };
+                card.onmouseleave = () => this.hideTooltip();
+
+                card.onclick = () => {
+                    this.selectedChip = skill;
+                    this.render();
+                };
+                cell.appendChild(card);
+            }
+            grid.appendChild(cell);
+        }
+        container.appendChild(grid);
+    }
+
     static renderFocusArea() {
         const container = document.getElementById('lab-focus-area');
         const executeBtn = document.getElementById('btn-lab-execute');
@@ -799,6 +857,42 @@ export class LabUI {
 
         const content = document.createElement('div');
         content.className = 'lab-focus-content';
+
+        if (this.currentTab === 'research') {
+            const skill = this.selectedChip;
+            if (!skill || !skill.id) {
+                content.innerHTML = `<div class="detail-placeholder" style="margin-top: 40px;">解析するスキルを<br>選択してください</div>`;
+                if (executeBtn) executeBtn.style.display = 'none';
+            } else {
+                const cost = AetherLabManager.getSkillResearchCost(skill);
+                const canAfford = this.game.player.aetherShards >= cost;
+
+                content.innerHTML = `
+                    <div class="lab-focus-title rarity-rarity-epic" style="color:#00ffff;">${skill.name}</div>
+                    <div class="lab-focus-desc">${skill.description}</div>
+                    <div class="lab-cost-display">
+                        <div style="font-size: 8px; color: #888; margin-bottom: 5px;">研究コスト</div>
+                        <div class="cost-row ${canAfford ? 'sufficient' : 'insufficient'}">
+                            <div class="cost-label-with-icon">
+                                <img src="assets/ui/aether_shard.png" class="currency-icon">
+                            </div>
+                            <span>${cost}</span>
+                        </div>
+                    </div>
+                    <div style="margin-top:15px; font-size:9px; color:#00ffff; line-height:1.4;">
+                        解析を完了すると、初期装備として<br>永続的に選択可能になります。
+                    </div>
+                `;
+                if (executeBtn) {
+                    executeBtn.style.display = 'block';
+                    executeBtn.textContent = '解析を開始';
+                    executeBtn.disabled = !canAfford;
+                    executeBtn.style.opacity = canAfford ? '1' : '0.5';
+                }
+            }
+            container.appendChild(content);
+            return;
+        }
 
         if (this.currentTab === 'synthesis') {
             this.renderSynthesisFocus(content);
@@ -997,6 +1091,11 @@ export class LabUI {
             success = AetherLabManager.synthesizeRankUp(player, this.selectedSynthesisMaterials);
             if (success) {
                 this.selectedSynthesisMaterials = [];
+            }
+        } else if (this.currentTab === 'research' && this.selectedChip) {
+            success = AetherLabManager.researchSkill(player, this.selectedChip);
+            if (success) {
+                this.selectedChip = null;
             }
         }
 

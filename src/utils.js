@@ -337,13 +337,13 @@ export class Entity {
         if (this.invulnerable > 0 && Math.floor(Date.now() / 100) % 2 === 0) {
             ctx.fillStyle = 'white';
         }
-        ctx.fillRect(Math.floor(this.x), Math.floor(this.y), this.width, this.height);
+        ctx.fillRect(this.x, this.y, this.width, this.height);
 
         if (this.hp < this.maxHp) {
             ctx.fillStyle = 'red';
-            ctx.fillRect(Math.floor(this.x), Math.floor(this.y - 10), this.width, 5);
+            ctx.fillRect(this.x, this.y - 10, this.width, 5);
             ctx.fillStyle = 'green';
-            ctx.fillRect(Math.floor(this.x), Math.floor(this.y - 10), this.width * (this.hp / this.maxHp), 5);
+            ctx.fillRect(this.x, this.y - 10, this.width * (this.hp / this.maxHp), 5);
         }
     }
 }

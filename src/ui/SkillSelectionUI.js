@@ -1,14 +1,24 @@
 /**
  * Manages the Skill Selection (Stage Settings) UI.
  */
+import { SaveManager } from '../SaveManager.js';
+
 export class SkillSelectionUI {
     static modal = null;
     static startSkillList = null;
     static currentSkillIcon = null;
     static currentSkillName = null;
     static currentSkillDesc = null;
-    static selectedDifficulty = 'normal';
-    static selectedSkillId = null;
+    static currentTab = 'normal'; // default category
+
+    // Stores selected skill IDs for each category
+    static selectedSkills = {
+        normal: 'slash',
+        primary1: null,
+        primary2: null,
+        secondary: null,
+        ultimate: null
+    };
 
     static init() {
         this.modal = document.getElementById('stage-settings-modal');
@@ -19,102 +29,106 @@ export class SkillSelectionUI {
 
         if (!this.modal) return;
 
-        // Difficulty selection
-        const diffOptions = this.modal.querySelectorAll('.diff-option');
-        diffOptions.forEach(opt => {
-            opt.onclick = () => {
-                diffOptions.forEach(o => o.classList.remove('active'));
-                opt.classList.add('active');
-                this.selectedDifficulty = opt.dataset.difficulty;
-                this.updateStartButtonText();
-            };
-        });
-
-        // Tab Logic
+        // Tab Logic (Categories)
         const tabButtons = this.modal.querySelectorAll('.stage-tab-btn');
-        const tabContents = this.modal.querySelectorAll('.stage-tab-content');
-
         tabButtons.forEach(btn => {
             btn.onclick = () => {
-                const tabId = btn.dataset.tab;
+                this.currentTab = btn.dataset.tab;
                 tabButtons.forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
-
-                tabContents.forEach(content => {
-                    const targetId = `tab-${tabId}`;
-                    if (content.id === targetId) {
-                        content.style.display = 'block';
-                        content.classList.add('active');
-                    } else {
-                        content.style.display = 'none';
-                        content.classList.remove('active');
-                    }
-                });
+                
+                // Refresh list based on category
+                this.refreshUI();
             };
         });
     }
 
-    static updateStartButtonText() {
-        const btnStart = document.getElementById('btn-start-adventure');
-        if (!btnStart) return;
+    static refreshUI() {
+        if (!window._lastSkills) return;
+        
+        const filteredSkills = window._lastSkills.filter(s => {
+            // Check if unlocked for STARTING equipment
+            if (!SaveManager.isStartingSkillUnlocked(s.id)) return false;
 
-        const diffData = {
-            easy: { label: 'イージー', color: '#00ffff' },
-            normal: { label: 'ノーマル', color: '#adff2f' },
-            hard: { label: 'ハード', color: '#ff4444' }
-        };
-        const data = diffData[this.selectedDifficulty] || diffData.normal;
+            // Mapping UI tab to technical skill type
+            if (this.currentTab === 'normal') return s.type === 'normal';
+            if (this.currentTab === 'primary1' || this.currentTab === 'primary2') return s.type === 'primary';
+            if (this.currentTab === 'secondary') return s.type === 'secondary';
+            if (this.currentTab === 'ultimate') return s.type === 'ultimate';
+            return false;
+        });
 
-        btnStart.innerHTML = `出発する<br><span style="font-size: 10px; color: ${data.color}; opacity: 0.9; margin-top: 4px; display: block; font-family: 'Meiryo', 'Hiragino Kaku Gothic ProN', sans-serif; font-weight: bold;">(${data.label})</span>`;
+        this.renderSkillGrid(filteredSkills);
+        this.updateSkillDisplay(window._lastSkills);
+    }
+
+    static updateSkillDisplay(allSkills) {
+        const selectedId = this.selectedSkills[this.currentTab];
+        const skill = allSkills.find(s => s.id === selectedId);
+        
+        if (skill) {
+            this.currentSkillIcon.src = skill.icon || '';
+            this.currentSkillName.textContent = skill.name;
+            if (this.currentSkillDesc) this.currentSkillDesc.textContent = skill.description || "";
+        } else {
+            this.currentSkillIcon.src = '';
+            this.currentSkillName.textContent = '未選択';
+            if (this.currentSkillDesc) this.currentSkillDesc.textContent = 'このカテゴリのスキルを選択してください。';
+        }
+    }
+
+    static renderSkillGrid(skills) {
+        this.startSkillList.innerHTML = '';
+        const selectedId = this.selectedSkills[this.currentTab];
+
+        skills.forEach(skill => {
+            const card = document.createElement('div');
+            card.className = 'start-skill-card';
+            if (skill.id === selectedId) card.classList.add('active');
+
+            card.innerHTML = `<img src="${skill.icon || ''}" class="start-skill-icon">`;
+
+            card.onclick = () => {
+                this.selectedSkills[this.currentTab] = skill.id;
+                this.updateSkillDisplay(window._lastSkills);
+                this.startSkillList.querySelectorAll('.start-skill-card').forEach(c => c.classList.remove('active'));
+                card.classList.add('active');
+            };
+
+            this.startSkillList.appendChild(card);
+        });
+
+        // Add an "empty" slot for optional skills
+        if (this.currentTab !== 'normal') {
+            const emptyCard = document.createElement('div');
+            emptyCard.className = 'start-skill-card empty-slot';
+            if (!selectedId) emptyCard.classList.add('active');
+            emptyCard.innerHTML = '<div style="font-size: 20px; color: #555;">×</div>';
+            emptyCard.onclick = () => {
+                this.selectedSkills[this.currentTab] = null;
+                this.updateSkillDisplay(window._lastSkills);
+                this.startSkillList.querySelectorAll('.start-skill-card').forEach(c => c.classList.remove('active'));
+                emptyCard.classList.add('active');
+            }
+            this.startSkillList.appendChild(emptyCard);
+        }
     }
 
     static show(game, skills, onStartCallback, onBackCallback) {
         if (!this.modal) this.init();
         if (!this.modal || !this.startSkillList) return;
 
-        // Default to 'slash' if available, else first skill
-        if (!this.selectedSkillId) {
-            this.selectedSkillId = skills.some(s => s.id === 'slash') ? 'slash' : (skills.length > 0 ? skills[0].id : null);
-        }
+        window._lastSkills = skills; // Store for refresh
 
-        const updateSkillDisplay = () => {
-            const skill = skills.find(s => s.id === this.selectedSkillId);
-            if (skill) {
-                this.currentSkillIcon.src = skill.icon || '';
-                this.currentSkillName.textContent = skill.name;
-                if (this.currentSkillDesc) this.currentSkillDesc.textContent = skill.description || "";
-            }
-        };
-
-        const renderSkillGrid = () => {
-            this.startSkillList.innerHTML = '';
-            skills.forEach(skill => {
-                const card = document.createElement('div');
-                card.className = 'start-skill-card';
-                if (skill.id === this.selectedSkillId) card.classList.add('active');
-
-                card.innerHTML = `<img src="${skill.icon || ''}" class="start-skill-icon">`;
-
-                card.onclick = () => {
-                    this.selectedSkillId = skill.id;
-                    updateSkillDisplay();
-                    this.startSkillList.querySelectorAll('.start-skill-card').forEach(c => c.classList.remove('active'));
-                    card.classList.add('active');
-                };
-
-                this.startSkillList.appendChild(card);
-            });
-        };
-
-        updateSkillDisplay();
-        renderSkillGrid();
-
-        // Reset to default tab (Skills)
+        // Reset to normal tab
+        this.currentTab = 'normal';
         const tabButtons = this.modal.querySelectorAll('.stage-tab-btn');
-        const skillsTabBtn = Array.from(tabButtons).find(b => b.dataset.tab === 'skills');
-        if (skillsTabBtn) skillsTabBtn.click();
+        tabButtons.forEach(b => {
+            if (b.dataset.tab === 'normal') b.classList.add('active');
+            else b.classList.remove('active');
+        });
 
-        this.updateStartButtonText();
+        this.refreshUI();
 
         // Button Handlers
         const btnStart = document.getElementById('btn-start-adventure');
@@ -123,8 +137,12 @@ export class SkillSelectionUI {
         if (btnStart) {
             btnStart.onclick = () => {
                 this.hide();
-                onStartCallback({ difficulty: this.selectedDifficulty, skillId: this.selectedSkillId });
+                onStartCallback({ 
+                    difficulty: game.difficulty || 'normal', 
+                    skills: { ...this.selectedSkills } 
+                });
             };
+            btnStart.textContent = "設定を反映";
         }
 
         if (btnBack) {

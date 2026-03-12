@@ -54,11 +54,49 @@ export class MapRenderer {
 
                     // Step 3: Render Southern Face (The main front texture)
                     if (isFloorS && y < this.map.height - 1 && this.map.tiles[y + 1][x] === 0) {
-                        if (this.map.wallImage.complete && this.map.wallImage.naturalWidth !== 0) {
-                            ctx.drawImage(this.map.wallImage, tx, ty, ts, ts);
+                        const seed = x * 31 + y * 17;
+                        const isBlood = (seed % 100) < 30;
+                        
+                        let wallImg;
+                        if (isBlood && this.map.bloodWallImages && this.map.bloodWallImages.length > 0) {
+                            const bloodIdx = (x * 3 + y * 5) % this.map.bloodWallImages.length;
+                            wallImg = this.map.bloodWallImages[bloodIdx];
+                        } else {
+                            const wallIdx = (x * 7 + y * 13) % this.map.wallImages.length;
+                            wallImg = this.map.wallImages[wallIdx];
+                        }
+
+                        if (wallImg && wallImg.complete && wallImg.naturalWidth !== 0) {
+                            ctx.drawImage(wallImg, tx, ty, ts, ts);
                         } else {
                             ctx.fillStyle = '#666'; // Fallback highlight
                             ctx.fillRect(tx, ty, ts, ts);
+                        }
+
+                        // Step 3.5: Draw Decorations (Vines)
+                        let decoSeed = (x * 12347 + y * 67891) >>> 0;
+                        // Better mixing to avoid linear patterns (natural clumps/gaps)
+                        decoSeed = Math.imul(decoSeed ^ (decoSeed >>> 15), 0x85ebca6b);
+                        decoSeed = (decoSeed ^ (decoSeed >>> 13)) >>> 0;
+
+                        if (decoSeed % 100 < 25) { // 25% chance
+                            const decoImages = this.map.decorationImages;
+                            if (decoImages && decoImages.length > 0) {
+                                const decoImg = decoImages[decoSeed % decoImages.length];
+                                if (decoImg && decoImg.complete && decoImg.naturalWidth !== 0) {
+                                    // Back to fixed grid placement
+                                    ctx.drawImage(decoImg, tx, ty, ts, ts);
+
+                                    // Step 3.6: Draw Overlay (nives4) with 30% chance if vines are present
+                                    const overlaySeed = Math.imul(decoSeed, 0x12347) >>> 0;
+                                    if (overlaySeed % 100 < 30) {
+                                        const overlayImg = this.map.vinesOverlayImage;
+                                        if (overlayImg && overlayImg.complete && overlayImg.naturalWidth !== 0) {
+                                            ctx.drawImage(overlayImg, tx, ty, ts, ts);
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
 

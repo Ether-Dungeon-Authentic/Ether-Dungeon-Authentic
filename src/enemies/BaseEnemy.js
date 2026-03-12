@@ -1,5 +1,6 @@
 import { Entity, getCachedImage } from '../utils.js';
-import { StatusManager } from '../status_effects.js';
+import { StatusManager, STATUS_TYPES } from '../status_effects.js';
+import { spawnProjectile } from '../skills/index.js';
 import { DropItem } from '../entities/DropItem.js';
 import { AetherLabManager } from '../AetherLabManager.js';
 import { Chest } from '../entities/Chest.js';
@@ -14,22 +15,26 @@ const textures = {
 
 const statusIcons = {
     bleed: getCachedImage('assets/skills/icons/icon_bleed.png'),
-    slow: getCachedImage('assets/skills/icons/icon_ice.png'),
+    slow: getCachedImage('assets/skills/icons/icon_slow.png'),
     burn: getCachedImage('assets/skills/icons/icon_burn.png'),
-    wet: getCachedImage('assets/skills/icons/icon_wet.png')
+    wet: getCachedImage('assets/skills/icons/icon_wet.png'),
+    poison: getCachedImage('assets/skills/icons/icon_poison.png'),
+    shock: getCachedImage('assets/skills/icons/icon_shock.png')
 };
 
 export class Enemy extends Entity {
-    constructor(game, x, y, width, height, color, hp, speed, textureKey, scoreValue = 0) {
-        // Difficulty scaling
-        let finalHp = hp;
-        if (game.difficulty === 'hard') finalHp = hp * 2.0;
-        else if (game.difficulty === 'easy') finalHp = hp * 0.5;
+    constructor(game, x, y, width, height, color, baseHp, speed, textureKey, baseScoreValue = 0, level = 1) {
+        // Level scaling: Each level increases stats by 10%
+        const scaleFactor = 1 + (level - 1) * 0.05;
 
+        const finalHp = Math.round(baseHp * scaleFactor);
         super(game, x, y, width, height, color, finalHp);
+
+        this.level = level;
+
         this.speed = speed;
-        this.scoreValue = scoreValue;
-        this.damage = 10; // Default contact damage
+        this.scoreValue = Math.round(baseScoreValue * scaleFactor);
+        this.damage = 10; // Fixed default contact damage
         this.flashTimer = 0; // Initialize flash timer
         this.image = textures[textureKey] ? getCachedImage(textures[textureKey]) : new Image();
         this.statusManager = new StatusManager(this);
@@ -49,7 +54,7 @@ export class Enemy extends Entity {
         this.spawnTimer = 0.67;
         this.spawnDuration = 0.67;
 
-        this.displayName = 'Enemy';
+        this.displayName = `Lv.${level} Enemy`;
         this.canDrop = true; // Flag to enable/disable item/chip drops
     }
 
@@ -200,8 +205,8 @@ export class Enemy extends Entity {
                 // --- Soft Separation AI (Avoid overlapping) ---
                 const separationDist = this.width * 0.8;
                 const separationForce = 150;
-                for (let other of this.game.entities) {
-                    if (other !== this && other instanceof Enemy) { // Corrected check
+                for (const other of this.game.entities) {
+                    if (other !== this && other instanceof Enemy) {
                         const odx = other.x - this.x;
                         const ody = other.y - this.y;
                         const odist = Math.sqrt(odx * odx + ody * ody);
@@ -234,6 +239,41 @@ export class Enemy extends Entity {
         }
 
         this.statusManager.update(dt);
+
+        // --- Status Visual Effects (Particles) ---
+        if (this.game && this.game.spawnParticles) {
+            // FIRE (Burn) Effect: occasional orange/red particles
+            if (this.statusManager.effects.has(STATUS_TYPES.BURN)) {
+                if (Math.random() < 0.25) {
+                    const px = this.x + Math.random() * this.width;
+                    const py = this.y + Math.random() * this.height;
+                    this.game.spawnParticles(px, py, 1, '#ff6600', 0, -30);
+                }
+            }
+            // SHOCK Effect: small yellow sparks (using actual lightning assets)
+            if (this.statusManager.effects.has(STATUS_TYPES.SHOCK)) {
+                if (Math.random() < 0.1) {
+                    const px = this.x + Math.random() * this.width;
+                    const py = this.y + Math.random() * this.height;
+                    const partId = Math.floor(Math.random() * 10) + 1;
+                    const partStr = partId < 10 ? `0${partId}` : `${partId}`;
+                    
+                    spawnProjectile(this.game, px, py, 0, 0, {
+                        visual: true,
+                        spriteSheet: `assets/skills/vfx/lightning_part_${partStr}.png`,
+                        frames: 1,
+                        life: 0.15 + Math.random() * 0.1,
+                        width: 24 + Math.random() * 24,
+                        height: 24 + Math.random() * 24,
+                        rotation: Math.random() * Math.PI * 2,
+                        color: '#ffff00',
+                        filter: 'sepia(1) saturate(10) hue-rotate(0deg) brightness(1.2)',
+                        blendMode: 'lighter'
+                    });
+                }
+            }
+        }
+
         super.update(dt);
         this.checkPlayerCollision();
     }
@@ -264,7 +304,7 @@ export class Enemy extends Entity {
     }
 
     takeDamage(amount, damageColor, aetherGain = 1, isCrit = false, kx = 0, ky = 0, kDuration = 0.15, silent = false) {
-        if (this.isSpawning) return; // Invulnerable while spawning
+        if (this.markedForDeletion || this.isSpawning) return; // Guard against multiple death triggers or spawning hits
 
         // Gambler's Dice Randomization
         if (this.game.player && this.game.player.circuit) {
@@ -315,6 +355,11 @@ export class Enemy extends Entity {
         // No invulnerability check for enemies so they can take rapid damage
         this.hp -= amount;
 
+        // Handle Shock Chain Damage
+        if (this.statusManager && this.statusManager.handleTakeDamage) {
+            this.statusManager.handleTakeDamage(amount, silent);
+        }
+
         // Spawn Damage Text (larger for crits)
         if (!silent) {
             this.game.animations.push({
@@ -327,7 +372,7 @@ export class Enemy extends Entity {
                 life: isCrit ? 1.0 : 0.8,
                 maxLife: isCrit ? 1.0 : 0.8,
                 color: damageColor || '#fff',
-                font: isCrit ? "bold 18px 'Press Start 2P', monospace" : "14px 'Press Start 2P', monospace"
+                font: isCrit ? "bold 18px 'Meiryo', 'Hiragino Kaku Gothic ProN', 'MS PGothic', sans-serif" : "14px 'Meiryo', 'Hiragino Kaku Gothic ProN', 'MS PGothic', sans-serif"
             });
         }
 
@@ -387,8 +432,9 @@ export class Enemy extends Entity {
                 for (let i = 0; i < 3; i++) {
                     const angle = (i / 3) * Math.PI * 2;
                     const dist = 60;
-                    const cx = this.x + this.width / 2 + Math.cos(angle) * dist - 15;
-                    const cy = this.y + this.height / 2 + Math.sin(angle) * dist - 15;
+                    const rawCx = this.x + this.width / 2 + Math.cos(angle) * dist - 15;
+                    const rawCy = this.y + this.height / 2 + Math.sin(angle) * dist - 15;
+                    const { x: cx, y: cy } = Chest.getSafeSpawnPosition(this.game, rawCx, rawCy);
                     const chest = new Chest(this.game, cx, cy);
                     this.game.chests.push(chest);
                 }
@@ -466,6 +512,9 @@ export class Enemy extends Entity {
             if (this.flashTimer > 0) {
                 // Apply white flash filter
                 ctx.filter = 'brightness(0) invert(1)';
+            } else if (this.statusManager.effects.has(STATUS_TYPES.POISON)) {
+                // Dim green filter for Poison
+                ctx.filter = 'sepia(1) hue-rotate(85deg) saturate(3) brightness(0.6)';
             }
 
             // Draw relative to translated origin (center bottom)
@@ -520,28 +569,36 @@ export class Enemy extends Entity {
         const activeEffects = this.statusManager.getActiveEffects();
         if (activeEffects.length > 0) {
             const iconSize = 16;
-            const spacing = 4;
-            const startY = this.y - 25; // Above HP bar
-            let currentX = this.x;
+            const spacing = 8;
+            const startY = this.y - 40; // Positioned clearly above the name and HP bar
+            let currentX = this.x + (this.width - (activeEffects.length * iconSize + (activeEffects.length - 1) * spacing)) / 2;
 
-            activeEffects.forEach(effect => {
+            for (const effect of activeEffects) {
                 const icon = statusIcons[effect.type];
-                if (icon && icon.complete && icon.naturalWidth !== 0) {
-                    ctx.drawImage(icon, Math.floor(currentX), Math.floor(startY), iconSize, iconSize);
 
-                    // Draw Stack Count
+                if (icon && icon.complete && icon.naturalWidth !== 0) {
+                    ctx.save();
+                    
+                    // Silhouette Filter (White)
+                    ctx.filter = 'grayscale(1) brightness(2)';
+                    ctx.drawImage(icon, Math.floor(currentX), Math.floor(startY), iconSize, iconSize);
+                    ctx.restore();
+
+                    // Stack Count
                     if (effect.stacks > 1) {
+                        ctx.save();
                         ctx.fillStyle = 'white';
                         ctx.font = 'bold 10px sans-serif';
                         ctx.strokeStyle = 'black';
                         ctx.lineWidth = 2;
                         ctx.strokeText(effect.stacks, currentX + iconSize - 4, startY + iconSize);
                         ctx.fillText(effect.stacks, currentX + iconSize - 4, startY + iconSize);
+                        ctx.restore();
                     }
 
-                    currentX += iconSize + spacing + (effect.stacks > 1 ? 8 : 0);
+                    currentX += iconSize + spacing;
                 }
-            });
+            }
         }
     }
 }

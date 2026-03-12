@@ -11,6 +11,7 @@ export class WoodCrate extends Entity {
     }
 
     takeDamage(amount, damageColor, aetherGain = 0, isCrit = false) {
+        if (this.markedForDeletion) return;
         // Simple destruction for crates
         this.hp -= amount;
 

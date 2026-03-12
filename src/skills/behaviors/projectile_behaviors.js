@@ -1554,4 +1554,269 @@ export const projectileBehaviors = {
             };
         }
     },
+
+    'fate_dealer_behavior': (user, game, params) => {
+        const isRush = user.isAetherRush;
+        const count = 5; // Updated to 5 cards
+        const angleSpread = params.angleSpread || 30;
+        const baseSpeed = params.speed || 600;
+
+        let baseAngle = 0;
+        if (user.facing === 'right') baseAngle = 0;
+        else if (user.facing === 'down') baseAngle = Math.PI / 2;
+        else if (user.facing === 'left') baseAngle = Math.PI;
+        else if (user.facing === 'up') baseAngle = -Math.PI / 2;
+        else if (user.facing === 'up-right') baseAngle = -Math.PI / 4;
+        else if (user.facing === 'up-left') baseAngle = -3 * Math.PI / 4;
+        else if (user.facing === 'down-right') baseAngle = Math.PI / 4;
+        else if (user.facing === 'down-left') baseAngle = 3 * Math.PI / 4;
+
+        const spreadRad = angleSpread * (Math.PI / 180);
+        const startAngle = baseAngle - spreadRad / 2;
+        const step = spreadRad / (count - 1 || 1);
+
+        const cx = user.x + user.width / 2;
+        const cy = user.y + user.height / 2;
+
+        const suits = ['clover', 'heart', 'spade', 'diamond'];
+        const suitToStatus = {
+            'clover': 'poison',
+            'heart': 'burn',
+            'spade': 'bleed',
+            'diamond': 'slow'
+        };
+
+        const suitToImage = {
+            'clover': 'assets/skills/vfx/card_clover.png',
+            'heart': 'assets/skills/vfx/card_heart.png',
+            'spade': 'assets/skills/vfx/card_spade.png',
+            'diamond': 'assets/skills/vfx/card‗diamond.png'
+        };
+
+        for (let i = 0; i < count; i++) {
+            const currentAngle = startAngle + step * i;
+            const vx = Math.cos(currentAngle) * baseSpeed;
+            const vy = Math.sin(currentAngle) * baseSpeed;
+
+            // Pick a random suit for this card
+            const suit = suits[Math.floor(Math.random() * suits.length)];
+
+            const projParams = {
+                ...params,
+                vx: vx, vy: vy,
+                rotation: currentAngle,
+                pierce: isRush ? 999 : (params.pierce || 0),
+                fixedOrientation: true,
+                suit: suit,
+                spriteSheet: suitToImage[suit] || params.spriteSheet,
+                // Pass custom draw to projectile via params
+                draw: function (ctx) {
+                    if (!this.history || this.history.length < 2) {
+                        // If no history yet, still draw the card
+                        if (this.image && this.image.complete) {
+                            ctx.save();
+                            ctx.translate(this.x + this.w / 2, this.y + this.h / 2);
+                            ctx.rotate(this.rotation);
+                            let sw = this.image.width / (this.frames || 1);
+                            let sx = (this.frameX || 0) * sw;
+                            ctx.drawImage(this.image, sx, 0, sw, this.image.height, -this.w / 2, -this.h / 2, this.w, this.h);
+                            ctx.restore();
+                        }
+                        return;
+                    }
+
+                    ctx.save();
+                    // 1. Draw Ribbon (Behind Card)
+                    for (let i = 0; i < this.history.length - 1; i++) {
+                        const curr = this.history[i];
+                        const next = this.history[i + 1];
+                        const alpha = (1 - i / this.history.length) * 0.5;
+                        
+                        const grad = ctx.createLinearGradient(
+                            (curr.p1.x + curr.p2.x) / 2, (curr.p1.y + curr.p2.y) / 2,
+                            (next.p1.x + next.p2.x) / 2, (next.p1.y + next.p2.y) / 2
+                        );
+                        grad.addColorStop(0, `rgba(255, 255, 255, ${alpha})`);
+                        grad.addColorStop(1, `rgba(255, 255, 255, 0)`);
+
+                        ctx.fillStyle = grad;
+                        ctx.beginPath();
+                        ctx.moveTo(curr.p1.x, curr.p1.y);
+                        ctx.lineTo(curr.p2.x, curr.p2.y);
+                        ctx.lineTo(next.p2.x, next.p2.y);
+                        ctx.lineTo(next.p1.x, next.p1.y);
+                        ctx.closePath();
+                        ctx.fill();
+                    }
+                    ctx.restore();
+
+                    // 2. Draw Card
+                    if (this.image && this.image.complete) {
+                        ctx.save();
+                        ctx.translate(this.x + this.w / 2, this.y + this.h / 2);
+                        ctx.rotate(this.rotation);
+                        let sw = this.image.width / (this.frames || 1);
+                        let sx = (this.frameX || 0) * sw;
+                        if (isRush) {
+                            ctx.shadowBlur = 10;
+                            ctx.shadowColor = 'white';
+                        }
+                        ctx.drawImage(this.image, sx, 0, sw, this.image.height, -this.w / 2, -this.h / 2, this.w, this.h);
+                        ctx.restore();
+                    }
+                }
+            };
+
+            const proj = spawnProjectile(game, cx, cy, vx, vy, projParams);
+
+            if (proj) {
+                proj.draw = projParams.draw;
+                proj.suit = suit;
+                proj.stuckTimer = 1.0;
+                proj.isStuck = false;
+                proj.returning = false;
+                proj.history = []; 
+
+                const originalUpdate = proj.update;
+                proj.update = function (dt) {
+                    if (this.isStuck) {
+                        this.stuckTimer -= dt;
+                        if (this.stuckTimer <= 0) {
+                            this.isStuck = false;
+                            this.returning = true;
+                            this.spinSpeed = 20; 
+                            this.ignoreWallDestruction = true;
+                        }
+                    } else if (this.returning) {
+                        const player = game.player;
+                        if (player) {
+                            const dx = (player.x + player.width / 2) - (this.x + this.w / 2);
+                            const dy = (player.y + player.height / 2) - (this.y + this.h / 2);
+                            const dist = Math.sqrt(dx * dx + dy * dy);
+                            if (dist < 20) {
+                                this.life = 0; 
+                            } else {
+                                const speed = params.speed || 700;
+                                this.vx = (dx / dist) * speed;
+                                this.vy = (dy / dist) * speed;
+                            }
+                        }
+                        this.x += this.vx * dt;
+                        this.y += this.vy * dt;
+                        if (this.spinSpeed) this.rotation += this.spinSpeed * dt;
+                    } else {
+                        originalUpdate.call(this, dt);
+                    }
+
+                    // Bottom edge history update
+                    const ang = this.rotation + (this.rotationOffset || 0); 
+                    const tcx = this.x + this.w / 2;
+                    const tcy = this.y + this.h / 2;
+                    const hw = this.w / 2;
+                    const hh = this.h / 2;
+                    const cos = Math.cos(ang);
+                    const sin = Math.sin(ang);
+                    
+                    this.history.unshift({ 
+                        p1: { x: tcx + (-hw * cos - hh * sin), y: tcy + (-hw * sin + hh * cos) },
+                        p2: { x: tcx + (hw * cos - hh * sin), y: tcy + (hw * sin + hh * cos) }
+                    });
+                    if (this.history.length > 12) this.history.pop();
+                };
+
+                // Pass custom draw to projectile via params
+                projParams.draw = function (ctx) {
+                    if (this.history && this.history.length >= 2) {
+                        ctx.save();
+                        // Additive blending for smooth glow
+                        ctx.globalCompositeOperation = 'lighter';
+                        
+                        for (let i = 0; i < this.history.length - 1; i++) {
+                            const curr = this.history[i];
+                            const next = this.history[i + 1];
+                            
+                            // Use quadratic falloff for a more pronounced gradient look
+                            const t = 1 - i / this.history.length;
+                            const alphaStart = t * t * 0.3;
+                            
+                            ctx.fillStyle = `rgba(255, 255, 255, ${alphaStart})`;
+                            
+                            ctx.beginPath();
+                            ctx.moveTo(curr.p1.x, curr.p1.y);
+                            ctx.lineTo(curr.p2.x, curr.p2.y);
+                            ctx.lineTo(next.p2.x, next.p2.y);
+                            ctx.lineTo(next.p1.x, next.p1.y);
+                            ctx.closePath();
+                            ctx.fill();
+                        }
+                        ctx.restore();
+                    }
+
+                    // 2. Draw Card (on top of ribbon)
+                    if (this.image && this.image.complete) {
+                        ctx.save();
+                        ctx.translate(this.x + this.w / 2, this.y + this.h / 2);
+                        ctx.rotate(this.rotation + (this.rotationOffset || 0));
+                        let sw = this.image.width / (this.frames || 1);
+                        let sx = (this.frameX || 0) * sw;
+                        if (isRush) {
+                            ctx.shadowBlur = 10;
+                            ctx.shadowColor = 'white';
+                        }
+                        ctx.drawImage(this.image, sx, 0, sw, this.image.height, -this.w / 2, -this.h / 2, this.w, this.h);
+                        ctx.restore();
+                    }
+                };
+                
+                proj.draw = projParams.draw;
+
+                proj.onHitWall = function (gameInstance) {
+                    if (!this.returning && !this.isStuck) {
+                        this.isStuck = true;
+                        this.vx = 0;
+                        this.vy = 0;
+                    }
+                };
+
+                proj.onHitEnemy = function (enemy, gameInstance) {
+                    const isCrit = this.critChance > 0 && Math.random() < this.critChance;
+                    const critMult = this.critMultiplier + gameInstance.player.critDamageBonus;
+                    const finalDamage = isCrit ? this.damage * critMult : this.damage;
+
+                    enemy.takeDamage(finalDamage, this.damageColor, this.aetherCharge, isCrit);
+
+                    // Status Effect based on Suit
+                    if (enemy.statusManager) {
+                        if (isRush) {
+                            // Rush Mode: Apply ALL effects
+                            suits.forEach(s => {
+                                const status = suitToStatus[s];
+                                enemy.statusManager.applyStatus(status, 5.0);
+                            });
+                        } else {
+                            // Normal Mode: Apply specific suit effect with chance
+                            const chance = this.statusChance !== undefined ? this.statusChance : 0.3;
+                            if (Math.random() < chance) {
+                                const status = suitToStatus[this.suit];
+                                if (status) {
+                                    enemy.statusManager.applyStatus(status, 5.0);
+                                }
+                            }
+                        }
+                    }
+
+                    if (isRush) {
+                        spawnExplosion(gameInstance, this.x + this.w / 2, this.y + this.h / 2, '#ffffff', 0.4, 0.2);
+                    }
+
+                    // Return path or piercing shouldn't vanish immediately if we want it to reach player 
+                    // But if it's normal throw (not rush/piercing), it vanishes.
+                    // Let's make it always pierce on RETURN for better feel.
+                    if (!this.returning && (!this.pierce || this.pierce <= 0)) {
+                        this.life = 0;
+                    }
+                };
+            }
+        }
+    },
 };

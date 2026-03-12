@@ -3,12 +3,12 @@ import { STATUS_TYPES } from '../status_effects.js';
 import { getCachedJson } from '../utils.js';
 
 export class Ghost extends Enemy {
-    constructor(game, x, y) {
+    constructor(game, x, y, level = 1) {
         // Ghost: lower health than goblin, spectral appearance, reduced speed (120 -> 84)
-        super(game, x, y, 40, 48, 'rgba(150, 200, 255, 0.5)', 30, 84, 'ghost', 150);
-        this.displayName = 'ゴースト';
+        super(game, x, y, 40, 48, 'rgba(150, 200, 255, 0.5)', 20, 84, 'ghost', 150, level);
+        this.displayName = `Lv.${level} ゴースト`;
         this.ignoreWalls = true;
-        this.damage = 8;
+        this.damage = Math.round(8 * (1 + (level - 1) * 0.05));
         this.knockbackResistance = -0.5; // 50% more knockback
 
         // Sprite Sheet Data

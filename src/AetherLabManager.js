@@ -1,5 +1,6 @@
 import { ChipInstance } from './AetherCircuitManager.js';
 import { chipsDB } from '../data/chips_db.js';
+import { SaveManager } from './SaveManager.js';
 /**
  * Handles the logic for the Aether Lab.
  */
@@ -186,5 +187,31 @@ export class AetherLabManager {
         const selected = normalChips[Math.floor(Math.random() * normalChips.length)];
         // The ChipInstance constructor calls generateNodes(), which now handles the weighted rarity roll.
         return new ChipInstance(selected.id, 1, true);
+    }
+
+    static getSkillResearchCost(skillData) {
+        const typeCosts = {
+            normal: 100,
+            primary: 250,
+            secondary: 500,
+            ultimate: 1000
+        };
+        return typeCosts[skillData.type] || 250;
+    }
+
+    static canResearchSkill(player, skillData) {
+        const cost = this.getSkillResearchCost(skillData);
+        return player.aetherShards >= cost;
+    }
+
+    static researchSkill(player, skillData) {
+        if (!this.canResearchSkill(player, skillData)) return false;
+
+        const cost = this.getSkillResearchCost(skillData);
+        player.aetherShards -= cost;
+        player.saveAetherData();
+
+        SaveManager.unlockStartingSkill(skillData.id);
+        return true;
     }
 }

@@ -1,7 +1,7 @@
 import { InputHandler, Camera, Entity, getCachedImage, filterInPlace } from './utils.js';
 import { Map } from './map.js';
 import { Player } from './player.js';
-import { Enemy, Slime, Bat, Goblin, SkeletonArcher, Ghost, AetherSentinel, AetherPrime, Boss, Chest, Statue, BloodAltar, ShopNPC, WoodCrate, SpikeTrap } from './entities.js';
+import { Enemy, Slime, Bat, Goblin, SkeletonArcher, Ghost, AetherSentinel, AetherPrime, Boss, Chest, Statue, BloodAltar, ShopNPC, WoodCrate, ScrapHeap, SpikeTrap, LabNPC, SkillPedestal } from './entities.js';
 import { createSkill } from './skills/index.js';
 import { drawUI, showSkillSelection, hideSkillSelection, showBlessingSelection, hideBlessingSelection, drawDialogue, hideDialogue, initSettingsUI, initRankingUI, showNicknameInput, showStageSettings, hideStageSettings } from './ui.js';
 import { skillsDB } from '../data/skills_db.js';
@@ -115,6 +115,21 @@ class Game {
         _debugLog("Game Loop Started");
     }
 
+    getEnemyLevel() {
+        // Base level by difficulty
+        let baseLevel = 5;
+        if (this.difficulty === 'hard') baseLevel = 15;
+        else if (this.difficulty === 'easy') baseLevel = 1;
+
+        // Level increases by floor
+        const floorBonus = (this.currentFloor - 1) * 2;
+        const targetLevel = baseLevel + floorBonus;
+
+        // Final level with ±1 randomness
+        const variance = Math.floor(Math.random() * 3) - 1;
+        return Math.max(1, targetLevel + variance);
+    }
+
     handleResize() {
         const maxW = window.innerWidth;
         const maxH = window.innerHeight;
@@ -164,6 +179,10 @@ class Game {
         // --- Initialize Ranking UI ---
         initRankingUI(this);
 
+        // --- Initialize Lab & Inventory UI ---
+        LabUI.init(this);
+        InventoryUI.init(this);
+
         // --- Show High Score on Title ---
         const hsValue = document.getElementById('title-highscore-value');
         if (hsValue) {
@@ -174,6 +193,8 @@ class Game {
         this.traps = [];
         this.enemyProjectiles = [];
         this.entities = [];
+        this.labNPCs = [];
+        this.skillPedestals = [];
     }
 
     async startTitleSequence() {
@@ -205,7 +226,6 @@ class Game {
         const startBtn = document.getElementById('btn-start-game');
         if (startBtn) {
             startBtn.onclick = () => {
-                const normalSkills = skillsDB.filter(s => s.type === 'normal');
                 // Hide only the menu, keep background/video
                 const titleMenu = document.querySelector('.title-menu');
                 if (titleMenu) titleMenu.style.display = 'none';
@@ -219,51 +239,25 @@ class Game {
                 const sideMenu = document.querySelector('.title-side-menu');
                 if (sideMenu) sideMenu.style.display = 'none';
 
-                showStageSettings(
-                    this,
-                    normalSkills,
-                    (settings) => {
-                        // Smooth zoom back to normal
-                        this.targetCameraZoom = 1.0;
-                        this.targetCameraOffsetX = 0;
-                        this.targetCameraOffsetY = 0;
-                        this.isHUDVisible = true;
-                        this.isDungeonStarting = false;
-                        this.worldFadeAlpha = 0; // Reset fade
+                // --- Transition Directly to Lobby ---
+                // Setup Camera/UI state for gameplay
+                this.targetCameraZoom = 1.0;
+                this.targetCameraOffsetX = 0;
+                this.targetCameraOffsetY = 0;
+                this.isHUDVisible = true;
+                this.isDungeonStarting = false;
+                this.worldFadeAlpha = 0;
 
-                        // On Start - actually hide the whole screen then
-                        document.getElementById('title-screen').style.display = 'none';
-                        // Re-init with correct settings, reuse title map and camera
-                        this.init(false, settings.difficulty, settings.skillId, true);
-                    },
-                    () => {
-                        if (titleMenu) titleMenu.style.display = 'flex';
-                        if (highscoreContainer) highscoreContainer.style.display = 'flex';
-                        const titleHeader = document.querySelector('.title-header');
-                        if (titleHeader) titleHeader.style.display = 'flex';
+                const titleScreen = document.getElementById('title-screen');
+                if (titleScreen) titleScreen.style.display = 'none';
 
-                        const sideMenu = document.querySelector('.title-side-menu');
-                        if (sideMenu) sideMenu.style.display = 'flex';
+                // Re-init for Lobby (Floor 0), reusing existing sample map if appropriate 
+                // but usually better to re-init fresh for lobby.
+                this.init(false, 'normal', null, true);
 
-                        // Reset cinematic state smoothly
-                        this.targetCameraZoom = 1.2; // Back to title zoom
-                        this.targetCameraOffsetX = 0;
-                        this.targetCameraOffsetY = 0;
-                        this.isHUDVisible = false;
-                        this.isDungeonStarting = false;
-
-                        const titleScreen = document.getElementById('title-screen');
-                        if (titleScreen) {
-                            titleScreen.style.background = 'radial-gradient(circle at center, rgba(0, 0, 0, 0.2) 0%, rgba(0, 0, 0, 0.6) 100%)';
-                        }
-                    }
-                );
-
-                // --- Cinematic Trigger (Start zoom-in effect) ---
-                this.targetCameraZoom = 2.5;
-                this.targetCameraOffsetX = 115; // Shift camera right -> player moves left
-                this.targetCameraOffsetY = 0; // Shift camera up slightly
-                this.isHUDVisible = false;
+                // --- Cinematic Trigger (Short flash or zoom if desired) ---
+                this.targetCameraZoom = 1.0; 
+                this.isHUDVisible = true;
             };
         }
 
@@ -280,7 +274,33 @@ class Game {
         const openLabBtn = document.getElementById('btn-open-lab');
         if (openLabBtn) {
             openLabBtn.onclick = () => LabUI.open();
-            LabUI.init(this);
+        }
+
+        // --- Hidden Menu Toggle ---
+        const gameTitle = document.querySelector('.game-title');
+        const sideMenu = document.querySelector('.title-side-menu');
+        if (gameTitle && sideMenu) {
+            gameTitle.onclick = () => {
+                const isHidden = sideMenu.style.display === 'none' || sideMenu.style.display === '';
+                sideMenu.style.display = isHidden ? 'flex' : 'none';
+            };
+        }
+    }
+
+    spawnScrapHeapInRoom(room) {
+        // Pick one random corner (with margin 2)
+        const corners = [
+            { rx: room.x + 2, ry: room.y + 2 },
+            { rx: room.x + room.w - 3, ry: room.y + 2 },
+            { rx: room.x + 2, ry: room.y + room.h - 3 },
+            { rx: room.x + room.w - 3, ry: room.y + room.h - 3 }
+        ];
+        const corner = corners[Math.floor(Math.random() * corners.length)];
+
+        // Ensure target is floor
+        if (this.map.isValid(corner.rx, corner.ry) && this.map.tiles[corner.ry][corner.rx] === 0) {
+            const scrap = new ScrapHeap(this, corner.rx * this.map.tileSize, corner.ry * this.map.tileSize);
+            this.enemies.push(scrap);
         }
     }
 
@@ -320,6 +340,12 @@ class Game {
         console.log("Preloading started...");
         const assets = [
             'assets/player/player_sprites.png',
+            'assets/player/player_run_yoko.png',
+            'assets/player/player_run_sita.png',
+            'assets/player/player_run_ue.png',
+            'assets/player/player_idol_yoko.png',
+            'assets/player/player_idol_sita.png',
+            'assets/player/player_idol_ue.png',
             'assets/map/floor.png',
             'assets/map/portal_stairs.png',
             'assets/ui/aether_shard.png',
@@ -372,7 +398,17 @@ class Game {
             'assets/entities/blood_altar.png',
             'assets/enemies/aether_prime/aether_prime.png',
             'assets/enemies/aether_prime/aether_prime_drone.png',
-            'assets/enemies/aether_sentinel.png'
+            'assets/enemies/aether_sentinel.png',
+            'assets/skills/vfx/lightning_part_01.png',
+            'assets/skills/vfx/lightning_part_02.png',
+            'assets/skills/vfx/lightning_part_03.png',
+            'assets/skills/vfx/lightning_part_04.png',
+            'assets/skills/vfx/lightning_part_05.png',
+            'assets/skills/vfx/lightning_part_06.png',
+            'assets/skills/vfx/lightning_part_07.png',
+            'assets/skills/vfx/lightning_part_08.png',
+            'assets/skills/vfx/lightning_part_09.png',
+            'assets/skills/vfx/lightning_part_10.png'
         ];
 
         // Also add any icons/spriteSheets from skillsDB that aren't manually listed
@@ -452,7 +488,9 @@ class Game {
             this.chests.some(c => c.showPrompt) ||
             this.statues.some(s => s.showPrompt) ||
             this.bloodAltars.some(a => a.showPrompt) ||
-            this.shopNPCs.some(n => n.showPrompt);
+            this.shopNPCs.some(n => n.showPrompt) ||
+            this.labNPCs.some(n => n.showPrompt) ||
+            this.skillPedestals.some(p => p.showPrompt);
     }
 
     addScore(amount) {
@@ -463,7 +501,7 @@ class Game {
         this.score += amount * multiplier;
     }
 
-    init(isNextFloor = false, difficulty = 'normal', startingSkillId = null, reuseExisting = false) {
+    init(isNextFloor = false, difficulty = 'normal', startingSkills = null, reuseExisting = false) {
         this.difficulty = difficulty;
         this.gameState = 'PLAYING';
 
@@ -473,15 +511,21 @@ class Game {
         this.targetCameraZoom = 1.0;
 
         if (!isNextFloor) {
-            this.currentFloor = 1;
+            this.currentFloor = 0; // Start at Lobby
         }
 
         // --- Map Preparation ---
         if (!reuseExisting || !this.map) {
-            // Larger Map: 100x80 tiles (4000x3200 pixels)
-            this.map = new Map(100, 80, 40);
-            this.map.generate();
-            _debugLog("Map Generated");
+            if (this.currentFloor === 0) {
+                this.map = new Map(40, 40, 40);
+                this.map.generateLobby();
+                _debugLog("Lobby Generated");
+            } else {
+                // Larger Map: 110x110 tiles
+                this.map = new Map(110, 110, 40);
+                this.map.generate();
+                _debugLog("Map Generated");
+            }
         } else {
             _debugLog("Reusing existing map from title screen");
         }
@@ -534,15 +578,23 @@ class Game {
             this.camera.follow(this.player);
         }
 
-        // --- Load Starting Skill ---
+        // --- Load Starting Skills ---
         if (!isNextFloor) {
-            if (startingSkillId) {
-                const skillData = skillsDB.find(s => s.id === startingSkillId);
-                if (skillData) {
-                    const skill = createSkill(skillData);
-                    if (skill) {
-                        this.player.acquireSkill(skill);
-                        this.player.equipSkill(skill);
+            if (startingSkills) {
+                // startingSkills is an object: { normal: 'id', primary1: 'id', ... }
+                for (const slot in startingSkills) {
+                    const skillId = startingSkills[slot];
+                    if (!skillId) continue;
+
+                    const skillData = skillsDB.find(s => s.id === skillId);
+                    if (skillData) {
+                        const skill = createSkill(skillData);
+                        if (skill) {
+                            this.player.acquireSkill(skill);
+                            // Ensure we map primary1/primary2 slots correctly if needed, 
+                            // but equipSkill(skill, slot) usually handles it.
+                            this.player.equipSkill(skill, slot);
+                        }
                     }
                 }
             } else {
@@ -562,6 +614,8 @@ class Game {
         this.statues = [];
         this.bloodAltars = [];
         this.shopNPCs = [];
+        this.labNPCs = [];
+        this.skillPedestals = [];
         this.activeStatue = null;
         this.activeAltar = null;
         this.entities = [];
@@ -606,6 +660,11 @@ class Game {
                     this.spawnCratesInRoom(room);
                 }
 
+                // --- Spawn Scrap Heap (only in large rooms, one in a corner) ---
+                if (room.w * room.h >= 100) {
+                    this.spawnScrapHeapInRoom(room);
+                }
+
                 // --- Spawn Spike Traps (30% chance) ---
                 if (Math.random() < 0.3) {
                     const trapCount = 2 + Math.floor(Math.random() * 3);
@@ -631,6 +690,17 @@ class Game {
                     this.map.hasBoss = true;
                     this.map.bossDefeated = false;
                 }
+            }
+        }
+
+        // --- Lobby Specific Entities ---
+        if (this.currentFloor === 0) {
+            const startRoom = this.map.rooms.find(r => r.type === 'start');
+            if (startRoom) {
+                // Place Lab NPC (Bottom Left)
+                this.labNPCs.push(new LabNPC(this, (startRoom.x + 2) * this.map.tileSize, (startRoom.y + startRoom.h - 3) * this.map.tileSize));
+                // Place Skill Pedestal (Bottom Right)
+                this.skillPedestals.push(new SkillPedestal(this, (startRoom.x + startRoom.w - 3) * this.map.tileSize, (startRoom.y + startRoom.h - 3) * this.map.tileSize));
             }
         }
 
@@ -674,6 +744,7 @@ class Game {
             usedTiles.add(tileKey);
 
             const crate = new WoodCrate(this, rx * this.map.tileSize, ry * this.map.tileSize);
+            
             if (!this.map.isWall(crate.x, crate.y)) {
                 this.enemies.push(crate);
             }
@@ -721,6 +792,36 @@ class Game {
                 }
                 break;
         }
+    }
+
+    /**
+     * Updates the player's equipped skills based on a provided startingSkills object.
+     * Does not reset the floor or teleport the player.
+     * @param {Object} startingSkills { normal: 'id', primary1: 'id', ... }
+     */
+    updateStartingSkills(startingSkills) {
+        if (!this.player || !startingSkills) return;
+
+        // Clear existing skills to be safe, or just overwrite slots
+        for (const slot in startingSkills) {
+            const skillId = startingSkills[slot];
+            if (!skillId) {
+                // If it's a slot like 'secondary' or 'ultimate', allow clearing if null?
+                // For now, let's just skip nulls to avoid removing defaults if not intended.
+                continue;
+            }
+
+            const skillData = skillsDB.find(s => s.id === skillId);
+            if (skillData) {
+                const skill = createSkill(skillData); // Fixed typo
+                if (skill) {
+                    this.player.acquireSkill(skill);
+                    this.player.equipSkill(skill, slot);
+                }
+            }
+        }
+        
+        console.log("Starting skills updated in lobby");
     }
 
     spawnParticles(x, y, count, color, baseVx = 0, baseVy = 0, options = {}) {
@@ -1045,7 +1146,7 @@ class Game {
                 if (this.transitionTimer >= duration) {
                     // Add Floor Transition Score Reward
                     const floorScore = 500;
-                    this.addScore(floorScore);
+                    if (this.currentFloor > 0) this.addScore(floorScore); // No reward for leaving lobby
 
                     this.currentFloor++;
                     this.transitionType = 'fade-out';
@@ -1197,7 +1298,7 @@ class Game {
                     if (this.bossOverride === 'prime') bossClass = AetherPrime;
                     this.bossOverride = null; // Reset after use
 
-                    this.enemies.push(new bossClass(this, bx, by));
+                    this.enemies.push(new bossClass(this, bx, by, this.getEnemyLevel()));
 
                     this.camera.shake(0.5, 10);
                     this.logToScreen("WARNING: BOSS DETECTED!");
@@ -1271,7 +1372,7 @@ class Game {
                     }
 
                     if (validSpawn) {
-                        this.enemies.push(new monster.Class(this, ex, ey));
+                        this.enemies.push(new monster.Class(this, ex, ey, this.getEnemyLevel()));
                     }
                 }
 
@@ -1300,8 +1401,9 @@ class Game {
 
                     // Reward?
                     if (Math.random() < 0.3) { // 30% chance for chest
-                        const cx = (currentRoom.x + Math.floor(currentRoom.w / 2)) * this.map.tileSize;
-                        const cy = (currentRoom.y + Math.floor(currentRoom.h / 2)) * this.map.tileSize;
+                        const rawCx = (currentRoom.x + Math.floor(currentRoom.w / 2)) * this.map.tileSize;
+                        const rawCy = (currentRoom.y + Math.floor(currentRoom.h / 2)) * this.map.tileSize;
+                        const { x: cx, y: cy } = Chest.getSafeSpawnPosition(this, rawCx, rawCy);
                         this.chests.push(new Chest(this, cx, cy));
                     }
                 }
@@ -1392,6 +1494,29 @@ class Game {
                 }
             } else {
                 statue.showPrompt = false;
+            }
+        });
+
+        // Update Lobby Entities (Interaction)
+        this.labNPCs.forEach(npc => {
+            npc.update(dt);
+            const dist = Math.sqrt((this.player.x - npc.x) ** 2 + (this.player.y - npc.y) ** 2);
+            if (dist < 60) {
+                npc.showPrompt = true;
+                if (this.input.isDown('Space')) npc.use();
+            } else {
+                npc.showPrompt = false;
+            }
+        });
+
+        this.skillPedestals.forEach(p => {
+            p.update(dt);
+            const dist = Math.sqrt((this.player.x - p.x) ** 2 + (this.player.y - p.y) ** 2);
+            if (dist < 60) {
+                p.showPrompt = true;
+                if (this.input.isDown('Space')) p.use();
+            } else {
+                p.showPrompt = false;
             }
         });
 
@@ -1641,6 +1766,11 @@ class Game {
             return;
         }
 
+        if (p.draw) {
+            p.draw(this.ctx);
+            return;
+        }
+
         let drawn = false;
 
         this.ctx.save();
@@ -1863,7 +1993,7 @@ class Game {
         const finalZoom = this.zoom * this.camera.zoom;
         this.ctx.scale(finalZoom, finalZoom);
 
-        this.ctx.translate(-Math.floor(this.camera.x), -Math.floor(this.camera.y));
+        this.ctx.translate(-this.camera.x, -this.camera.y);
 
         this.map.draw(this.ctx, this.camera, this.player, this.debugMode);
 
@@ -1894,94 +2024,106 @@ class Game {
         });
 
         // Create Render List for Depth Sorting (Memory Optimized)
-        // Instead of allocating new objects and closures every frame, we push references to entities 
-        // and identifying type flags to a flat array.
         const renderList = this._renderList || (this._renderList = []);
-        renderList.length = 0; // Clear without reallocating
-
-        // Helper to add to render list
-        // type: 1=chest, 2=statue, 3=altar, 4=shop, 5=player, 6=enemy, 7=entity, 8=projectile, 9=enemyProjectile
-        const addRenderItem = (entity, type, z) => {
-            renderList.push({ entity, type, z });
-        };
-        // We reuse the objects in the array if they exist to avoid allocation
         let renderIndex = 0;
-        const addRenderItemOptimized = (entity, type, z) => {
+
+        // Optimized helper: Reuses existing objects in the array to avoid GC
+        const getRenderItem = () => {
             if (renderIndex < renderList.length) {
-                const item = renderList[renderIndex];
-                item.entity = entity;
-                item.type = type;
-                item.z = z;
-            } else {
-                renderList.push({ entity, type, z });
+                return renderList[renderIndex++];
             }
+            const newItem = { entity: null, type: 0, z: 0 };
+            renderList.push(newItem);
             renderIndex++;
+            return newItem;
         };
 
         // 1. Chests
-        this.chests.forEach(chest => {
+        for (const chest of this.chests) {
             if (this.camera.isVisible(chest.x, chest.y, chest.width, chest.height)) {
-                addRenderItemOptimized(chest, 1, chest.y + chest.height);
+                const item = getRenderItem();
+                item.entity = chest; item.type = 1; item.z = chest.y + chest.height;
             }
-        });
+        }
 
         // 1.5 Statues
-        this.statues.forEach(statue => {
+        for (const statue of this.statues) {
             if (this.camera.isVisible(statue.x, statue.y, statue.width, statue.height)) {
-                addRenderItemOptimized(statue, 2, statue.y + statue.height);
+                const item = getRenderItem();
+                item.entity = statue; item.type = 2; item.z = statue.y + statue.height;
             }
-        });
+        }
 
         // 1.6 Blood Altars
-        this.bloodAltars.forEach(altar => {
+        for (const altar of this.bloodAltars) {
             if (this.camera.isVisible(altar.x, altar.y, altar.width, altar.height)) {
-                addRenderItemOptimized(altar, 3, altar.y + altar.height);
+                const item = getRenderItem();
+                item.entity = altar; item.type = 3; item.z = altar.y + altar.height;
             }
-        });
+        }
 
         // 1.7 Shop NPCs
-        this.shopNPCs.forEach(npc => {
+        for (const npc of this.shopNPCs) {
             if (this.camera.isVisible(npc.x, npc.y, npc.width, npc.height)) {
-                addRenderItemOptimized(npc, 4, npc.y + npc.height);
+                const item = getRenderItem();
+                item.entity = npc; item.type = 4; item.z = npc.y + npc.height;
             }
-        });
+        }
+
+        // 1.8 Lobby Entities
+        for (const npc of this.labNPCs) {
+            if (this.camera.isVisible(npc.x, npc.y, npc.width, npc.height)) {
+                const item = getRenderItem();
+                item.entity = npc; item.type = 4; item.z = npc.y + npc.height;
+            }
+        }
+
+        for (const p of this.skillPedestals) {
+            if (this.camera.isVisible(p.x, p.y, p.width, p.height)) {
+                const item = getRenderItem();
+                item.entity = p; item.type = 4; item.z = p.y + p.height;
+            }
+        }
 
         // 2. Player
-        addRenderItemOptimized(this.player, 5, this.player.y + this.player.height);
+        const pItem = getRenderItem();
+        pItem.entity = this.player; pItem.type = 5; pItem.z = this.player.y + this.player.height;
 
         // 3. Enemies
-        this.enemies.forEach(enemy => {
+        for (const enemy of this.enemies) {
             if (this.camera.isVisible(enemy.x, enemy.y, enemy.width, enemy.height)) {
-                addRenderItemOptimized(enemy, 6, enemy.y + enemy.height);
+                const item = getRenderItem();
+                item.entity = enemy; item.type = 6; item.z = enemy.y + enemy.height;
             }
-        });
+        }
 
         // 3.5 Generic Entities (Drops)
-        this.entities.forEach(entity => {
+        for (const entity of this.entities) {
             if (this.camera.isVisible(entity.x, entity.y, entity.width, entity.height)) {
-                addRenderItemOptimized(entity, 7, entity.y + entity.height);
+                const item = getRenderItem();
+                item.entity = entity; item.type = 7; item.z = entity.y + entity.height;
             }
-        });
+        }
 
         // 4. Projectiles (Foreground/Standard)
-        this.projectiles.forEach(p => {
-            if (p.startDelay > 0 || p.layer === 'bottom') return; // Skip bottom layer
-            // Culling (using p.w/p.h or defaults)
-            if (!this.camera.isVisible(p.x, p.y, p.w || 10, p.h || 10)) return;
-            addRenderItemOptimized(p, 8, p.y + (p.h || 10));
-        });
+        for (const p of this.projectiles) {
+            if (p.startDelay > 0 || p.layer === 'bottom') continue;
+            if (!this.camera.isVisible(p.x, p.y, p.w || 10, p.h || 10)) continue;
+            const item = getRenderItem();
+            item.entity = p; item.type = 8; item.z = p.y + (p.h || 10);
+        }
 
         // 5. Enemy Projectiles
-        this.enemyProjectiles.forEach(p => {
-            if (!this.camera.isVisible(p.x, p.y, 10, 10)) return;
-            addRenderItemOptimized(p, 9, p.y);
-        });
-
-        // Set the actual used length
-        renderList.length = renderIndex;
+        for (const p of this.enemyProjectiles) {
+            if (!this.camera.isVisible(p.x, p.y, 10, 10)) continue;
+            const item = getRenderItem();
+            item.entity = p; item.type = 9; item.z = p.y;
+        }
 
         // Sort by Z (Lower Y value [Top of screen] -> Lower Z -> Drawn First -> Behind)
-        renderList.sort((a, b) => a.z - b.z);
+        // We only sort the active portion of the list
+        const activeList = renderList.slice(0, renderIndex);
+        activeList.sort((a, b) => a.z - b.z);
 
         // Draw All based on type
         for (let i = 0; i < renderIndex; i++) {
@@ -2033,30 +2175,23 @@ class Game {
         }
 
         // Draw Animations (Foreground)
-        this.animations.forEach(a => {
-            if (a.layer === 'bottom' || a.type === 'ghost') return; // Already drawn
+        for (const a of this.animations) {
+            if (a.layer === 'bottom' || a.type === 'ghost') continue;
 
             if (a.draw) {
-                // If draw is defined, let it handle culling internally or just draw (since custom draw usually handles transforms)
-                // But we should cull if possible.
-                // Assuming custom draw objects manage their own state or are simple.
-                // Let's assume they might need camera transform, which is already applied here.
                 a.draw(this.ctx);
-                return;
+                continue;
             }
 
             // Culling: Animations (Particles, Text, etc)
-            // Text may not have w/h, assume small size
-            let aw = a.w || 20;
-            let ah = a.h || 20;
-            if (!this.camera.isVisible(a.x, a.y, aw, ah)) return;
+            const aw = a.w || 20;
+            const ah = a.h || 20;
+            if (!this.camera.isVisible(a.x, a.y, aw, ah)) continue;
 
             this.ctx.save();
             let alpha = a.life / a.maxLife; // Linear 0 to 1
 
-            // For slash, stay opaque longer
             if (a.type === 'slash') {
-                // Fade out only in the last 30% of life
                 alpha = Math.min(1, alpha * 3);
             }
 
@@ -2064,17 +2199,11 @@ class Game {
 
             if (a.type === 'slash') {
                 const progress = 1 - (a.life / a.maxLife);
-                // Sweep logic
                 const currentAngle = a.startAngle + (a.endAngle - a.startAngle) * progress;
-
-                // Draw trails/blur
                 const trailLength = Math.PI / 3;
-                let trailStart = currentAngle - trailLength; // Default for one direction? 
+                let trailStart = currentAngle - trailLength;
                 let trailEnd = currentAngle;
 
-                // Direction fix:
-                // If end < start (CCW), trail should be ahead of current? Or current is leading edge?
-                // Let's stick to the visual logic we established.
                 if (a.endAngle < a.startAngle) {
                     trailStart = currentAngle;
                     trailEnd = currentAngle + trailLength;
@@ -2084,7 +2213,6 @@ class Game {
                 const isHex = color.startsWith('#');
                 const transparentColor = isHex ? color + '00' : 'rgba(255,255,255,0)';
 
-                // Calculate gradient points
                 const startX = a.x + Math.cos(trailStart) * a.radius;
                 const startY = a.y + Math.sin(trailStart) * a.radius;
                 const endX = a.x + Math.cos(trailEnd) * a.radius;
@@ -2094,14 +2222,13 @@ class Game {
                 grad.addColorStop(0, transparentColor);
                 grad.addColorStop(1, color);
 
-                // Main Blade
                 this.ctx.strokeStyle = grad;
                 this.ctx.lineWidth = 4;
                 this.ctx.beginPath();
                 this.ctx.arc(a.x, a.y, a.radius, trailStart, trailEnd);
                 this.ctx.stroke();
 
-                this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)'; // Universal highlight
+                this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
                 this.ctx.lineWidth = 2;
                 this.ctx.beginPath();
                 this.ctx.arc(a.x, a.y, a.radius - 5, trailStart + 0.1, trailEnd - 0.1);
@@ -2109,12 +2236,11 @@ class Game {
 
             } else if (a.type === 'particle') {
                 this.ctx.fillStyle = a.color || 'white';
-
                 let currentW = a.w;
                 let currentH = a.h;
 
                 if (a.shrink) {
-                    const progress = a.life / a.maxLife; // 1 to 0
+                    const progress = a.life / a.maxLife;
                     currentW *= progress;
                     currentH *= progress;
                 }
@@ -2129,44 +2255,33 @@ class Game {
                 }
             } else if (a.type === 'ghost') {
                 this.ctx.save();
-                this.ctx.globalAlpha = a.life / a.maxLife; // Fade out
+                this.ctx.globalAlpha = a.life / a.maxLife;
 
-                // Handle Rotation
                 const cx = a.x + a.w / 2;
                 const cy = a.y + a.h / 2;
                 this.ctx.translate(cx, cy);
-                if (a.rotation) {
-                    this.ctx.rotate(a.rotation);
-                }
+                if (a.rotation) this.ctx.rotate(a.rotation);
 
-                // Draw Image Centered at (0,0)
                 if (a.image) {
                     let sx = 0, sy = 0, sw = a.image.width, sh = a.image.height;
-
-                    // Sprite Sheet Logic
                     if (a.spriteData) {
-                        const frameIndex = (a.frameY || 0) * 4 + (a.frameX || 0);
-                        if (a.spriteData.frames && a.spriteData.frames[frameIndex]) {
-                            const frameData = a.spriteData.frames[frameIndex].frame;
-                            sx = frameData.x;
-                            sy = frameData.y;
-                            sw = frameData.w;
-                            sh = frameData.h;
+                        const frameIndex = (this.frameY || 0) * 4 + (this.frameX || 0); // Corrected this.frameX to a.frameX potentially
+                        // Wait, previous code used (a.frameY || 0) * 4 + (a.frameX || 0). Let's keep that.
+                        const fX = a.frameX || 0;
+                        const fY = a.frameY || 0;
+                        const fIdx = fY * 4 + fX;
+
+                        if (a.spriteData.frames && a.spriteData.frames[fIdx]) {
+                            const frameData = a.spriteData.frames[fIdx].frame;
+                            sx = frameData.x; sy = frameData.y; sw = frameData.w; sh = frameData.h;
                         }
                     } else if (a.frames > 1) {
-                        // Simple grid fallback for projectiles
                         sw = a.image.width / a.frames;
                         sh = a.image.height;
                         sx = (a.frameX || 0) * sw;
                     }
-
-                    this.ctx.drawImage(
-                        a.image,
-                        sx, sy, sw, sh,
-                        -a.w / 2, -a.h / 2, a.w, a.h
-                    );
+                    this.ctx.drawImage(a.image, sx, sy, sw, sh, -a.w / 2, -a.h / 2, a.w, a.h);
                 } else {
-                    // Fallback Shape
                     this.ctx.fillStyle = a.color || 'white';
                     this.ctx.fillRect(-a.w / 2, -a.h / 2, a.w, a.h);
                 }
@@ -2180,7 +2295,7 @@ class Game {
                 this.ctx.arc(a.x, a.y, currentRadius, 0, Math.PI * 2);
                 this.ctx.stroke();
             } else if (a.type === 'text') {
-                this.ctx.font = a.font || "16px 'Meiryo', sans-serif";
+                this.ctx.font = a.font || "16px 'Meiryo', 'Hiragino Kaku Gothic ProN', 'MS PGothic', sans-serif";
                 this.ctx.fillStyle = a.color || 'white';
                 this.ctx.strokeStyle = 'black';
                 this.ctx.lineWidth = 2;
@@ -2189,75 +2304,43 @@ class Game {
             } else if (a.type === 'visual_projectile') {
                 this.ctx.fillStyle = a.color;
                 if (a.image && a.image.complete && a.image.naturalWidth !== 0) {
-                    // Draw Sprite Projectile (Visual)
                     let sx, sy, sw, sh;
                     if (a.spriteFrames && a.spriteFrames.length > 0) {
                         const frameData = a.spriteFrames[a.frameX % a.spriteFrames.length];
-                        sx = frameData.x;
-                        sy = frameData.y;
-                        sw = frameData.w;
-                        sh = frameData.h;
+                        sx = frameData.x; sy = frameData.y; sw = frameData.w; sh = frameData.h;
                     } else {
                         sw = a.image.width / a.frames;
                         sh = a.image.height;
                         sx = a.frameX * sw;
                         sy = 0;
                     }
-
                     this.ctx.save();
-                    if (a.blendMode) {
-                        this.ctx.globalCompositeOperation = a.blendMode;
-                    }
+                    if (a.blendMode) this.ctx.globalCompositeOperation = a.blendMode;
                     this.ctx.translate(a.x + a.w / 2, a.y + a.h / 2);
                     if (a.rotation) this.ctx.rotate(a.rotation);
+                    if (a.filter) this.ctx.filter = a.filter;
 
-                    if (a.filter) {
-                        this.ctx.filter = a.filter;
-                    }
-
-                    // Maintain Aspect Ratio logic
-                    let destW = a.w;
-                    let destH = a.h;
-
+                    let destW = a.w, destH = a.h;
                     if (a.scale) {
-                        destW = sw * a.scale;
-                        destH = sh * a.scale;
+                        destW = sw * a.scale; destH = sh * a.scale;
                     } else if (sw > 0 && sh > 0) {
                         const ratio = sw / sh;
-                        // Attempt to fit width first
-                        destW = a.w;
-                        destH = destW / ratio;
-
-                        // If height exceeds bounds, fit height
-                        if (destH > a.h) {
-                            destH = a.h;
-                            destW = destH * ratio;
-                        }
-                    } else {
-                        // Fallback logic
-                        destW = Math.max(a.w, a.h);
-                        destH = Math.min(a.w, a.h);
+                        destW = a.w; destH = destW / ratio;
+                        if (destH > a.h) { destH = a.h; destW = destH * ratio; }
                     }
-
-                    this.ctx.drawImage(
-                        a.image,
-                        sx, sy, sw, sh,
-                        -destW / 2, -destH / 2, destW, destH
-                    );
+                    this.ctx.drawImage(a.image, sx, sy, sw, sh, -destW / 2, -destH / 2, destW, destH);
                     this.ctx.restore();
                 }
-                // Removed Fallback: Don't draw yellow square if loading or invalid.
             } else {
                 this.ctx.fillStyle = a.color || 'white';
-                this.ctx.fillRect(Math.floor(a.x), Math.floor(a.y), a.w, a.h);
+                this.ctx.fillRect(a.x, a.y, a.w, a.h);
             }
-
             this.ctx.restore();
-        });
+        }
 
         this.ctx.restore();
 
-        // --- Cinematic Fade Overlay (Final pass before/during UI) ---
+        // --- Cinematic Fade Overlay ---
         if (this.worldFadeAlpha > 0) {
             this.ctx.save();
             this.ctx.setTransform(1, 0, 0, 1, 0, 0); // Screen space
@@ -2270,9 +2353,15 @@ class Game {
         drawUI(this.ctx, this, this.width, this.height);
 
         // Draw Boss Health Bar if active
-        const boss = this.enemies.find(e => e.isBoss && !e.markedForDeletion);
-        if (boss) {
-            this.drawBossHealthBar(boss);
+        let activeBoss = null;
+        for (const enemy of this.enemies) {
+            if (enemy.isBoss && !enemy.markedForDeletion) {
+                activeBoss = enemy;
+                break;
+            }
+        }
+        if (activeBoss) {
+            this.drawBossHealthBar(activeBoss);
         }
 
         this.drawRewardUI();
@@ -2308,7 +2397,7 @@ class Game {
 
         // Name
         this.ctx.fillStyle = 'white';
-        this.ctx.font = "bold 20px 'Press Start 2P', monospace";
+        this.ctx.font = "bold 20px 'Meiryo', 'Hiragino Kaku Gothic ProN', 'MS PGothic', sans-serif";
         this.ctx.textAlign = 'center';
         this.ctx.shadowColor = 'black';
         this.ctx.shadowBlur = 4;
@@ -2355,6 +2444,7 @@ class Game {
 
             if (success) {
                 console.log(`Selected skill: ${skill.name}`);
+                SaveManager.unlockSkill(skillData.id); // Permanently unlock in collection
 
                 // Notification
                 this.animations.push({

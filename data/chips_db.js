@@ -98,18 +98,18 @@ export const chipsDB = [
         name: '弱点露出',
         category: '技巧',
         rarity: 'rare',
-        description: 'クリティカル率アップ',
+        description: 'クリティカル率が{value}アップ',
         baseCost: 3,
         ranks: [
-            { level: 1, value: 0.03, cost: 3 },
-            { level: 2, value: 0.06, cost: 4 },
-            { level: 3, value: 0.10, cost: 5 },
-            { level: 4, value: 0.15, cost: 6 },
-            { level: 5, value: 0.20, cost: 7 }
+            { level: 1, value: 0.10, cost: 3 },
+            { level: 2, value: 0.25, cost: 4 },
+            { level: 3, value: 0.50, cost: 5 },
+            { level: 4, value: 0.75, cost: 6 },
+            { level: 5, value: 1.00, cost: 7 }
         ],
         effectType: 'crit_rate_add',
         icon: 'assets/ui/chips/icon_weakness_exposure.png',
-        nodeScaling: { min: 0.03, max: 0.25 }
+        nodeScaling: { min: 0.10, max: 1.00 }
     },
     {
         id: 'enrage',

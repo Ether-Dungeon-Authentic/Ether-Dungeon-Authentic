@@ -1,5 +1,5 @@
 import { Entity, getCachedImage, getCachedJson } from './utils.js';
-import { SkillType, spawnAetherExplosion, createSkill } from './skills/index.js';
+import { SkillType, spawnAetherExplosion, spawnProjectile, createSkill } from './skills/index.js';
 import { SaveManager } from './SaveManager.js';
 import { skillsDB } from '../data/skills_db.js';
 import { chipsDB } from '../data/chips_db.js';
@@ -38,37 +38,49 @@ export class Player extends Entity {
         this.isCharging = false;
 
         this.scale = 1.0;
+        this.baseScale = 1.0;
+        this.animTimer = 0;
+        this.rotation = 0;
         this.alpha = 1.0;
-
-        this.image = getCachedImage('assets/player/player_sprites.png');
-        const checkLoad = () => {
-            if (this.image.complete && this.image.naturalWidth !== 0) {
-                this.rawSpriteWidth = this.image.width / 4;
-                this.rawSpriteHeight = this.image.height / 4;
-            } else {
-                this.image.onload = () => {
-                    this.rawSpriteWidth = this.image.width / 4;
-                    this.rawSpriteHeight = this.image.height / 4;
-                };
-            }
-        };
-        checkLoad();
-
-        // Sprite animation properties
-        this.frameX = 0;
-        this.frameY = 0; // Row: 0=Down, 1=Left, 2=Right, 3=Up
-        this.maxFrames = 4; // Columns
-        this.frameTimer = 0;
-        this.frameInterval = 0.1; // Faster animation speed
-        this.rawSpriteWidth = 32; // Default fallback
-        this.rawSpriteHeight = 32; // Default fallback
-
-        // Tuning properties to handle gaps in AI sprite sheets
-        this.spritePaddingX = 40; // Pixels to trim from left/right
-        this.spritePaddingY = 20; // Pixels to trim from top/bottom
 
         this.width = 30; // Reduce collision box slightly
         this.height = 30;
+
+        // Directional Sprite Sheets
+        this.sprites = {
+            yoko: { img: getCachedImage('assets/player/player_run_yoko.png'), data: null },
+            sita: { img: getCachedImage('assets/player/player_run_sita.png'), data: null },
+            ue: { img: getCachedImage('assets/player/player_run_ue.png'), data: null },
+            idol_yoko: { img: getCachedImage('assets/player/player_idol_yoko.png'), data: null },
+            idol_sita: { img: getCachedImage('assets/player/player_idol_sita.png'), data: null },
+            idol_ue: { img: getCachedImage('assets/player/player_idol_ue.png'), data: null }
+        };
+
+        // Load JSON Data
+        const loadJson = (key, path) => {
+            getCachedJson(path).then(data => {
+                if (data) {
+                    this.sprites[key].data = data;
+                    console.log(`Player ${key} sprite data loaded`);
+                }
+            }).catch(err => console.error(`Failed to load ${key} JSON:`, err));
+        };
+        loadJson('yoko', 'assets/player/player_run_yoko.json');
+        loadJson('sita', 'assets/player/player_run_sita.json');
+        loadJson('ue', 'assets/player/player_run_ue.json');
+        loadJson('idol_yoko', 'assets/player/player_idol_yoko.json');
+        loadJson('idol_sita', 'assets/player/player_idol_sita.json');
+        loadJson('idol_ue', 'assets/player/player_idol_ue.json');
+
+        // Fallback or Initial Image (for backward compatibility or fast loading)
+        this.image = this.sprites.yoko.img;
+
+        // Sprite animation properties
+        this.frameX = 0;
+        this.frameCounter = 0;
+        this.maxFrames = 36;
+        this.frameTimer = 0;
+        this.frameInterval = 0.04; // Adjust for 36 frames loop
 
         this.damageColor = '#ff3333'; // Player takes red damage text
 
@@ -85,16 +97,7 @@ export class Player extends Entity {
         this.aetherRushDuration = 15.0;
         this.aetherRushTimer = 0;
 
-        // Load Sprite JSON
-        this.spriteData = null;
-        getCachedJson('assets/player/player_sprites.json').then(data => {
-            if (data) {
-                this.spriteData = data;
-                this.spriteSheet = getCachedImage('assets/player/player_sprites.png');
-                console.log('Player sprite data loaded:', this.spriteData);
-            }
-        })
-            .catch(err => console.error('Failed to load sprite JSON:', err));
+        this.bloodBlessings = [];
 
         this.bloodBlessings = [];
         this.voltDriveTimer = 0;
@@ -192,9 +195,9 @@ export class Player extends Entity {
     getDamageMultiplier(target = null) {
         let mult = 1.0;
         if (this.bloodBlessings) {
-            this.bloodBlessings.forEach(b => {
+            for (const b of this.bloodBlessings) {
                 if (b.buff && b.buff.damageMult) mult *= b.buff.damageMult;
-            });
+            }
         }
         if (this.isAetherRush) mult *= 1.2;
 
@@ -286,9 +289,9 @@ export class Player extends Entity {
     get actualSpeed() {
         let mult = 1.0;
         if (this.bloodBlessings) {
-            this.bloodBlessings.forEach(b => {
+            for (const b of this.bloodBlessings) {
                 if (b.buff && b.buff.speedMult) mult *= b.buff.speedMult;
-            });
+            }
         }
         if (this.voltDriveTimer > 0 && this.voltDriveParams) {
             mult *= (this.voltDriveParams.speedMult || 1.8);
@@ -328,9 +331,9 @@ export class Player extends Entity {
     get aetherMultiplier() {
         let mult = 1.0;
         if (this.bloodBlessings) {
-            this.bloodBlessings.forEach(b => {
+            for (const b of this.bloodBlessings) {
                 if (b.buff && b.buff.aetherGainMult) mult *= b.buff.aetherGainMult;
-            });
+            }
         }
         if (this.circuit) {
             mult += this.circuit.getBonuses().aetherChargeMult;
@@ -411,22 +414,11 @@ export class Player extends Entity {
             this.enrageCooldownTimer -= dt;
         }
 
-        if (this.isDemo) {
+        if (this.isDemo || this.game.isDungeonStarting || this.game.gameState === 'TITLE') {
             this.frameTimer += dt;
             if (this.frameTimer > this.frameInterval) {
-                this.frameX++;
-                if (this.frameX >= this.maxFrames) this.frameX = 0;
-                this.frameTimer = 0;
-            }
-            return;
-        }
-
-        if (this.game.isDungeonStarting || this.game.gameState === 'TITLE') {
-            // Cinematic or Title: Only run animation, no movement or skills
-            this.frameTimer += dt;
-            if (this.frameTimer > this.frameInterval) {
-                this.frameX++;
-                if (this.frameX >= this.maxFrames) this.frameX = 0;
+                this.frameCounter++;
+                if (this.frameCounter >= this.maxFrames) this.frameCounter = 0;
                 this.frameTimer = 0;
             }
             return;
@@ -450,7 +442,7 @@ export class Player extends Entity {
 
             // Volt Drive: Dash thru enemies
             if (this.voltDriveTimer > 0) {
-                this.game.enemies.forEach(e => {
+                for (const e of this.game.enemies) {
                     if (this.checkCollision(this, e)) {
                         const hitKey = `volt_dash_${e.id}`;
                         this.voltHitList = this.voltHitList || new Set();
@@ -473,7 +465,7 @@ export class Player extends Entity {
                             this.game.spawnParticles(e.x + e.width / 2, e.y + e.height / 2, 5, '#ffff00');
                         }
                     }
-                });
+                }
             }
 
             if (this.dashElapsed >= this.dashDuration) {
@@ -522,29 +514,37 @@ export class Player extends Entity {
         }
 
         // 4. Animation and Visuals
+        this.frameTimer += dt;
+        if (this.frameTimer > this.frameInterval) {
+            this.frameCounter++;
+            if (this.frameCounter >= this.maxFrames) this.frameCounter = 0;
+            this.frameTimer = 0;
+        }
+
         if (moving) {
-            this.frameTimer += dt;
-            if (this.frameTimer > this.frameInterval) {
-                this.frameX++;
-                if (this.frameX >= this.maxFrames) this.frameX = 0;
-                this.frameTimer = 0;
-            }
             this.accelerationTime = Math.min(4.0, this.accelerationTime + dt);
         } else {
-            this.frameX = 0;
-            this.frameTimer = 0;
             // Gradually decrease (approx 2.6s to empty from full)
             this.accelerationTime = Math.max(0, this.accelerationTime - dt * 1.5);
         }
 
-        if (this.facing.includes('down')) this.frameY = 0;
-        else if (this.facing.includes('up')) this.frameY = 3;
-        else if (this.facing.includes('left')) this.frameY = 1;
-        else if (this.facing.includes('right')) this.frameY = 2;
+        // Reset scale and rotation to defaults as new 36-frame animations handle these
+        this.scale = this.baseScale;
+        this.rotation = 0;
+        this.animTimer += dt;
 
         if (this.dashTimer > 0) this.dashTimer -= dt;
 
         // Aether / Volt / Effects
+        this.sprites = this.sprites || {};
+        Object.keys(this.sprites).forEach(key => {
+            const s = this.sprites[key];
+            if (s && !s.data && Math.random() < 0.02) { 
+                const path = `assets/player/player_${key.includes('idol') ? 'idol' : 'run'}_${key.replace('idol_', '')}.json`;
+                getCachedJson(path).then(data => { if (data) s.data = data; });
+            }
+        });
+
         if (this.isAetherRush) {
             this.aetherRushTimer -= dt;
             this.aetherGauge = (this.aetherRushTimer / this.aetherRushDuration) * this.maxAetherGauge;
@@ -555,7 +555,27 @@ export class Player extends Entity {
         if (this.voltDriveTimer > 0) {
             this.voltDriveTimer -= dt;
             if (this.voltDriveTimer <= 0) { this.voltDriveTimer = 0; this.voltDriveParams = null; }
-            if (Math.random() < 0.4) this.game.spawnParticles(this.x + this.width / 2, this.y + this.height / 2, 1, '#ffff00');
+            
+            // SHOCK-like Spark effect for Player during Volt Drive
+            if (Math.random() < 0.2) {
+                const px = this.x + Math.random() * this.width;
+                const py = this.y + Math.random() * this.height;
+                const partId = Math.floor(Math.random() * 10) + 1;
+                const partStr = partId < 10 ? `0${partId}` : `${partId}`;
+                
+                spawnProjectile(this.game, px, py, 0, 0, {
+                    visual: true,
+                    spriteSheet: `assets/skills/vfx/lightning_part_${partStr}.png`,
+                    frames: 1,
+                    life: 0.15 + Math.random() * 0.1,
+                    width: 28 + Math.random() * 28, // Slightly larger for player
+                    height: 28 + Math.random() * 28,
+                    rotation: Math.random() * Math.PI * 2,
+                    color: '#ffff00',
+                    filter: 'sepia(1) saturate(10) hue-rotate(0deg) brightness(1.2)',
+                    blendMode: 'lighter'
+                });
+            }
         }
 
         // Ghost trail
@@ -636,35 +656,60 @@ export class Player extends Entity {
     }
 
     createGhostEffect() {
-        if (this.spriteData && this.spriteData.frames) {
-            const frameIndex = this.frameY * 4 + this.frameX;
-            if (this.spriteData.frames[frameIndex]) {
-                const frameData = this.spriteData.frames[frameIndex].frame;
+        const moving = Math.abs(this.vx) > 1 || Math.abs(this.vy) > 1;
+        let spriteKey = 'yoko';
+        if (moving) {
+            if (this.facing.includes('up')) spriteKey = 'ue';
+            else if (this.facing.includes('down')) spriteKey = 'sita';
+        } else {
+            if (this.facing.includes('up')) spriteKey = 'idol_ue';
+            else if (this.facing.includes('down')) spriteKey = 'idol_sita';
+            else spriteKey = 'idol_yoko';
+        }
+
+        const sheet = this.sprites[spriteKey];
+        if (sheet && sheet.data && sheet.data.frames) {
+            const frameNames = Object.keys(sheet.data.frames);
+            const frameName = frameNames[this.frameCounter % frameNames.length];
+            const frameEntry = sheet.data.frames[frameName];
+            const frameData = frameEntry ? (frameEntry.frame || frameEntry) : null; 
+
+            if (frameData) {
                 const ratio = frameData.w / frameData.h;
-                const drawWidth = this.width * 1.05;
+                let baseDrawScale = 1.8;
+                if (spriteKey === 'yoko') baseDrawScale = 1.8 * 1.25; 
+                else if (spriteKey === 'ue') baseDrawScale = 1.8 * 1.10; 
+                else if (spriteKey === 'sita') baseDrawScale = 1.8 * 0.9;
+                else if (spriteKey === 'idol_ue') baseDrawScale = 1.8 * 0.78; 
+                else if (spriteKey === 'idol_sita') baseDrawScale = 1.8 * 0.80; 
+
+                const drawWidth = this.width * baseDrawScale;
                 const drawHeight = drawWidth / ratio;
-                const drawX = this.x + (this.width - drawWidth) / 2;
-                const drawY = this.y + this.height - drawHeight;
+                const drawX = (this.width - drawWidth) / 2;
+                const drawY = this.height - drawHeight;
                 const isVolt = this.voltDriveTimer > 0;
+                const isLeft = this.facing.includes('left');
 
                 this.game.animations.push({
                     type: 'ghost',
-                    x: drawX, y: drawY,
+                    x: this.x + drawX, y: this.y + drawY,
                     width: drawWidth, height: drawHeight,
-                    image: this.image,
+                    image: sheet.img,
                     sx: frameData.x, sy: frameData.y,
                     sw: frameData.w, sh: frameData.h,
                     life: 0.3, maxLife: 0.3,
                     isVolt: isVolt,
+                    isLeft: isLeft,
                     update: function (dt) { this.life -= dt; },
                     draw: function (ctx) {
                         ctx.save();
                         ctx.globalAlpha = (this.life / this.maxLife) * 0.6;
                         if (this.isVolt) ctx.filter = 'brightness(1.5) sepia(100%) saturate(1000%) hue-rotate(-20deg)';
                         else ctx.filter = 'brightness(2) grayscale(100%)';
-                        if (this.image.complete && this.image.naturalWidth !== 0) {
-                            ctx.drawImage(this.image, this.sx, this.sy, this.sw, this.sh, Math.floor(this.x), Math.floor(this.y), this.width, this.height);
-                        }
+
+                        ctx.translate(Math.floor(this.x + this.width / 2), Math.floor(this.y + this.height));
+                        if (this.isLeft) ctx.scale(-1, 1);
+                        ctx.drawImage(this.image, this.sx, this.sy, this.sw, this.sh, -Math.floor(this.width / 2), -Math.floor(this.height), Math.floor(this.width), Math.floor(this.height));
                         ctx.restore();
                     }
                 });
@@ -803,58 +848,140 @@ export class Player extends Entity {
 
                 // 2. Draw the icon
                 if (this.image && this.image.complete && this.image.naturalWidth !== 0) {
-                    const size = 24;
+                    const size = 24 * (1.0 + Math.sin(t * Math.PI) * 0.5); // Pop size
                     ctx.drawImage(this.image, px - size / 2, py - size / 2, size, size);
+                    
+                    // Add "Sparkle" on appearance
+                    if (t < 0.1 && Math.random() < 0.5) {
+                        this.player.game.spawnParticles(px, py, 2, '#fff');
+                    }
                 }
 
                 ctx.restore();
             }
         });
+
+        // Extra burst particles
+        this.game.spawnParticles(this.x + this.width / 2, this.y - 20, 5, '#fff');
     }
 
     draw(ctx) {
-        if (this.image.complete && this.image.naturalWidth !== 0 && this.spriteData) {
-            // Calculate frame index
-            const frameIndex = this.frameY * 4 + this.frameX;
+        // Find current direction sheet
+        const moving = Math.abs(this.vx) > 1 || Math.abs(this.vy) > 1;
+        let spriteKey = moving ? 'yoko' : 'idol_yoko';
+        if (moving) {
+            if (this.facing.includes('up')) spriteKey = 'ue';
+            else if (this.facing.includes('down')) spriteKey = 'sita';
+        } else {
+            if (this.facing.includes('up')) spriteKey = 'idol_ue';
+            else if (this.facing.includes('down')) spriteKey = 'idol_sita';
+        }
 
-            // Safety check
-            if (this.spriteData.frames && this.spriteData.frames[frameIndex]) {
-                const frameData = this.spriteData.frames[frameIndex].frame;
+        let sheet = this.sprites[spriteKey];
+        // Resilient fallback logic
+        const isReady = (s) => s && s.img.complete && s.img.naturalWidth !== 0 && s.data;
+        
+        if (!isReady(sheet)) {
+            // Priority fallbacks
+            if (spriteKey.startsWith('idol')) {
+                if (isReady(this.sprites['idol_yoko'])) sheet = this.sprites['idol_yoko'];
+                else if (isReady(this.sprites['yoko'])) sheet = this.sprites['yoko'];
+            } else {
+                if (isReady(this.sprites['yoko'])) sheet = this.sprites['yoko'];
+            }
+        }
 
+        if (isReady(sheet)) {
+            const frameNames = Object.keys(sheet.data.frames);
+            const frameName = frameNames[this.frameCounter % frameNames.length];
+            const framesDict = sheet.data.frames;
+            const frameEntry = framesDict[frameName];
+
+            if (frameEntry) {
+                const frameData = frameEntry.frame || frameEntry;
                 // Calculate Aspect Ratio
                 const ratio = frameData.w / frameData.h;
+                let baseDrawScale = 1.8;
+                if (spriteKey === 'yoko') baseDrawScale = 1.8 * 1.25; // Increase horizontal run by 25%
+                else if (spriteKey === 'ue') baseDrawScale = 1.8 * 1.05; // Increase up run by 5%
+                else if (spriteKey === 'sita') baseDrawScale = 1.8 * 0.9; // 10% reduction for down run
+                else if (spriteKey === 'idol_ue') baseDrawScale = 1.8 * 0.80; // 20% reduction for up idle
+                else if (spriteKey === 'idol_sita') baseDrawScale = 1.8 * 0.85; // 15% reduction for down idle
 
-                // Determine drawing size based on collision width
-                // Scaled by 0.7 as requested (1.5 * 0.7 = 1.05)
-                const drawWidth = this.width * 1.05;
+                const drawWidth = this.width * baseDrawScale;
                 const drawHeight = drawWidth / ratio;
 
-                // Anchor to Bottom Center of collision box
+                // Anchor to Bottom Center
                 const drawX = (this.width - drawWidth) / 2;
                 const drawY = this.height - drawHeight;
+
+                // Aether Aura Visual
+                if (this.aetherGauge > 0) {
+                    ctx.save();
+                    const auraIntensity = this.isAetherRush ? 1.0 : (this.aetherGauge / this.maxAetherGauge);
+                    ctx.globalAlpha = 0.3 * auraIntensity;
+                    ctx.translate(this.x + this.width / 2, this.y + this.height / 2);
+                    const auraSize = this.width * (1.2 + Math.sin(this.animTimer * 6) * 0.1);
+                    
+                    const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, auraSize);
+                    const auraColor = this.isAetherRush ? '0, 255, 255' : '100, 200, 255';
+                    grad.addColorStop(0, `rgba(${auraColor}, 0.8)`);
+                    grad.addColorStop(1, `rgba(${auraColor}, 0)`);
+                    
+                    ctx.fillStyle = grad;
+                    ctx.beginPath();
+                    ctx.arc(0, 0, auraSize, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.restore();
+                }
 
                 ctx.save();
                 ctx.globalAlpha *= this.alpha;
                 ctx.translate(Math.floor(this.x + this.width / 2), Math.floor(this.y + this.height));
                 ctx.scale(this.scale, this.scale);
+                ctx.rotate(this.rotation);
+
+                // Mirror for left direction
+                if (this.facing.includes('left')) {
+                    ctx.scale(-1, 1);
+                }
+
+                // Elemental Glow Foundation
+                const primarySkill = this.equippedSkills['primary1'] || this.equippedSkills[SkillType.NORMAL];
+                if (primarySkill && primarySkill.element) {
+                    ctx.save();
+                    const elementColors = {
+                        'fire': '#ff4400',
+                        'ice': '#0088ff',
+                        'thunder': '#ffff00',
+                        'blood': '#ff0000'
+                    };
+                    const glowColor = elementColors[primarySkill.element] || '#ffffff';
+                    ctx.shadowBlur = 15 + Math.sin(this.animTimer * 5) * 5;
+                    ctx.shadowColor = glowColor;
+                    ctx.globalAlpha *= 0.5;
+                    ctx.beginPath();
+                    ctx.arc(0, -this.height / 2, this.width * 0.8, 0, Math.PI * 2);
+                    ctx.fillStyle = glowColor;
+                    ctx.fill();
+                    ctx.restore();
+                }
 
                 if (this.hitFlashTimer > 0) {
                     ctx.filter = 'brightness(0) invert(1)';
                 }
 
+                // Draw the actual sprite
                 ctx.drawImage(
-                    this.image,
-                    frameData.x, frameData.y, frameData.w, frameData.h, // Source from JSON
-                    Math.floor(drawX - this.width / 2), Math.floor(drawY - this.height), Math.floor(drawWidth), Math.floor(drawHeight) // Destination
+                    sheet.img,
+                    frameData.x, frameData.y, frameData.w, frameData.h,
+                    Math.floor(drawX - this.width / 2), Math.floor(drawY - this.height), Math.floor(drawWidth), Math.floor(drawHeight)
                 );
                 ctx.restore();
             } else {
-                console.warn('Missing frame data for index:', frameIndex);
-                super.draw(ctx); // Fallback
+                super.draw(ctx);
             }
         } else {
-            // Fallback (or loading state)
-            if (Math.random() < 0.01) console.log('Player Draw Fallback - ImgComplete:', this.image.complete, 'HasSpriteData:', !!this.spriteData);
             super.draw(ctx);
         }
 
@@ -949,6 +1076,11 @@ export class Player extends Entity {
             const intensity = Math.min(15, 5 + scaledDamage / 2);
             this.game.camera.shake(0.2, intensity);
         }
+
+        // Visual Polish: Damage Tilt and Scale
+        this.rotation = (Math.random() - 0.5) * 0.4;
+        this.scale = this.baseScale * 0.9;
+        this.hitFlashTimer = 0.2; // Ensure flash is triggered
 
         // 2. Knockback Calculation (Away from nearest enemy or based on movement)
         const enemiesInRange = this.game.enemies.filter(e => {
@@ -1134,6 +1266,17 @@ export class Player extends Entity {
         this.dashVy = (dashMoveY / dist) * this.dashSpeed;
 
         console.log("Dash!", this.dashVx, this.dashVy);
+
+        // Visual Polish: Dash Dust Cloud
+        for (let i = 0; i < 5; i++) {
+            this.game.spawnParticles(
+                this.x + this.width / 2 + (Math.random() - 0.5) * 20,
+                this.y + this.height,
+                1,
+                'rgba(255, 255, 255, 0.5)',
+                { vx: -this.dashVx * 0.2 + (Math.random() - 0.5) * 50, vy: (Math.random() - 0.5) * 30, life: 0.4 }
+            );
+        }
 
         // Visual Effect (Ghost)
         const ghostInterval = 0.03; // Spawn ghost every 0.03s

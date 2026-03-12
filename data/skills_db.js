@@ -12,7 +12,7 @@ export const skillsDB = [
             knockback: 50,
             count: 6, // Number of pellets
             angleSpread: 45, // Spread in degrees
-            damage: 6,
+            damage: 3,
             speed: 600,
             randomSpeed: 150, // Variation in speed
             life: 0.3, // Short range (increased from 0.233)
@@ -75,8 +75,8 @@ export const skillsDB = [
             damage: 4,
             speed: 0,
             life: 0.2, // Adjusted to 0.2s
-            width: 120, // Match visual span/thickness better
-            height: 120, // Match visual span/thickness better
+            width: 84, // 120 * 0.7
+            height: 84, // 120 * 0.7
             forwardOffset: 35, // Centered better on player
             shape: 'slash',
             color: '#800000', // Deep Dark Red
@@ -84,7 +84,7 @@ export const skillsDB = [
             damageColor: '#cc0000', // Brighter Blood Red for visibility
             statusEffect: 'bleed',
             statusChance: 0.4,
-            pierce: 999, // Allow hitting multiple enemies in the X
+            pierce: 1, // Hit only one enemy per strike
             ignoreWallDestruction: true, // Don't vanish on walls
             aetherCharge: 2.0,
             critChance: 0.25,      // 10% -> 25%
@@ -151,6 +151,8 @@ export const skillsDB = [
             noTrail: true, // Disable orange trail
             onHitEffect: 'lightning_burst', // New param to trigger burst
             damageColor: '#ffff00', // Yellow (Electric)
+            statusEffect: 'shock',
+            statusChance: 0.3,
             aetherCharge: 0.5, // Calculated: 5.0 / (3 hits / 0.3s)
             critChance: 0.25,      // 20% -> 25%
             critMultiplier: 1.3    // 2.0 -> 1.3
@@ -194,7 +196,7 @@ export const skillsDB = [
             statusEffect: 'burn',
             statusChance: 0.5,
             aetherCharge: 15.0, // Calculated: 15.0 / (1 hit / 3.0s) = 5.0/s
-            critChance: 0.30,      // 20% -> 30% (チャージ)
+            critChance: 0.15,      // 30% -> 15% (チャージ)
             critMultiplier: 1.5    // 2.0 -> 1.5
         }
     },
@@ -226,6 +228,8 @@ export const skillsDB = [
             frameRate: 0.1, // Not used for single frame but good practice
             // scale: 1.0, // Force Fit to 160x160 instead
             randomRotation: true, // Rotate randomly each frame
+            statusEffect: 'shock',
+            statusChance: 0.3,
             aetherCharge: 0.75, // Halved since CD is halved (6.0 -> 3.0)
             critChance: 0.20,      // 10% -> 20%
             critMultiplier: 1.5    // 2.0 -> 1.5 (奥義)
@@ -258,6 +262,8 @@ export const skillsDB = [
             burstCount: 8, // More segments
             burstSize: 80, // Larger area
             burstSpeed: 150, // Speed for diffusion
+            statusEffect: 'shock',
+            statusChance: 0.3,
             aetherCharge: 2.5, // Calculated: 2.5 / (1 hit / 2.5s) = 1.0/s
             critChance: 0.25,      // 15% -> 25%
             critMultiplier: 1.3    // 2.0 -> 1.3
@@ -434,6 +440,8 @@ export const skillsDB = [
             chainRange: 500,
             crackle: true,
             crackleColor: '#ffff00',
+            statusEffect: 'shock',
+            statusChance: 0.3,
             aetherCharge: 12.5, // Calculated: 12.5 / (1 hit / 2.5s) = 5.0/s
             critChance: 0.35,      // 25% -> 35%
             critMultiplier: 1.3    // 2.0 -> 1.3
@@ -455,6 +463,8 @@ export const skillsDB = [
             spacing: 25, // User requested 25
             zigzagWidth: 30, // Zigzag offset
             damageColor: '#ffff00', // Yellow
+            statusEffect: 'shock',
+            statusChance: 0.3,
             aetherCharge: 1.625, // Calculated: 1.625 / (12 hits / 4.0s) = 0.4/s
             critChance: 0.25,      // 15% -> 25%
             critMultiplier: 1.3    // 2.0 -> 1.3
@@ -473,6 +483,8 @@ export const skillsDB = [
             damage: 20, // High single hit
             count: 3, // Waves per direction
             damageColor: '#ffff00', // Yellow
+            statusEffect: 'shock',
+            statusChance: 0.5, // Ultimate
             aetherCharge: 0, // Ultimate (No gain)
             critChance: 0.35,      // 30% -> 35%
             critMultiplier: 1.5    // 2.0 -> 1.5
@@ -634,6 +646,8 @@ export const skillsDB = [
             chainCount: 3,
             chainRange: 150,
             damageColor: '#ffff00',
+            statusEffect: 'shock',
+            statusChance: 0.5, // Ultimate
             aetherCharge: 0,
             critChance: 0.2,
             critMultiplier: 2.0
@@ -676,5 +690,34 @@ export const skillsDB = [
             shakeIntensity: 0.3
         },
         aetherRushDesc: '隕石の落下速度が上がり、着弾時の噴火数と持続時間が大幅に強化される。'
+    },
+    {
+        id: 'fate_dealer',
+        name: 'フェイト・ディール', // Fate Dealer
+        type: 'primary',
+        element: 'none',
+        icon: 'assets/skills/icons/icon_fate_dealer.png', // Placeholder icon
+        cooldown: 1.5,
+        behavior: 'fate_dealer_behavior',
+        description: '前方に5枚のトランプを投げ、柄に応じて状態異常（クローバー:毒、ハート:火炎、スペード:出血、ダイヤ:鈍足）を確率で付与する。',
+        params: {
+            damage: 5,
+            speed: 700,
+            count: 5,
+            statusChance: 0.3,
+            rushCount: 5,
+            angleSpread: 30,
+            life: 0.8,
+            width: 16,
+            height: 24,
+            rotationOffset: Math.PI / 2,
+            spriteSheet: 'assets/skills/vfx/card_projectile.png', // Placeholder sprite
+            frames: 1,
+            damageColor: '#ffffff',
+            aetherCharge: 1.5,
+            critChance: 0.2,
+            critMultiplier: 1.5
+        },
+        aetherRushDesc: 'カード全てに貫通と爆発効果が付与される。さらに、命中のたびに全4種の状態異常を同時に付与する。'
     }
 ];

@@ -20,7 +20,7 @@ export class AetherCircuitManager {
      * Calculates current capacity based on level (example).
      */
     updateCapacity() {
-        let base = 20 + (this.player.currentFloor * 2);
+        let base = 20 + (this.player.game.currentFloor * 2);
         if (this.player.game.debugMode) {
             base = 100;
         }

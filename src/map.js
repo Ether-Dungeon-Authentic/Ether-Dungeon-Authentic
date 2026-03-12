@@ -14,8 +14,23 @@ export class Map {
         this.rooms = [];
         this.roomGrid = [];
         this.exploredTiles = []; // 2D array of booleans
-        this.wallImage = getCachedImage('assets/map/wall.png');
-        this.floorImage = getCachedImage('assets/map/floor.png');
+        this.theme = 'default';
+        this.wallImages = [
+            getCachedImage(`assets/map/themes/${this.theme}/wall1.png`),
+            getCachedImage(`assets/map/themes/${this.theme}/wall2.png`),
+            getCachedImage(`assets/map/themes/${this.theme}/wall3.png`)
+        ];
+        this.bloodWallImages = [
+            getCachedImage(`assets/map/themes/${this.theme}/blood1.png`),
+            getCachedImage(`assets/map/themes/${this.theme}/blood2.png`)
+        ];
+        this.floorImage = getCachedImage(`assets/map/themes/${this.theme}/floor.png`);
+        this.decorationImages = [
+            getCachedImage(`assets/map/themes/${this.theme}/vines1.png`),
+            getCachedImage(`assets/map/themes/${this.theme}/vines2.png`),
+            getCachedImage(`assets/map/themes/${this.theme}/vines3.png`)
+        ];
+        this.vinesOverlayImage = getCachedImage(`assets/map/themes/${this.theme}/nives4.png`);
         this.stairsImage = getCachedImage('assets/map/portal_stairs.png');
 
         // Initialize modules
@@ -51,11 +66,11 @@ export class Map {
             }
             this.rooms = [];
 
-            // 0. Place Central Startup Room (8x8, Center of Map)
-            const centerX = Math.floor(this.width / 2) - 4;
-            const centerY = Math.floor(this.height / 2) - 4;
+            // 0. Place Central Startup Room (10x10, Center of Map)
+            const centerX = Math.floor(this.width / 2) - 5;
+            const centerY = Math.floor(this.height / 2) - 5;
             const startRoom = {
-                x: centerX, y: centerY, w: 8, h: 8,
+                x: centerX, y: centerY, w: 10, h: 10,
                 type: 'start',
                 connectors: [],
                 id: 0,
@@ -63,21 +78,21 @@ export class Map {
             };
             this.placer.carveRoom(startRoom);
             // Add 4 connectors (Center of each side, index 3 expands to 3-4 for 2-tile width)
-            startRoom.connectors.push({ x: centerX + 3, y: centerY, dir: { x: 0, y: -1 }, used: false });
-            startRoom.connectors.push({ x: centerX + 3, y: centerY + 7, dir: { x: 0, y: 1 }, used: false });
-            startRoom.connectors.push({ x: centerX, y: centerY + 3, dir: { x: -1, y: 0 }, used: false });
-            startRoom.connectors.push({ x: centerX + 7, y: centerY + 3, dir: { x: 1, y: 0 }, used: false });
+            startRoom.connectors.push({ x: centerX + 4, y: centerY, dir: { x: 0, y: -1 }, used: false });
+            startRoom.connectors.push({ x: centerX + 4, y: centerY + 9, dir: { x: 0, y: 1 }, used: false });
+            startRoom.connectors.push({ x: centerX, y: centerY + 4, dir: { x: -1, y: 0 }, used: false });
+            startRoom.connectors.push({ x: centerX + 9, y: centerY + 4, dir: { x: 1, y: 0 }, used: false });
             this.rooms.push(startRoom);
             this.placeStartNeighborRooms(startRoom); // Guarantee 4-way corridors + rooms
 
             // 1. Critical Rooms
-            let bossPlaced = this.placer.placeRoom({ w: 16, h: 16, type: 'boss', entranceCount: 1 });
-            let staircasePlaced = this.placer.placeRoom({ w: 6, h: 6, type: 'staircase', entranceCount: 1 });
-            let shopPlaced = this.placer.placeRoom({ w: 8, h: 8, type: 'shop', entranceCount: 1 });
+            let bossPlaced = this.placer.placeRoom({ w: 20, h: 20, type: 'boss', entranceCount: 1 });
+            let staircasePlaced = this.placer.placeRoom({ w: 8, h: 8, type: 'staircase', entranceCount: 1 });
+            let shopPlaced = this.placer.placeRoom({ w: 10, h: 10, type: 'shop', entranceCount: 1 });
 
             // 2. Random Rooms
-            const targetRooms = 20;
-            const attemptLimit = 300;
+            const targetRooms = 30;
+            const attemptLimit = 400;
             const SHAPES = [
                 'square', 'square', 'square',
                 'island', 'island', 'island',
@@ -88,8 +103,8 @@ export class Map {
             ];
 
             for (let i = 0; i < attemptLimit && this.rooms.length < targetRooms; i++) {
-                const w = Math.floor(Math.random() * 8) + 10;
-                const h = Math.floor(Math.random() * 8) + 10;
+                const w = Math.floor(Math.random() * 10) + 14; // 14-23
+                const h = Math.floor(Math.random() * 10) + 14; // 14-23
                 const entrances = Math.floor(Math.random() * 2) + 2;
                 const shape = SHAPES[Math.floor(Math.random() * SHAPES.length)];
 
@@ -102,10 +117,10 @@ export class Map {
             }
 
             // 3. Special Rooms
-            this.placer.placeRoom({ w: 8, h: 8, type: 'treasure', entranceCount: 1 });
+            this.placer.placeRoom({ w: 10, h: 10, type: 'treasure', entranceCount: 1 });
             // Staircase already placed
-            this.placer.placeRoom({ w: 6, h: 6, type: 'statue', entranceCount: 1 });
-            this.placer.placeRoom({ w: 6, h: 6, type: 'altar', entranceCount: 1 });
+            this.placer.placeRoom({ w: 8, h: 8, type: 'statue', entranceCount: 1 });
+            this.placer.placeRoom({ w: 8, h: 8, type: 'altar', entranceCount: 1 });
             // Shop already placed in critical phase
 
             // 4. Connectivity
@@ -139,8 +154,8 @@ export class Map {
         for (let c of startRoom.connectors) {
             const dx = c.dir.x;
             const dy = c.dir.y;
-            const roomW = Math.floor(Math.random() * 5) + 10; // 10–14
-            const roomH = Math.floor(Math.random() * 5) + 10;
+            const roomW = Math.floor(Math.random() * 6) + 14; // 14–19
+            const roomH = Math.floor(Math.random() * 6) + 14;
 
             // Corridor end tile (10 steps from connector in its direction)
             const corridorEndX = c.x + dx * corridorLen;
@@ -153,16 +168,16 @@ export class Map {
             let roomX, roomY;
             if (dy < 0) {        // North — south wall of new room at wallY
                 roomY = wallY - roomH + 1;
-                roomX = c.x - 3;
+                roomX = c.x - Math.floor(roomW / 2);
             } else if (dy > 0) { // South — north wall of new room at wallY
                 roomY = wallY;
-                roomX = c.x - 3;
+                roomX = c.x - Math.floor(roomW / 2);
             } else if (dx < 0) { // West  — east wall of new room at wallX
                 roomX = wallX - roomW + 1;
-                roomY = c.y - 3;
+                roomY = c.y - Math.floor(roomH / 2);
             } else {             // East  — west wall of new room at wallX
                 roomX = wallX;
-                roomY = c.y - 3;
+                roomY = c.y - Math.floor(roomH / 2);
             }
 
             // Map bounds check
@@ -293,6 +308,64 @@ export class Map {
         };
         this.placer.carveRoom(room);
         this.rooms.push(room);
+    }
+
+    generateLobby() {
+        this.width = 40;
+        this.height = 40;
+        this.tiles = [];
+        this.roomGrid = [];
+        for (let y = 0; y < this.height; y++) {
+            this.tiles[y] = [];
+            this.roomGrid[y] = [];
+            this.exploredTiles[y] = [];
+            for (let x = 0; x < this.width; x++) {
+                this.tiles[y][x] = 1;
+                this.roomGrid[y][x] = -1;
+                this.exploredTiles[y][x] = false;
+            }
+        }
+        this.rooms = [];
+
+        // 1. Create Start Room
+        const startRoom = {
+            x: 5, y: 15, w: 20, h: 20,
+            type: 'start',
+            id: 0,
+            cleared: true,
+            active: true,
+            connectors: [],
+            shape: 'square'
+        };
+        this.placer.carveRoom(startRoom);
+        this.rooms.push(startRoom);
+
+        // 2. Create Portal Room
+        const portalRoom = {
+            x: 25, y: 15, w: 8, h: 8,
+            type: 'staircase',
+            id: 1,
+            cleared: true,
+            active: true,
+            connectors: [],
+            shape: 'square'
+        };
+        this.placer.carveRoom(portalRoom);
+        this.rooms.push(portalRoom);
+
+        // 3. Connect them with a simple corridor
+        // Midpoints
+        const y = 20;
+        for (let x = 15; x < 25; x++) {
+            this.tiles[y][x] = 0;
+            if (this.isValid(x, y + 1)) this.tiles[y + 1][x] = 0; // 2-wide
+        }
+
+        // Open walls
+        this.tiles[20][14] = 0;
+        this.tiles[21][14] = 0;
+        this.tiles[20][25] = 0;
+        this.tiles[21][25] = 0;
     }
 
     isValid(x, y) {

@@ -2,11 +2,13 @@ import { Enemy } from './BaseEnemy.js';
 import { Entity } from '../utils.js';
 
 export class Bat extends Enemy {
-    constructor(game, x, y) {
-        super(game, x, y, 24, 24, '#4a00e0', 30, 150, 'bat', 30);
+    constructor(game, x, y, level = 1) {
+        super(game, x, y, 24, 24, '#4a00e0', 10, 150, 'bat', 30, level);
         this.randomTimer = 0;
         this.randomDir = { x: 0, y: 0 };
-        this.damage = 5; // Re-enable contact damage
+        const scaleFactor = 1 + (level - 1) * 0.05;
+        this.damage = 5; // Fixed contact damage
+        this.dashDamage = 10; // Fixed dash damage
 
         // Attack States
         this.state = 'WANDER'; // WANDER, PREPARING, DASHING
@@ -15,7 +17,7 @@ export class Bat extends Enemy {
         this.dashTimer = 0;
         this.dashDir = { x: 0, y: 0 };
         this.dashDistance = 150; // Drastically reduced for gameplay balance
-        this.displayName = 'コウモリ';
+        this.displayName = `Lv.${level} コウモリ`;
     }
 
     update(dt) {
@@ -59,7 +61,7 @@ export class Bat extends Enemy {
                 if (this.telegraphTimer <= 0) {
                     this.state = 'DASHING';
                     this.dashTimer = 0.25; // 600 speed * 0.25s = 150px
-                    this.damage = 10; // Enable damage during dash
+                    this.damage = this.dashDamage; // Enable scaled damage during dash
                 }
                 break;
 

@@ -35,7 +35,16 @@ export class SaveManager {
      */
     static createInitialData() {
         return {
-            unlockedSkills: [], // List of skill IDs
+            unlockedSkills: [
+                'flame_fan', 'slash', // Normal
+                'fireball', 'thunder_burst', 'ice_spike', // Primary
+                'ember_strike', 'thunder_god_wrath', 'ice_garden' // Ultimate
+            ],
+            unlockedStartingSkills: [
+                'flame_fan', 'slash', // Normal
+                'fireball', 'thunder_burst', 'ice_spike', // Primary
+                'ember_strike', 'thunder_god_wrath', 'ice_garden' // Ultimate
+            ],
             stats: {
                 totalKills: 0,
                 totalRuns: 0,
@@ -56,7 +65,7 @@ export class SaveManager {
     }
 
     /**
-     * Records a newly unlocked skill.
+     * Records a newly unlocked skill for the collection.
      * @param {string} skillId 
      */
     static unlockSkill(skillId) {
@@ -64,18 +73,43 @@ export class SaveManager {
         if (!data.unlockedSkills.includes(skillId)) {
             data.unlockedSkills.push(skillId);
             this.saveData(data);
-            console.log(`[SaveManager] Skill unlocked: ${skillId}`);
+            console.log(`[SaveManager] Skill unlocked (Collection): ${skillId}`);
         }
     }
 
     /**
-     * Checks if a skill is already unlocked in the collection.
+     * Records a skill as permanently available for starting equipment.
+     * @param {string} skillId 
+     */
+    static unlockStartingSkill(skillId) {
+        const data = this.getSaveData();
+        if (!data.unlockedStartingSkills) data.unlockedStartingSkills = [];
+        if (!data.unlockedStartingSkills.includes(skillId)) {
+            data.unlockedStartingSkills.push(skillId);
+            this.saveData(data);
+            console.log(`[SaveManager] Starting Skill unlocked: ${skillId}`);
+        }
+    }
+
+    /**
+     * Checks if a skill is in the collection.
      * @param {string} skillId 
      * @returns {boolean}
      */
     static isSkillUnlocked(skillId) {
         const data = this.getSaveData();
         return data.unlockedSkills.includes(skillId);
+    }
+
+    /**
+     * Checks if a skill is available as starting equipment.
+     * @param {string} skillId 
+     * @returns {boolean}
+     */
+    static isStartingSkillUnlocked(skillId) {
+        const data = this.getSaveData();
+        if (!data.unlockedStartingSkills) return this.isSkillUnlocked(skillId); // Fallback for old saves
+        return data.unlockedStartingSkills.includes(skillId);
     }
 
     /**

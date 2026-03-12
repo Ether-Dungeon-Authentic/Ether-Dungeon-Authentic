@@ -5,13 +5,15 @@ import { getCachedImage } from '../utils.js';
 import { spawnProjectile, spawnExplosion } from '../skills/common.js';
 
 class AetherDrone extends Enemy {
-    constructor(game, owner, index) {
-        const droneHp = 150;
+    constructor(game, owner, index, level = 1) {
+        const scaleFactor = 1 + (level - 1) * 0.05;
+        const droneHp = Math.round(150 * scaleFactor);
         const droneSpeed = 220; // Match rush speed
-        super(game, 0, 0, 24, 24, '#00ffff', droneHp, droneSpeed, null, 0);
+        super(game, 0, 0, 24, 24, '#00ffff', droneHp, droneSpeed, null, 0, level);
         this.width = 24;
         this.height = 24;
         this.isSpawning = false;
+        this.damage = 15; // Fixed contact damage
 
         this.owner = owner;
         this.index = index;
@@ -67,7 +69,7 @@ class AetherDrone extends Enemy {
                 const dist = Math.hypot((this.x + this.width / 2) - (this.game.player.x + this.game.player.width / 2),
                     (this.y + this.height / 2) - (this.game.player.y + this.game.player.height / 2));
                 if (dist < 25) {
-                    this.game.player.takeDamage(15);
+                    this.game.player.takeDamage(this.damage);
                     this.hitCooldown = 0.5;
                 }
             }
@@ -179,15 +181,19 @@ class AetherDrone extends Enemy {
 }
 
 export class AetherPrime extends Boss {
-    constructor(game, x, y) {
-        super(game, x, y);
+    constructor(game, x, y, level = 1) {
+        super(game, x, y, level);
         this.width = 120;
         this.height = 120;
-        this.hp = 2000;
-        this.maxHp = 2000;
+        const scaleFactor = 1 + (level - 1) * 0.05;
+
+        const baseHp = 2000;
+        this.hp = Math.round(baseHp * scaleFactor);
+        this.maxHp = this.hp;
         this.speed = 15;
-        this.displayName = "AETHER PRIME";
-        this.score = 5000;
+        this.displayName = `Lv.${level} AETHER PRIME`;
+        this.score = Math.round(5000 * scaleFactor);
+        this.attackScale = 1.0; // Prime damage no longer scales
 
         this.floatPhase = 0;
         this.bitCount = 6;
@@ -217,7 +223,7 @@ export class AetherPrime extends Boss {
         this.droneEntities = [];
 
         for (let i = 0; i < this.bitCount; i++) {
-            const drone = new AetherDrone(this.game, this, i);
+            const drone = new AetherDrone(this.game, this, i, this.level);
             if (this.game && this.game.enemies) {
                 this.game.enemies.push(drone);
             }
@@ -490,7 +496,7 @@ export class AetherPrime extends Boss {
             const dcx = d.x + d.width / 2;
             const dcy = d.y + d.height / 2;
             const angle = Math.atan2(this.game.player.y - dcy, this.game.player.x - dcx);
-            this.spawnOrb(dcx, dcy, angle, { speed: 500, size: 50, color: '#00ffff', damage: 10, isBeam: true });
+            this.spawnOrb(dcx, dcy, angle, { speed: 500, size: 50, color: '#00ffff', damage: Math.round(10 * this.attackScale), isBeam: true });
         });
     }
 
@@ -597,7 +603,7 @@ export class AetherPrime extends Boss {
         const beamWidth = 80; // Doubled from 40
 
         if (this.checkBeamHit(this.game.player.x + this.game.player.width / 2, this.game.player.y + this.game.player.height / 2, 15, cx, cy, x2, y2, beamWidth)) {
-            this.game.player.takeDamage(40);
+            this.game.player.takeDamage(Math.round(40 * this.attackScale));
         }
 
         this.game.animations.push({
@@ -650,7 +656,7 @@ export class AetherPrime extends Boss {
             for (const pt of points) {
                 if (spawned >= Math.min(2, limit - sentinels.length)) break;
                 if (!this.game.map.isWall(pt.x + 15, pt.y + 15)) {
-                    const s = new AetherSentinel(this.game, pt.x, pt.y);
+                    const s = new AetherSentinel(this.game, pt.x, pt.y, this.level);
                     s.canDrop = false;
                     this.game.enemies.push(s);
                     spawned++;
@@ -663,7 +669,7 @@ export class AetherPrime extends Boss {
         if (!this.game || !this.game.enemyProjectiles) return;
         const speed = options.speed || 200;
         const size = options.size || 25;
-        const damage = options.damage || 20;
+        const damage = options.damage || Math.round(20 * this.attackScale);
         const color = options.color || '#00ffff';
 
         this.game.enemyProjectiles.push({

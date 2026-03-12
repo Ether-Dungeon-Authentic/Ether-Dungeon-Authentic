@@ -3,7 +3,9 @@ export const STATUS_TYPES = {
     BLEED: 'bleed',
     SLOW: 'slow',
     BURN: 'burn',
-    WET: 'wet'
+    WET: 'wet',
+    POISON: 'poison',
+    SHOCK: 'shock'
 };
 
 export class StatusManager {
@@ -63,10 +65,64 @@ export class StatusManager {
                 }
             }
 
+            // Handle Damage Over Time (POISON)
+            if (type === STATUS_TYPES.POISON) {
+                effect.tickTimer = (effect.tickTimer || 0) + dt;
+                if (effect.tickTimer >= 1.0) { // Tick every 1 second
+                    effect.tickTimer -= 1.0;
+                    const dmg = effect.stacks * 2; // 2 damage per stack (same as burn)
+                    this.owner.takeDamage(dmg, '#800080', 0, false, 0, 0, 0, true); // Purple color, no aether gain, silent
+                    this.showStatusText('poison_tick', dmg);
+                }
+            }
+
             if (effect.timer <= 0) {
                 this.effects.delete(type);
             }
         }
+    }
+
+    handleTakeDamage(amount, isChain = false) {
+        if (isChain) return; // Prevent infinite loops
+        if (!this.effects.has(STATUS_TYPES.SHOCK)) return;
+
+        const effect = this.effects.get(STATUS_TYPES.SHOCK);
+        const stacks = effect.stacks;
+        const chainDamage = Math.floor(amount * (stacks * 0.02));
+
+        if (chainDamage <= 0) return;
+
+        const game = this.owner.game;
+        if (!game) return;
+
+        // 4 tiles range (assuming 32px tiles = 128px)
+        const range = (game.map ? game.map.tileSize : 32) * 4;
+        const centerX = this.owner.x + this.owner.width / 2;
+        const centerY = this.owner.y + this.owner.height / 2;
+
+        // Visual feedback at the source
+        if (Math.random() < 0.3) {
+            game.spawnParticles(centerX, centerY, 5, '#ffff00');
+        }
+
+        game.enemies.forEach(enemy => {
+            if (enemy === this.owner || enemy.hp <= 0) return;
+
+            const dx = (enemy.x + enemy.width / 2) - centerX;
+            const dy = (enemy.y + enemy.height / 2) - centerY;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+
+            if (dist <= range) {
+                // Apply chain damage (isChain = true to prevent recursion)
+                enemy.takeDamage(chainDamage, '#ffff00', 0, false, 0, 0, 0.2, true);
+                
+                // Visual feedback: small bolt
+                if (game.spawnLightningBurst) {
+                    // Just a small burst or particle
+                    game.spawnParticles(enemy.x + enemy.width / 2, enemy.y + enemy.height / 2, 3, '#ffff00');
+                }
+            }
+        });
     }
 
     getDamageMultiplier(baseDamage) {
@@ -112,6 +168,18 @@ export class StatusManager {
         } else if (type === 'burn_tick') {
             text = `-${value}`; // Just show damage value for ticks
             color = '#ff6600';
+        } else if (type === STATUS_TYPES.POISON) {
+            text = `Poison ${value}`;
+            color = '#800080';
+        } else if (type === STATUS_TYPES.SLOW) {
+            text = `Slow ${value}`;
+            color = '#00ffff';
+        } else if (type === 'poison_tick') {
+            text = `-${value}`;
+            color = '#800080';
+        } else if (type === STATUS_TYPES.SHOCK) {
+            text = `Shock ${value}`;
+            color = '#ffff00';
         } else if (type === 'neutralized') {
             text = value; // "Steam!" or "Evaporate!"
             color = '#aae6ff';

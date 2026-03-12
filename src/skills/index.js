@@ -108,9 +108,9 @@ export function createSkill(data) {
                 if (finalParams.maxDamage !== undefined) finalParams.maxDamage *= user.bloodDamageMultiplier;
             }
 
-            // Apply Critical Rate Bonus
+            // Apply Critical Rate Bonus (Multiplicative / Percentage Increase)
             if (user.critRateBonus !== undefined && finalParams.critChance !== undefined) {
-                finalParams.critChance += user.critRateBonus;
+                finalParams.critChance *= (1 + user.critRateBonus);
             }
         }
 
