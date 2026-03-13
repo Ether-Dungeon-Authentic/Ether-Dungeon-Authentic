@@ -145,11 +145,16 @@ export const skillsDB = [
             life: 0.17, // 1/3 Life (Same range)
             color: '#FFFFFF', // White
             shape: 'triangle', // Sharp needle shape
+            fixedOrientation: true, // Follow movement direction
             // spriteSheet: 'assets/skills/vfx/lightning_part_01.png', // REMOVED: Use shape for needle
             crackle: true, // Asset Lightning Effect enabled
             crackleColor: '#FFFF00', // Yellow
             noTrail: true, // Disable orange trail
             onHitEffect: 'lightning_burst', // New param to trigger burst
+            // Homing Parameters
+            homing: true,
+            homingRange: 200, // 5 tiles * 40px
+            homingStrength: 0.15,
             damageColor: '#ffff00', // Yellow (Electric)
             statusEffect: 'shock',
             statusChance: 0.3,
@@ -719,5 +724,33 @@ export const skillsDB = [
             critMultiplier: 1.5
         },
         aetherRushDesc: 'カード全てに貫通と爆発効果が付与される。さらに、命中のたびに全4種の状態異常を同時に付与する。'
+    },
+    {
+        id: 'lightning_ray',
+        name: 'ライトニングレイ', // Lightning Ray
+        type: 'ultimate',
+        element: 'lightning',
+        icon: 'assets/skills/icons/icon_volt_drive.png', // Temporary, reuse or suggest new
+        cooldown: 20.0,
+        behavior: 'lightning_ray',
+        description: '７秒のチャージの後、広範囲にわたる極太の電撃ビームを５秒間放ち続ける。フルチャージ時のみ発動可能。',
+        params: {
+            damage: 15,
+            duration: 5.0,
+            tickInterval: 0.1,
+            range: 800,
+            width: 120, // Thick beam
+            color: '#ffff00',
+            damageColor: '#ffff00',
+            statusEffect: 'shock',
+            statusChance: 0.5,
+            chargeable: true,
+            chargeTime: 7.0,
+            onlyFullCharge: true,
+            aetherCharge: 0,
+            critChance: 0.3,
+            critMultiplier: 2.0
+        },
+        aetherRushDesc: 'ビームの威力が２倍になり、攻撃範囲がさらに拡大する。'
     }
 ];

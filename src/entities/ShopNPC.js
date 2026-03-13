@@ -130,17 +130,23 @@ export class ShopNPC extends Entity {
                     }
                 });
             }
-        } else if (this.showPrompt && !this._stockReady) {
-            // Generic fallback if stock loading or if no item hovered but near NPC
-            ctx.save();
-            ctx.shadowColor = 'black';
-            ctx.shadowBlur = 4;
-            ctx.fillStyle = 'white';
-            ctx.font = 'bold 15px sans-serif';
-            ctx.textAlign = 'center';
-            ctx.fillText('準備中...', cx, this.y - 8);
-            ctx.restore();
         }
+    }
+
+    getInteractPrompt() {
+        if (!this._stockReady) return "準備中...";
+        if (this.hoveredItemIndex !== -1) {
+            const item = this.stock[this.hoveredItemIndex];
+            if (!item.sold) {
+                const canAfford = this.game.player.dungeonCoins >= item.price;
+                return canAfford ? `[F] ${item.name} を購入` : "エーテルコイン不足";
+            }
+        }
+        return "[F] ショップを見る";
+    }
+
+    interact() {
+        this.use();
     }
 
     _drawItemSlot(ctx, item, x, y, isHovered) {

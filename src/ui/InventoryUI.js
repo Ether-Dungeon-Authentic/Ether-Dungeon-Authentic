@@ -37,6 +37,9 @@ export class InventoryUI {
 
     static bindEvents() {
         if (!this.modal) return;
+        // Guard: only bind once to avoid accumulating duplicate listeners on init() re-calls
+        if (this._bound) return;
+        this._bound = true;
 
         this.btnClose.addEventListener('click', () => this.close());
 

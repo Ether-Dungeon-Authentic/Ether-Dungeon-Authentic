@@ -243,13 +243,9 @@ export class Entity {
         // Entity-based solid collision (Crates, etc.)
         // Block player and monsters (non-solid enemies)
         const isMovable = this === this.game.player || (!this.isSolid && this.game.enemies.includes(this));
-        if (isMovable) {
-            const solidEntities = [
-                ...this.game.enemies,
-                ...this.game.entities
-            ].filter(e => e !== this && e.isSolid && !e.markedForDeletion);
-
-            for (const other of solidEntities) {
+        if (isMovable && this.game.solidEntities) {
+            for (const other of this.game.solidEntities) {
+                if (other === this || other.markedForDeletion) continue;
                 if (x < other.x + other.width && x + this.width > other.x &&
                     y < other.y + other.height && y + this.height > other.y) {
                     return true;

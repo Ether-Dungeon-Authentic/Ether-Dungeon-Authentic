@@ -27,16 +27,14 @@ export class LabNPC extends Entity {
             ctx.fillRect(this.x, this.y, this.width, this.height);
         }
 
-        if (this.showPrompt) {
-            ctx.save();
-            ctx.fillStyle = 'white';
-            ctx.font = 'bold 14px sans-serif';
-            ctx.textAlign = 'center';
-            ctx.shadowColor = 'black';
-            ctx.shadowBlur = 4;
-            ctx.fillText('[SPACE] アップグレード', cx, this.y - 10);
-            ctx.restore();
-        }
+    }
+
+    getInteractPrompt() {
+        return "[F] アップグレード";
+    }
+
+    interact() {
+        this.use();
     }
 
     use() {

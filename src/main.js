@@ -11,7 +11,9 @@ import { firebaseConfig } from './firebase_config.js';
 
 import { CollectionUI } from './ui/CollectionUI.js';
 import { LabUI } from './ui/LabUI.js';
+import { DungeonCircuitUI } from './ui/DungeonCircuitUI.js';
 import { InventoryUI } from './ui/InventoryUI.js';
+import { CONFIG } from './config.js';
 
 const _debugLog = (msg) => {
     // console.log(msg);
@@ -32,7 +34,7 @@ class Game {
         this.ctx = this.canvas.getContext('2d');
         this.width = this.canvas.width;
         this.height = this.canvas.height;
-        this.zoom = 1.2;
+        this.zoom = CONFIG.GAME.BASE_ZOOM;
         // Check for debug mode in URL: index.html?debug=true
         this.debugMode = new URLSearchParams(window.location.search).get('debug') === 'true';
         this.isDemo = true; // Demo Version Flag
@@ -43,6 +45,10 @@ class Game {
         this.score = 0;
         this.difficulty = 'normal'; // easy, normal or hard
         this.highScore = SaveManager.getSaveData().stats.highScore || 0;
+        
+        this.solidEntities = []; // Optimized list for collision checks
+        this.currentInteractable = null;
+        this.interactCooldown = 0;
 
         // Cinematic Start State
         this.cameraZoom = 1.0;
@@ -77,7 +83,7 @@ class Game {
         this.input = new InputHandler();
         this.lastTime = performance.now();
         this.accumulator = 0;
-        this.step = 1 / 60;
+        this.step = CONFIG.GAME.TICK_RATE;
 
         // Global Click Handler for UI Overlay (Removed Canvas-based Reward Click)
         this.canvas.addEventListener('mousedown', (e) => {
@@ -181,6 +187,7 @@ class Game {
 
         // --- Initialize Lab & Inventory UI ---
         LabUI.init(this);
+        DungeonCircuitUI.init(this);
         InventoryUI.init(this);
 
         // --- Show High Score on Title ---
@@ -564,6 +571,7 @@ class Game {
                 this.player.maxHp = oldPlayer.maxHp;
                 this.player.aether = 0; // Reset aether rush on floor change
                 this.player.bloodBlessings = []; // Reset Blood Altar buffs on floor change
+                this.player.aetherResonance = oldPlayer.aetherResonance || 0; // Carry over resonance between floors
             } else if (this.debugMode) {
                 // Initial floor in debug mode
                 this.player.unlockAllSkills();
@@ -1145,7 +1153,7 @@ class Game {
 
                 if (this.transitionTimer >= duration) {
                     // Add Floor Transition Score Reward
-                    const floorScore = 500;
+                    const floorScore = CONFIG.GAME.FLOOR_SCORE_REWARD;
                     if (this.currentFloor > 0) this.addScore(floorScore); // No reward for leaving lobby
 
                     this.currentFloor++;
@@ -1176,6 +1184,30 @@ class Game {
             filterInPlace(this.animations, a => a.life > 0);
 
             return; // Pause other game updates (enemies, player input, etc)
+        }
+
+        // Toggle Circuit (Lab) UI
+        if (this.input.isDown('KeyC')) {
+            if (!this.input.circuitPressed) {
+                this.input.circuitPressed = true;
+                if (this.currentFloor === 0) {
+                    const modal = document.getElementById('lab-modal');
+                    if (modal && modal.style.display === 'flex') {
+                        LabUI.close();
+                    } else {
+                        LabUI.open();
+                    }
+                } else {
+                    const modal = document.getElementById('dungeon-circuit-modal');
+                    if (modal && modal.style.display === 'flex') {
+                        DungeonCircuitUI.close();
+                    } else {
+                        DungeonCircuitUI.open();
+                    }
+                }
+            }
+        } else {
+            this.input.circuitPressed = false;
         }
 
         // Toggle Inventory
@@ -1413,19 +1445,20 @@ class Game {
         // --- Update Traps ---
         this.traps.forEach(trap => trap.update(dt));
 
-        // Staircase Interaction
+        // Staircase Interaction (Lobby/Dungeon)
         if (currentRoom && currentRoom.type === 'staircase') {
             const cx = (currentRoom.x + currentRoom.w / 2) * this.map.tileSize;
             const cy = (currentRoom.y + currentRoom.h / 2) * this.map.tileSize;
             const dist = Math.sqrt((this.player.x - cx) ** 2 + (this.player.y - cy) ** 2);
 
             const isPortalLocked = this.map.hasBoss && !this.map.bossDefeated;
-            if (dist < 60 && !isPortalLocked) {
+            if (dist < CONFIG.PLAYER.INTERACT_RANGE && !isPortalLocked) {
                 this.showStairPrompt = true;
                 this.stairPromptX = cx;
                 this.stairPromptY = cy;
 
-                if (this.input.isDown('Space')) {
+                if (this.input.isDown('KeyF') && this.interactCooldown <= 0) {
+                    this.interactCooldown = 0.5;
                     this.logToScreen("Entering Portal Animation...");
                     this.isTransitioning = true;
                     this.transitionType = 'entering-portal';
@@ -1442,11 +1475,57 @@ class Game {
             this.showStairPrompt = false;
         }
 
+        // --- Unified Interaction System ---
+        if (this.interactCooldown > 0) this.interactCooldown -= dt;
+
+        // Collect all interactable entities
+        const interactables = [
+            ...this.chests,
+            ...this.statues,
+            ...this.bloodAltars,
+            ...this.shopNPCs,
+            ...this.labNPCs,
+            ...this.skillPedestals
+        ];
+
+        let nearest = null;
+        let minDist = CONFIG.PLAYER.INTERACT_RANGE;
+
+        interactables.forEach(obj => {
+            const dist = Math.sqrt((this.player.x - obj.x) ** 2 + (this.player.y - obj.y) ** 2);
+            if (dist < minDist) {
+                minDist = dist;
+                nearest = obj;
+            }
+            // Clear all prompts first (entities might draw their own)
+            if (obj.showPrompt !== undefined) obj.showPrompt = false;
+        });
+
+        this.currentInteractable = nearest;
+        if (this.currentInteractable) {
+            // Set prompt state if the entity uses it for internal drawing
+            if (this.currentInteractable.showPrompt !== undefined) {
+                this.currentInteractable.showPrompt = true;
+            }
+
+            // Global F key for interaction
+            if (this.input.isDown('KeyF') && this.interactCooldown <= 0) {
+                this.interactCooldown = 0.3; // Prevent double-trigger
+                if (this.currentInteractable.interact) {
+                    this.currentInteractable.interact();
+                } else if (this.currentInteractable.use) {
+                    this.currentInteractable.use();
+                }
+            }
+        }
+
         // Camera update handled at the top of update() now.
 
         const hadBoss = this.enemies.some(e => e.isBoss);
         this.enemies.forEach(enemy => enemy.update(dt));
         filterInPlace(this.enemies, e => !e.markedForDeletion);
+        
+        this.updateSolidEntities();
 
         if (hadBoss && !this.enemies.some(e => e.isBoss)) {
             // Boss was just defeated
@@ -1460,99 +1539,18 @@ class Game {
         filterInPlace(this.enemyProjectiles, p => p.life > 0);
 
         // Update Chests (Interaction)
-        this.chests.forEach(chest => {
-            chest.update(dt);
-            // Check proximity
-            const dist = Math.sqrt((this.player.x - chest.x) ** 2 + (this.player.y - chest.y) ** 2);
-            if (dist < 50 && !chest.opened) {
-                // Show Prompt (Logic moved to draw)
-                chest.showPrompt = true;
-
-                if (this.input.isDown('Space')) {
-                    chest.open();
-                }
-            } else {
-                chest.showPrompt = false;
-            }
-        });
+        this.chests.forEach(chest => chest.update(dt));
 
         // Update Statues (Interaction)
-        this.statues.forEach(statue => {
-            statue.update(dt);
-            // Check proximity (Center to Center)
-            const pcx = this.player.x + this.player.width / 2;
-            const pcy = this.player.y + this.player.height / 2;
-            const scx = statue.x + statue.width / 2;
-            const scy = statue.y + statue.height / 2;
+        this.statues.forEach(statue => statue.update(dt));
 
-            const dist = Math.sqrt((pcx - scx) ** 2 + (pcy - scy) ** 2);
-            // Threshold = Player Radius (~20) + Statue Radius (60) + Margin (40) = ~120
-            if (dist < 120 && !statue.used) {
-                statue.showPrompt = true;
-                if (this.input.isDown('Space')) {
-                    statue.use();
-                }
-            } else {
-                statue.showPrompt = false;
-            }
-        });
+        this.labNPCs.forEach(npc => npc.update(dt));
 
-        // Update Lobby Entities (Interaction)
-        this.labNPCs.forEach(npc => {
-            npc.update(dt);
-            const dist = Math.sqrt((this.player.x - npc.x) ** 2 + (this.player.y - npc.y) ** 2);
-            if (dist < 60) {
-                npc.showPrompt = true;
-                if (this.input.isDown('Space')) npc.use();
-            } else {
-                npc.showPrompt = false;
-            }
-        });
+        this.skillPedestals.forEach(p => p.update(dt));
 
-        this.skillPedestals.forEach(p => {
-            p.update(dt);
-            const dist = Math.sqrt((this.player.x - p.x) ** 2 + (this.player.y - p.y) ** 2);
-            if (dist < 60) {
-                p.showPrompt = true;
-                if (this.input.isDown('Space')) p.use();
-            } else {
-                p.showPrompt = false;
-            }
-        });
+        this.bloodAltars.forEach(altar => altar.update(dt));
 
-        // Update Blood Altars (Interaction)
-        this.bloodAltars.forEach(altar => {
-            altar.update(dt);
-            const dist = Math.sqrt((this.player.x - altar.x) ** 2 + (this.player.y - altar.y) ** 2);
-            if (dist < 60 && !altar.used) {
-                altar.showPrompt = true;
-                if (this.input.isDown('Space')) {
-                    altar.use();
-                }
-            } else {
-                altar.showPrompt = false;
-            }
-        });
-
-        // Update Shop NPCs (Interaction)
-        this.shopNPCs.forEach(npc => {
-            npc.update(dt);
-            const pcx = this.player.x + this.player.width / 2;
-            const pcy = this.player.y + this.player.height / 2;
-            const ncx = npc.x + npc.width / 2;
-            const ncy = npc.y + npc.height / 2;
-            const dist = Math.sqrt((pcx - ncx) ** 2 + (pcy - ncy) ** 2);
-            if (dist < 80) {
-                npc.showPrompt = true;
-                if (this.input.isDown('Space') && !this.input.spacePressed) {
-                    this.input.spacePressed = true;
-                    npc.use();
-                }
-            } else {
-                npc.showPrompt = false;
-            }
-        });
-        if (!this.input.isDown('Space')) this.input.spacePressed = false;
+        if (!this.input.isDown('KeyF')) this.input.spacePressed = false;
 
         // Portal Particles (Stairs)
         const stairRoom = this.map.rooms.find(r => r.type === 'staircase');
@@ -1587,6 +1585,8 @@ class Game {
         // Update Generic Entities (e.g., Drops)
         this.entities.forEach(e => e.update(dt));
         filterInPlace(this.entities, e => !e.markedForDeletion);
+        
+        this.updateSolidEntities();
 
         // Update Animations (Removed from here - now at the top of update)
         // No change needed here if already removed or just cleaning up.
@@ -1855,29 +1855,48 @@ class Game {
                     this.ctx.save();
                     const j = () => (Math.random() - 0.5) * 4; // Pixel jitter for triangle edges
                     this.ctx.fillStyle = p.color;
-                    this.ctx.beginPath();
-                    if (p.w > p.h) {
-                        if (p.vx > 0) { // Right
-                            this.ctx.moveTo(Math.floor(p.x) + j(), Math.floor(p.y) + j());
-                            this.ctx.lineTo(Math.floor(p.x + p.w) + j(), Math.floor(p.y + p.h / 2) + j());
-                            this.ctx.lineTo(Math.floor(p.x) + j(), Math.floor(p.y + p.h) + j());
-                        } else { // Left
-                            this.ctx.moveTo(Math.floor(p.x) + j(), Math.floor(p.y + p.h / 2) + j());
-                            this.ctx.lineTo(Math.floor(p.x + p.w) + j(), Math.floor(p.y) + j());
-                            this.ctx.lineTo(Math.floor(p.x + p.w) + j(), Math.floor(p.y + p.h) + j());
-                        }
+
+                    if (p.fixedOrientation) {
+                        // Advanced: Rotated Triangle
+                        const cx = p.x + p.w / 2;
+                        const cy = p.y + p.h / 2;
+                        const angle = p.rotation !== undefined ? p.rotation : Math.atan2(p.vy, p.vx);
+                        
+                        this.ctx.translate(cx, cy);
+                        this.ctx.rotate(angle);
+                        
+                        this.ctx.beginPath();
+                        // Pointy end is at (p.w/2, 0) in local space
+                        this.ctx.moveTo(-p.w / 2 + j(), -p.h / 2 + j());
+                        this.ctx.lineTo(p.w / 2 + j(), 0 + j());
+                        this.ctx.lineTo(-p.w / 2 + j(), p.h / 2 + j());
+                        this.ctx.fill();
                     } else {
-                        if (p.vy > 0) { // Down
-                            this.ctx.moveTo(Math.floor(p.x) + j(), Math.floor(p.y) + j());
-                            this.ctx.lineTo(Math.floor(p.x + p.w / 2) + j(), Math.floor(p.y + p.h) + j());
-                            this.ctx.lineTo(Math.floor(p.x + p.w) + j(), Math.floor(p.y) + j());
-                        } else { // Up
-                            this.ctx.moveTo(Math.floor(p.x) + j(), Math.floor(p.y + p.h) + j());
-                            this.ctx.lineTo(Math.floor(p.x + p.w / 2) + j(), Math.floor(p.y) + j());
-                            this.ctx.lineTo(Math.floor(p.x + p.w) + j(), Math.floor(p.y + p.h) + j());
+                        // Legacy: Cardinal Triangle
+                        this.ctx.beginPath();
+                        if (p.w > p.h) {
+                            if (p.vx > 0) { // Right
+                                this.ctx.moveTo(Math.floor(p.x) + j(), Math.floor(p.y) + j());
+                                this.ctx.lineTo(Math.floor(p.x + p.w) + j(), Math.floor(p.y + p.h / 2) + j());
+                                this.ctx.lineTo(Math.floor(p.x) + j(), Math.floor(p.y + p.h) + j());
+                            } else { // Left
+                                this.ctx.moveTo(Math.floor(p.x) + j(), Math.floor(p.y + p.h / 2) + j());
+                                this.ctx.lineTo(Math.floor(p.x + p.w) + j(), Math.floor(p.y) + j());
+                                this.ctx.lineTo(Math.floor(p.x + p.w) + j(), Math.floor(p.y + p.h) + j());
+                            }
+                        } else {
+                            if (p.vy > 0) { // Down
+                                this.ctx.moveTo(Math.floor(p.x) + j(), Math.floor(p.y) + j());
+                                this.ctx.lineTo(Math.floor(p.x + p.w / 2) + j(), Math.floor(p.y + p.h) + j());
+                                this.ctx.lineTo(Math.floor(p.x + p.w) + j(), Math.floor(p.y) + j());
+                            } else { // Up
+                                this.ctx.moveTo(Math.floor(p.x) + j(), Math.floor(p.y + p.h) + j());
+                                this.ctx.lineTo(Math.floor(p.x + p.w / 2) + j(), Math.floor(p.y) + j());
+                                this.ctx.lineTo(Math.floor(p.x + p.w) + j(), Math.floor(p.y + p.h) + j());
+                            }
                         }
+                        this.ctx.fill();
                     }
-                    this.ctx.fill();
                     this.ctx.restore();
 
                 } else if (p.shape === 'slash') {
@@ -2541,6 +2560,18 @@ class Game {
         this.draw();
         this.input.update();
         requestAnimationFrame(this.loop);
+    }
+
+    updateSolidEntities() {
+        // Rebuild the solid entities list periodically or after filtering
+        // This avoids creating a new array every frame in checkCollision
+        this.solidEntities = [];
+        for (const e of this.enemies) {
+            if (e.isSolid && !e.markedForDeletion) this.solidEntities.push(e);
+        }
+        for (const e of this.entities) {
+            if (e.isSolid && !e.markedForDeletion) this.solidEntities.push(e);
+        }
     }
 }
 

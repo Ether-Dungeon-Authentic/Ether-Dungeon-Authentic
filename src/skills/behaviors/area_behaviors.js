@@ -3,7 +3,7 @@ import { getCachedImage } from '../../utils.js';
 
 export const areaBehaviors = {
     'area_blast': (user, game, params) => {
-        const center = { x: user.x + user.width / 2, y: user.y + user.height / 2 };
+        const center = { x: user.x + user.width / 2, y: user.y };
 
         // Immobilize User
         if (params.duration > 0) {
@@ -1005,6 +1005,10 @@ export const areaBehaviors = {
                 hitEnemies: new Map(),
                 update: function (dt2) {
                     this.life -= dt2;
+                    // Cleanup dead enemy references from Map to prevent memory leak
+                    for (const [enemy] of this.hitEnemies) {
+                        if (enemy.markedForDeletion) this.hitEnemies.delete(enemy);
+                    }
                     g.enemies.forEach(e => {
                         const dx = (e.x + e.width / 2) - this.x;
                         const dy = (e.y + e.height / 2) - this.y;
@@ -1330,6 +1334,10 @@ export const areaBehaviors = {
                         randSpeed: 0.9 + Math.random() * 0.2,
                         update: function (dt2) {
                             this.life -= dt2;
+                            // Cleanup dead enemy references from Map to prevent memory leak
+                            for (const [enemy] of this.hitEnemies) {
+                                if (enemy.markedForDeletion) this.hitEnemies.delete(enemy);
+                            }
                             if (Math.random() < 0.5) {
                                 const isSmoke = Math.random() < 0.3;
                                 game.spawnParticles(

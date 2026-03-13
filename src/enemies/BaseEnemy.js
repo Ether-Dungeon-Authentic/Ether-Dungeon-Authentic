@@ -4,6 +4,7 @@ import { spawnProjectile } from '../skills/index.js';
 import { DropItem } from '../entities/DropItem.js';
 import { AetherLabManager } from '../AetherLabManager.js';
 import { Chest } from '../entities/Chest.js';
+import { CONFIG } from '../config.js';
 
 const textures = {
     slime: 'assets/enemies/slime.png',
@@ -47,12 +48,12 @@ export class Enemy extends Entity {
         // Telegraph System
         this.telegraphTimer = 0;
         this.isTelegraphing = false;
-        this.telegraphDuration = 1.0;
+        this.telegraphDuration = CONFIG.ENEMY.TELEGRAPH_DURATION;
 
         // Spawn System
         this.isSpawning = true;
-        this.spawnTimer = 0.67;
-        this.spawnDuration = 0.67;
+        this.spawnTimer = CONFIG.ENEMY.SPAWN_DURATION;
+        this.spawnDuration = CONFIG.ENEMY.SPAWN_DURATION;
 
         this.displayName = `Lv.${level} Enemy`;
         this.canDrop = true; // Flag to enable/disable item/chip drops
@@ -204,7 +205,7 @@ export class Enemy extends Entity {
 
                 // --- Soft Separation AI (Avoid overlapping) ---
                 const separationDist = this.width * 0.8;
-                const separationForce = 150;
+                const separationForce = CONFIG.ENEMY.SEPARATION_FORCE;
                 for (const other of this.game.entities) {
                     if (other !== this && other instanceof Enemy) {
                         const odx = other.x - this.x;
@@ -419,8 +420,8 @@ export class Enemy extends Entity {
 
             // --- Aether Chip Drop Logic ---
             if (this.isBoss) {
-                // Boss always drops 5 chips
-                for (let i = 0; i < 5; i++) {
+                // Boss always drops chips
+                for (let i = 0; i < CONFIG.ENEMY.BOSS_CHIP_DROP_COUNT; i++) {
                     const chipInstance = AetherLabManager.getRandomChipByWeightedRarity();
                     if (chipInstance) {
                         const chipDrop = new DropItem(this.game, this.x + this.width / 2 + (Math.random() - 0.5) * 40, this.y + this.height / 2 + (Math.random() - 0.5) * 40, chipInstance, 'chip');
@@ -428,9 +429,9 @@ export class Enemy extends Entity {
                     }
                 }
 
-                // Boss always spawns 3 treasure chests
-                for (let i = 0; i < 3; i++) {
-                    const angle = (i / 3) * Math.PI * 2;
+                // Boss always spawns treasure chests
+                for (let i = 0; i < CONFIG.ENEMY.BOSS_CHEST_DROP_COUNT; i++) {
+                    const angle = (i / CONFIG.ENEMY.BOSS_CHEST_DROP_COUNT) * Math.PI * 2;
                     const dist = 60;
                     const rawCx = this.x + this.width / 2 + Math.cos(angle) * dist - 15;
                     const rawCy = this.y + this.height / 2 + Math.sin(angle) * dist - 15;
@@ -438,8 +439,8 @@ export class Enemy extends Entity {
                     const chest = new Chest(this.game, cx, cy);
                     this.game.chests.push(chest);
                 }
-            } else if (Math.random() < 0.2) {
-                // Normal enemies: 20% chance for 1 chip
+            } else if (Math.random() < CONFIG.ENEMY.CHIP_DROP_CHANCE) {
+                // Normal enemies: custom chance for 1 chip
                 const chipInstance = AetherLabManager.getRandomChipByWeightedRarity();
                 if (chipInstance) {
                     const chipDrop = new DropItem(this.game, this.x + this.width / 2, this.y + this.height / 2, chipInstance, 'chip');
@@ -447,8 +448,8 @@ export class Enemy extends Entity {
                 }
             }
 
-            // --- Aether Shard/Fragment Drop Logic (50% fixed chance) ---
-            if (Math.random() < 0.5) {
+            // --- Aether Shard/Fragment Drop Logic ---
+            if (Math.random() < CONFIG.ENEMY.SHARD_DROP_CHANCE) {
                 const scoreVal = this.game.scoreManager ? this.game.scoreManager.getScoreValue(this.type) : this.scoreValue;
                 let shardCount = 1;
 
@@ -468,9 +469,25 @@ export class Enemy extends Entity {
                 }
             }
 
-            if (Math.random() < 0.1) { // 10% chance for Fragment
+            if (Math.random() < CONFIG.ENEMY.FRAGMENT_DROP_CHANCE) {
                 const fragmentDrop = new DropItem(this.game, this.x + this.width / 2, this.y + this.height / 2, 1, 'fragments');
                 this.game.entities.push(fragmentDrop);
+            }
+
+            // --- Grant Aether Resonance ---
+            if (this.game && this.game.player) {
+                let resonanceGain = 5; // Base amount
+                if (this.isBoss) {
+                    resonanceGain = 100 + (this.game.currentFloor * 20); // Boss bonus
+                } else if (this.scoreValue >= 200) {
+                    resonanceGain = 15; // Elite
+                } else {
+                    resonanceGain = 5 + Math.floor(Math.random() * 6); // Normal enemy 5-10
+                }
+                
+                // Scale with floor
+                resonanceGain += Math.floor(this.game.currentFloor * 1.5);
+                this.game.player.aetherResonance += resonanceGain;
             }
         }
     }

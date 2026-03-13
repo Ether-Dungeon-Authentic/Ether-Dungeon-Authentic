@@ -1,3 +1,5 @@
+import { skillsDB } from '../data/skills_db.js';
+
 /**
  * Manages persistent game data using localStorage.
  */
@@ -9,16 +11,31 @@ export class SaveManager {
      * @returns {Object} The save data object.
      */
     static getSaveData() {
-        const data = localStorage.getItem(this.STORAGE_KEY);
+        const isDebug = new URLSearchParams(window.location.search).get('debug') === 'true';
+
+        let data = localStorage.getItem(this.STORAGE_KEY);
+        let parsedData;
+
         if (data) {
             try {
-                return JSON.parse(data);
+                parsedData = JSON.parse(data);
             } catch (e) {
                 console.error('Failed to parse save data:', e);
-                return this.createInitialData();
+                parsedData = this.createInitialData();
             }
+        } else {
+            parsedData = this.createInitialData();
         }
-        return this.createInitialData();
+
+        // Debug Mode: Force all skills unlocked
+        if (isDebug) {
+            const allSkillIds = skillsDB.map(s => s.id);
+            parsedData.unlockedSkills = [...new Set([...(parsedData.unlockedSkills || []), ...allSkillIds])];
+            parsedData.unlockedStartingSkills = [...new Set([...(parsedData.unlockedStartingSkills || []), ...allSkillIds])];
+            console.log('[SaveManager] Debug Mode: All skills unlocked temporarily.');
+        }
+
+        return parsedData;
     }
 
     /**

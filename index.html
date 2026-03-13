@@ -169,6 +169,26 @@
                 </div>
             </div>
 
+            <!-- Dungeon Specific Circuit Modal (Minimalist) -->
+            <div id="dungeon-circuit-modal" style="display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 20000; justify-content: center; align-items: center; pointer-events: auto;">
+                <div class="dungeon-circuit-container" style="background: rgba(10, 10, 10, 0.95); border: 2px solid #00ffff; border-radius: 8px; padding: 20px; box-shadow: 0 0 20px rgba(0,255,255,0.3); display: flex; flex-direction: column; align-items: center; min-width: 300px;">
+                    <h2 style="color: #00ffff; margin-top: 0; font-size: 16px; text-shadow: 0 0 10px #00ffff;">エーテル回路展開</h2>
+                    <div style="font-size: 10px; color: #ccc; margin-bottom: 15px; text-align: center;">チップをダブルクリックして起動（共鳴点を消費）<br>※コアから繋がっている必要があります</div>
+                    
+                    <div id="dungeon-circuit-grid" class="circuit-grid" style="margin-bottom: 20px; box-shadow: 0 0 15px rgba(0,0,0,0.5);">
+                        <!-- Grid injected by JS -->
+                    </div>
+
+                    <div style="display: flex; gap: 20px; width: 100%; justify-content: space-between; align-items: center; border-top: 1px solid rgba(0,255,255,0.2); padding-top: 15px;">
+                        <div class="material-item">
+                            <span style="font-size: 10px; color: #888;">エーテル共鳴点:</span>
+                            <span id="dungeon-circuit-resonance" style="font-size: 14px; font-weight: bold; color: #00ffff; text-shadow: 0 0 5px rgba(0,255,255,0.5);">0</span>
+                        </div>
+                        <button id="btn-close-dungeon-circuit" class="title-btn secondary" style="width: auto; padding: 5px 15px; font-size: 12px;">閉じる (C)</button>
+                    </div>
+                </div>
+            </div>
+
             <!-- Inventory Modal (Redesigned Centered Layout) -->
             <div id="inventory-modal" class="inventory-modal-wrapper" style="display: none;">
                 <div class="inventory-box">

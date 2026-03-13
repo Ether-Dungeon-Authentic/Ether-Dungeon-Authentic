@@ -95,6 +95,17 @@ export class Chest extends Entity {
         }
     }
 
+    getInteractPrompt() {
+        if (this.opened) return null;
+        return "[F] 宝箱を開ける";
+    }
+
+    interact() {
+        if (!this.opened) {
+            this.open();
+        }
+    }
+
     open() {
         if (this.opened) return;
         this.opened = true;

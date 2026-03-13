@@ -48,7 +48,7 @@ export const barrageBehaviors = {
                         // Offset
                         const offsetMag = (i - (perWave - 1) / 2) * spacing;
                         const centerX = user.x + user.width / 2;
-                        const centerY = user.y + user.height / 2;
+                        const centerY = user.y;
 
                         const spawnX = centerX + (nx * offsetMag);
                         const spawnY = centerY + (ny * offsetMag);

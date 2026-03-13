@@ -22,11 +22,16 @@ export const projectileBehaviors = {
         vx = dirX * params.speed;
         vy = dirY * params.speed;
 
+        if (params.fixedOrientation) {
+            params.rotation = Math.atan2(vy, vx);
+        }
+
         if (dirY !== 0 && dirX === 0) {
             if (!params.fixedOrientation && params.width && params.height) { let temp = w; w = h; h = temp; }
         }
 
         const projParams = { ...params };
+
         if (dirY !== 0 && dirX === 0) {
             projParams.width = w;
             projParams.height = h;
@@ -38,7 +43,7 @@ export const projectileBehaviors = {
         const height = params.heightOffset || 0;
 
         let spawnX = user.x + user.width / 2;
-        let spawnY = user.y + user.height / 2;
+        let spawnY = user.y;
 
         // Apply Offsets based on facing
         // Apply Offsets based on facing
@@ -53,7 +58,59 @@ export const projectileBehaviors = {
 
         spawnY += height; // Absolute height offset (usually negative for "up")
 
-        spawnProjectile(game, spawnX, spawnY, vx, vy, projParams);
+        const proj = spawnProjectile(game, spawnX, spawnY, vx, vy, projParams);
+
+        // Homing Logic Injection
+        if (proj && params.homing) {
+            const homingRange = params.homingRange || 400;
+            const homingStrength = params.homingStrength || 0.1;
+            const originalUpdate = proj.update;
+
+            proj.target = null;
+            proj.update = function(dt) {
+                // Find target if none or dead
+                if (!this.target || this.target.markedForDeletion) {
+                    let minDist = homingRange;
+                    let nearest = null;
+                    game.enemies.forEach(e => {
+                        if (e.markedForDeletion || e.isPassive) return;
+                        const d = Math.hypot((e.x + e.width / 2) - (this.x + this.w / 2), (e.y + e.height / 2) - (this.y + this.h / 2));
+                        if (d < minDist) {
+                            minDist = d;
+                            nearest = e;
+                        }
+                    });
+                    this.target = nearest;
+                }
+
+                // If target exists, rotate velocity towards it
+                if (this.target) {
+                    const targetCX = this.target.x + this.target.width / 2;
+                    const targetCY = this.target.y + this.target.height / 2;
+                    const projCX = this.x + this.w / 2;
+                    const projCY = this.y + this.h / 2;
+                    
+                    const angleToTarget = Math.atan2(targetCY - projCY, targetCX - projCX);
+                    const currentAngle = Math.atan2(this.vy, this.vx);
+                    
+                    // Simple angular lerp
+                    let diff = angleToTarget - currentAngle;
+                    while (diff > Math.PI) diff -= Math.PI * 2;
+                    while (diff < -Math.PI) diff += Math.PI * 2;
+                    
+                    const newAngle = currentAngle + diff * homingStrength;
+                    const speed = Math.hypot(this.vx, this.vy);
+                    this.vx = Math.cos(newAngle) * speed;
+                    this.vy = Math.sin(newAngle) * speed;
+                    
+                    if (this.fixedOrientation) {
+                        this.rotation = newAngle;
+                    }
+                }
+
+                originalUpdate.call(this, dt);
+            };
+        }
     },
 
     'fan_projectile': (user, game, params) => {
@@ -82,7 +139,7 @@ export const projectileBehaviors = {
 
         // Center offsets
         const cx = user.x + user.width / 2;
-        const cy = user.y + user.height / 2;
+        const cy = user.y + user.height * 0.1;
 
         for (let i = 0; i < count; i++) {
             // Apply angle
@@ -182,7 +239,7 @@ export const projectileBehaviors = {
         else if (user.facing === 'down-left') { rotation = 3 * Math.PI / 4; offsetX = -forward * 0.7; offsetY = forward * 0.7; }
 
         const spawnX = user.x + user.width / 2 + offsetX;
-        const spawnY = user.y + user.height / 2 + offsetY;
+        const spawnY = user.y + offsetY;
 
         spawnProjectile(game, spawnX, spawnY, 0, 0, {
             ...params,
@@ -211,7 +268,7 @@ export const projectileBehaviors = {
         else if (user.facing === 'down-left') { baseRotation = 3 * Math.PI / 4; offsetX = -forward * 0.7; offsetY = forward * 0.7; }
 
         const spawnX = user.x + user.width / 2 + offsetX;
-        const spawnY = user.y + user.height / 2 + offsetY;
+        const spawnY = user.y + offsetY;
 
         const sequence = [
             { delay: 0, rot: Math.PI / 4, color: 'rgba(128, 0, 0, 0.5)' }, // Crimson variant
@@ -286,7 +343,7 @@ export const projectileBehaviors = {
         else if (user.facing === 'down-left') { baseRotation = 3 * Math.PI / 4; offsetX = -forward * 0.7; offsetY = forward * 0.7; }
 
         const spawnX = user.x + user.width / 2 + offsetX;
-        const spawnY = user.y + user.height / 2 + offsetY;
+        const spawnY = user.y + offsetY;
 
         // Use standard rotation matching facing (removed 45 degree slant)
         const finalRotation = baseRotation;
@@ -348,7 +405,7 @@ export const projectileBehaviors = {
                         const angle = Math.random() * Math.PI * 2;
                         const dist = Math.random() * radius;
                         const spawnX = (user.x + user.width / 2) + Math.cos(angle) * dist;
-                        const spawnY = (user.y + user.height / 2) + Math.sin(angle) * dist;
+                        const spawnY = (user.y + user.height * 0.1) + Math.sin(angle) * dist;
 
                         const baseRotation = Math.random() * Math.PI * 2;
 
@@ -406,7 +463,7 @@ export const projectileBehaviors = {
             const proj = {
                 active: true,
                 x: user.x + user.width / 2 - w / 2,
-                y: user.y + user.height / 2 - h / 2,
+                y: user.y + user.height * 0.1 - h / 2,
                 w: w, h: h,
                 vx: vx, vy: vy,
                 life: projParams.life,
@@ -575,7 +632,7 @@ export const projectileBehaviors = {
             active: true,
             type: 'projectile',
             x: user.x + user.width / 2 - w / 2,
-            y: user.y + user.height / 2 - h / 2,
+            y: user.y + user.height * 0.1 - h / 2,
             w: w, h: h,
             vx: vx, vy: vy,
             life: 5.0, // Safety max life
@@ -725,7 +782,7 @@ export const projectileBehaviors = {
             active: true,
             type: 'projectile',
             x: user.x + user.width / 2 - w / 2,
-            y: user.y + user.height / 2 - h / 2,
+            y: user.y + user.height * 0.1 - h / 2,
             w: w, h: h,
             // Velocity components
             vx: directionX * initialSpeed,
@@ -942,7 +999,7 @@ export const projectileBehaviors = {
 
         // Spawn offset
         let spawnX = user.x + user.width / 2;
-        let spawnY = user.y + user.height / 2;
+        let spawnY = user.y;
         if (user.facing === 'left') spawnX -= 30;
         else if (user.facing === 'right') spawnX += 30;
         else if (user.facing === 'up') spawnY -= 30;
@@ -1819,4 +1876,203 @@ export const projectileBehaviors = {
             }
         }
     },
+
+    'lightning_ray': (user, game, params) => {
+        // Aether Rush Modifiers
+        if (user.isAetherRush) {
+            params.damage *= 2;
+            params.width *= 1.5;
+            console.log("Aether Rush Lightning Ray!");
+        }
+
+        const duration = params.duration || 5.0;
+        const tickInterval = params.interval || params.tickInterval || 0.1;
+
+        user.isCasting = true;
+
+        game.animations.push({
+            type: 'lightning_ray_logic',
+            life: duration,
+            maxLife: duration,
+            tickTimer: 0,
+            
+            update: function (dt) {
+                this.life -= dt;
+                this.tickTimer += dt;
+
+                if (this.life <= 0) {
+                    user.isCasting = false;
+                    return;
+                }
+
+                // Calc Beam Orientation
+                const centerX = user.x + user.width / 2;
+                const centerY = user.y;
+                let dirX = 0, dirY = 0;
+                let angle = 0;
+
+                if (user.facing === 'left') { dirX = -1; angle = Math.PI; }
+                else if (user.facing === 'right') { dirX = 1; angle = 0; }
+                else if (user.facing === 'up') { dirY = -1; angle = -Math.PI / 2; }
+                else if (user.facing === 'down') { dirY = 1; angle = Math.PI / 2; }
+                else if (user.facing === 'up-left') { dirX = -0.707; dirY = -0.707; angle = -3 * Math.PI / 4; }
+                else if (user.facing === 'up-right') { dirX = 0.707; dirY = -0.707; angle = -Math.PI / 4; }
+                else if (user.facing === 'down-left') { dirX = -0.707; dirY = 0.707; angle = 3 * Math.PI / 4; }
+                else if (user.facing === 'down-right') { dirX = 0.707; dirY = 0.707; angle = Math.PI / 4; }
+
+                // 1. Damage Logic
+                if (this.tickTimer >= tickInterval) {
+                    this.tickTimer = 0;
+
+                    const beamW = params.width || 60;
+                    const beamH = params.range || 800;
+                    
+                    // Box-Enemy Collision (Simplified: distance along ray)
+                    game.enemies.forEach(enemy => {
+                        const ex = enemy.x + enemy.width / 2;
+                        const ey = enemy.y + enemy.height / 2;
+                        
+                        // Vector from user to enemy
+                        const dx = ex - centerX;
+                        const dy = ey - centerY;
+                        
+                        // Project onto beam direction
+                        const distAlong = dx * dirX + dy * dirY;
+                        const distAcross = Math.abs(dx * (-dirY) + dy * dirX);
+
+                        if (distAlong > 0 && distAlong < beamH && distAcross < beamW / 2) {
+                            // Hit!
+                            const isCrit = params.critChance > 0 && Math.random() < params.critChance;
+                            const critMult = (params.critMultiplier || 2.0) + game.player.critDamageBonus;
+                            const finalDamage = isCrit ? params.damage * critMult : params.damage;
+
+                            enemy.takeDamage(finalDamage, params.damageColor, params.aetherCharge, isCrit);
+                            
+                            // Hit Particles
+                            // Use beam color instead of default orange
+                            game.spawnParticles(ex, ey, 3, '#ffff00');
+                        }
+                    });
+
+                    // Camera Shake
+                    game.camera.shake(0.1, 2);
+                }
+
+                // 2. Visual Effects (Sparkling along the way)
+                const rayLength = params.range || 800;
+                const thick = params.width || 60;
+
+                // --- NEW: Added Beam Drawing with Expansion/Contraction ---
+                this.draw = function (ctx) {
+                    ctx.save();
+                    ctx.globalCompositeOperation = 'lighter';
+
+                    // Expansion/Contraction Logic
+                    // Expand for first 0.3s, contract for last 0.3s
+                    const fadeTime = 0.3;
+                    const elapsed = this.maxLife - this.life;
+                    let widthMult = 1.0;
+                    
+                    if (elapsed < fadeTime) {
+                        widthMult = elapsed / fadeTime;
+                    } else if (this.life < fadeTime) {
+                        widthMult = this.life / fadeTime;
+                    }
+                    
+                    const currentThick = thick * widthMult;
+
+                    if (currentThick > 1) {
+                        // Wide outer glow
+                        ctx.shadowBlur = 15;
+                        ctx.shadowColor = '#ffff00';
+                        ctx.strokeStyle = 'rgba(255, 255, 0, 0.4)';
+                        ctx.lineWidth = currentThick;
+                        ctx.lineCap = 'round';
+                        ctx.beginPath();
+                        ctx.moveTo(centerX, centerY);
+                        ctx.lineTo(centerX + dirX * rayLength, centerY + dirY * rayLength);
+                        ctx.stroke();
+
+                        // Core gradient (Yellow to White)
+                        const grad = ctx.createLinearGradient(centerX, centerY, centerX + dirX * rayLength, centerY + dirY * rayLength);
+                        const shift = (performance.now() / 150) % 1.0;
+                        grad.addColorStop(0, '#ffff00');
+                        grad.addColorStop((0.2 + shift) % 1.0, '#ffffff');
+                        grad.addColorStop((0.5 + shift) % 1.0, '#ffff88');
+                        grad.addColorStop((0.8 + shift) % 1.0, '#ffffff');
+                        grad.addColorStop(1, '#ffff00');
+
+                        ctx.strokeStyle = grad;
+                        ctx.lineWidth = currentThick * 0.4;
+                        ctx.shadowBlur = 5;
+                        ctx.beginPath();
+                        ctx.moveTo(centerX, centerY);
+                        ctx.lineTo(centerX + dirX * rayLength, centerY + dirY * rayLength);
+                        ctx.stroke();
+
+                        // Brightest core
+                        ctx.strokeStyle = '#ffffff';
+                        ctx.lineWidth = currentThick * 0.1;
+                        ctx.shadowBlur = 0;
+                        ctx.beginPath();
+                        ctx.moveTo(centerX, centerY);
+                        ctx.lineTo(centerX + dirX * rayLength, centerY + dirY * rayLength);
+                        ctx.stroke();
+                    }
+
+                    ctx.restore();
+                };
+
+                // Core Beam Visuals (Large Bolts) - Redistributed as "Scattered"
+                if (Math.random() < 0.3) {
+                    const d = Math.random() * rayLength;
+                    const across = (Math.random() - 0.5) * thick * 0.5;
+                    const vx = centerX + dirX * d + (-dirY) * across;
+                    const vy = centerY + dirY * d + dirX * across;
+
+                    const partId = Math.floor(Math.random() * 10) + 1;
+                    const partStr = partId < 10 ? `0${partId}` : `${partId}`;
+                    const spritePath = `assets/skills/vfx/lightning_part_${partStr}.png`;
+
+                    spawnProjectile(game, vx, vy, 0, 0, {
+                        visual: true,
+                        spriteSheet: spritePath,
+                        frames: 1,
+                        life: 0.15,
+                        width: thick * (1.2 + Math.random() * 0.8),
+                        height: thick * (1.5 + Math.random() * 1.5),
+                        rotation: angle + (Math.random() - 0.5) * 0.3,
+                        color: params.color,
+                        filter: 'sepia(1) saturate(10) hue-rotate(0deg) brightness(2.0)',
+                        blendMode: 'lighter'
+                    });
+                }
+
+                // Small Sparks - scattered more widely
+                for (let i = 0; i < 2; i++) {
+                    const d = Math.random() * rayLength;
+                    const across = (Math.random() - 0.5) * thick * 1.5;
+                    const vx = centerX + dirX * d + (-dirY) * across;
+                    const vy = centerY + dirY * d + dirX * across;
+
+                    const partId = Math.floor(Math.random() * 10) + 1;
+                    const partStr = partId < 10 ? `0${partId}` : `${partId}`;
+                    const spritePath = `assets/skills/vfx/lightning_part_${partStr}.png`;
+
+                    spawnProjectile(game, vx, vy, 0, 0, {
+                        visual: true,
+                        spriteSheet: spritePath,
+                        frames: 1,
+                        life: 0.1,
+                        width: thick * (0.3 + Math.random() * 0.7),
+                        height: thick * (0.1 + Math.random() * 0.4),
+                        rotation: Math.random() * Math.PI * 2,
+                        color: params.color,
+                        filter: 'sepia(1) saturate(10) hue-rotate(0deg) brightness(1.5)',
+                        blendMode: 'lighter'
+                    });
+                }
+            }
+        });
+    }
 };

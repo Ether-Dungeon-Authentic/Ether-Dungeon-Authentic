@@ -44,16 +44,14 @@ export class SkillPedestal extends Entity {
 
         ctx.restore();
 
-        if (this.showPrompt) {
-            ctx.save();
-            ctx.fillStyle = 'white';
-            ctx.font = 'bold 14px sans-serif';
-            ctx.textAlign = 'center';
-            ctx.shadowColor = 'black';
-            ctx.shadowBlur = 4;
-            ctx.fillText('[SPACE] スキル選択', cx, this.y - 10);
-            ctx.restore();
-        }
+    }
+
+    getInteractPrompt() {
+        return "[F] スキル選択";
+    }
+
+    interact() {
+        this.use();
     }
 
     use() {

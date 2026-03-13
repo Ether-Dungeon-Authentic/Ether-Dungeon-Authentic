@@ -62,7 +62,7 @@ export class LabUI {
         window.addEventListener('resize', () => this.hideTooltip());
     }
 
-    static showTooltip(chip, x, y, rawTitle = null, rawDesc = null) {
+    static showTooltip(chip, x, y, rawTitle = null, rawDesc = null, deployText = '') {
         if (!this.globalTooltip) return;
 
         const title = rawTitle || (chip ? chip.data.name : '');
@@ -70,7 +70,7 @@ export class LabUI {
 
         this.globalTooltip.innerHTML = `
             <div class="tooltip-title">${title}</div>
-            <div class="tooltip-desc">${desc}</div>
+            <div class="tooltip-desc">${desc}${deployText}</div>
             <div class="tooltip-note" style="font-size: 8px; color: #888; margin-top: 4px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 2px;">
                 ※最大値はそのチップの全ノードを接続した時の効果量です
             </div>
@@ -96,8 +96,22 @@ export class LabUI {
         if (modal) {
             modal.style.display = 'flex';
             this.toggleTitleUI(false);
+            if (this.game) {
+                this.game.isHUDVisible = false; // hide gameplay HUD when circuit opens mid-run
+            }
             this.currentTab = 'build'; // Default
             this.selectedChip = null;
+            
+            // Hide specific tabs if we are in the dungeon
+            const tabBtns = modal.querySelectorAll('.stage-tab-btn');
+            tabBtns.forEach(btn => {
+                if (this.game.currentFloor > 0 && btn.dataset.tab !== 'build') {
+                    btn.style.display = 'none';
+                } else {
+                    btn.style.display = '';
+                }
+            });
+
             this.render();
         }
     }
@@ -105,13 +119,17 @@ export class LabUI {
     static toggleTitleUI(show) {
         const menu = document.querySelector('.title-menu');
         const header = document.querySelector('.title-header');
-        const hs = document.getElementById('title-highscore-container');
         const sideMenu = document.querySelector('.title-side-menu');
-        const display = show ? 'flex' : 'none';
-        if (menu) menu.style.display = display;
-        if (header) header.style.display = display;
-        if (hs) hs.style.display = display;
-        if (sideMenu) sideMenu.style.display = display;
+
+        const isTitle = (window.gameInstance && window.gameInstance.gameState === 'TITLE');
+
+        if (menu) menu.style.display = show ? 'flex' : 'none';
+        if (header) header.style.display = show ? 'flex' : 'none';
+        
+        // Only show side menu if we are actually on the title screen
+        if (sideMenu) {
+            sideMenu.style.display = (show && isTitle) ? 'flex' : 'none';
+        }
     }
 
     static close() {
@@ -119,6 +137,9 @@ export class LabUI {
         if (modal) {
             modal.style.display = 'none';
             this.toggleTitleUI(true);
+            if (this.game) {
+                this.game.isHUDVisible = true;
+            }
         }
     }
 
@@ -161,7 +182,13 @@ export class LabUI {
 
         let classes = `grid-cell chip-item rarity-${chip.getRarity()}`;
         if (isEquipped) {
-            classes += chip.isActive ? ' active' : ' inactive';
+            if (this.game.currentFloor === 0) {
+                // In Lobby, everything equipped is visually active
+                classes += chip.isActive ? ' active' : ' inactive';
+            } else {
+                // In Dungeon, respect the deployed state
+                classes += chip.isDeployed ? ' active' : ' inactive undeployed';
+            }
         } else if (isAnyNodeActive) {
             // Inventory chip that would be active if placed
             classes += ' active virtual-active';
@@ -169,6 +196,11 @@ export class LabUI {
 
         if (isSelected) {
             classes += isEquipped ? ' selected-chip' : ' selected';
+        }
+
+        // Add visual indicator for deployable chips during a run
+        if (isEquipped && this.game.currentFloor > 0 && !chip.isDeployed && typeof chip.gridX === 'number' && typeof chip.gridY === 'number' && this.game.player.circuit.canDeployChip(chip.gridX, chip.gridY)) { 
+             // We can just rely on the parent container or add a visual pulse in renderBuildTab
         }
 
         return `
@@ -188,7 +220,14 @@ export class LabUI {
     static updateMaterialDisplay() {
         const shardEl = document.getElementById('lab-shard-value');
         const fragmentEl = document.getElementById('lab-fragment-value');
-        if (shardEl) shardEl.textContent = this.game.player.aetherShards;
+        
+        // Let's ensure aetherResonance is also displayed if we are in a run
+        let resonanceText = '';
+        if (this.game.currentFloor > 0) {
+            resonanceText = `<span style="color:#00ffff; margin-right:15px;" title="エーテル共鳴点 (ダンジョン内専用)">共鳴: ${this.game.player.aetherResonance}</span>`;
+        }
+
+        if (shardEl) shardEl.innerHTML = `${resonanceText}${this.game.player.aetherShards}`;
         if (fragmentEl) fragmentEl.textContent = this.game.player.aetherFragments;
     }
 
@@ -427,14 +466,31 @@ export class LabUI {
                         cell.innerHTML = '<div class="core-icon">CORE</div>';
                     } else if (item) {
                         const chip = item;
+                        chip.gridX = x; // Temporary assign for tooltip/render logic if needed
+                        chip.gridY = y;
                         const html = this.renderChip(chip, true, this.selectedChip === chip);
                         const temp = document.createElement('div');
                         temp.innerHTML = html.trim();
                         cell = temp.firstChild;
 
+                        // Check if deployable (Only during run)
+                        const canDeploy = this.game.currentFloor > 0 && circuit.canDeployChip(x, y);
+                        if (this.game.currentFloor > 0 && !chip.isDeployed && canDeploy) {
+                            cell.classList.add('deployable'); // Add CSS class for pulse effect
+                        }
+
                         cell.onmouseenter = (e) => {
                             const rect = cell.getBoundingClientRect();
-                            this.showTooltip(chip, rect.left + rect.width / 2, rect.top);
+                            let deployText = '';
+                            if (this.game.currentFloor > 0 && !chip.isDeployed) {
+                                let trueCost = chip.isSpecial ? 30 : chip.getConnectedNodeCount() * 10;
+                                if (canDeploy) {
+                                   deployText = `<br><span style="color:#00ffff; font-size:10px;">ダブルクリックで再構築 (コスト: ${trueCost}共鳴点)</span>`;
+                                } else {
+                                   deployText = `<br><span style="color:#ff4444; font-size:10px;">※起動条件を満たしていません (コアへの接続が必要)</span>`;
+                                }
+                            }
+                            this.showTooltip(chip, rect.left + rect.width / 2, rect.top, null, null, deployText);
                         };
                         cell.onmouseleave = () => this.hideTooltip();
                         cell.ondragstart = (e) => {
@@ -465,6 +521,16 @@ export class LabUI {
                                 this.selectedGridCell = { x, y };
                             }
                             this.render();
+                        };
+                        cell.ondblclick = (e) => {
+                            e.stopPropagation();
+                            e.preventDefault();
+                            if (this.game.currentFloor > 0 && !chip.isDeployed && circuit.canDeployChip(x, y)) {
+                                if (circuit.deployChip(x, y)) {
+                                     // Optional: Add a visual blast/sound effect here
+                                     this.render();
+                                }
+                            }
                         };
                     } else {
                         cell = document.createElement('div');
@@ -543,6 +609,13 @@ export class LabUI {
         invSection.innerHTML = `<div class="grid-label">未装着のチップ${isSortedByConnection ? ' <span style="color:#00ffff; font-size:9px;">(接続順)</span>' : ''}</div>`;
         const invGrid = document.createElement('div');
         invGrid.className = 'chip-list vertical-inventory';
+        
+        // Hide inventory during a run
+        if (this.game.currentFloor > 0) {
+            invSection.innerHTML = `<div class="grid-label">未装着のチップ (ダンジョン内では変更不可)</div>`;
+            invGrid.style.opacity = '0.5';
+            invGrid.style.pointerEvents = 'none';
+        }
         invGrid.style.gridTemplateColumns = 'repeat(4, 38px)';
 
         invGrid.ondragover = (e) => e.preventDefault();

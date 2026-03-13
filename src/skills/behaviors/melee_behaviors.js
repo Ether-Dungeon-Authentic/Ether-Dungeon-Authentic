@@ -27,7 +27,7 @@ export const meleeBehaviors = {
         game.animations.push({
             type: 'slash',
             x: user.x + user.width / 2,
-            y: user.y + user.height / 2,
+            y: user.y,
             radius: params.radius,
             startAngle: startAngle,
             endAngle: endAngle,
@@ -63,7 +63,7 @@ export const meleeBehaviors = {
     },
 
     'spiral_out': (user, game, params) => {
-        const center = { x: user.x + user.width / 2, y: user.y + user.height / 2 };
+        const center = { x: user.x + user.width / 2, y: user.y };
         const count = params.count || 8;
         const speed = params.speed || 200;
         const rotationSpeed = params.rotationSpeed || 5;

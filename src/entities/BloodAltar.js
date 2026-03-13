@@ -49,17 +49,15 @@ export class BloodAltar extends Entity {
             ctx.lineTo(this.x + 20, this.y + this.height - 20);
             ctx.stroke();
         }
+    }
 
-        if (this.showPrompt && !this.used) {
-            ctx.save();
-            ctx.shadowColor = 'black';
-            ctx.shadowBlur = 4;
-            ctx.fillStyle = '#ff4444';
-            ctx.font = 'bold 18px sans-serif';
-            ctx.textAlign = 'center';
-            ctx.fillText('[SPACE] 調べる', this.x + this.width / 2, this.y - 15);
-            ctx.restore();
-        }
+    getInteractPrompt() {
+        if (this.used) return null;
+        return "[F] 血の祭壇を調べる";
+    }
+
+    interact() {
+        this.use();
     }
 
     use() {

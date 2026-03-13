@@ -39,12 +39,16 @@ export class Statue extends Entity {
             ctx.lineTo(this.x + this.width, this.y + 20);
             ctx.fill();
         }
+    }
 
-        if (this.showPrompt && !this.used) {
-            ctx.fillStyle = 'white';
-            ctx.font = '16px sans-serif';
-            ctx.textAlign = 'center';
-            ctx.fillText('[SPACE] 祈る', this.x + this.width / 2, this.y - 10);
+    getInteractPrompt() {
+        if (this.used) return null;
+        return "[F] 祈る";
+    }
+
+    interact() {
+        if (!this.used) {
+            this.use();
         }
     }
 
@@ -58,7 +62,6 @@ export class Statue extends Entity {
         this.game.gameState = 'DIALOGUE';
         this.game.dialogueText = "天使の加護を授けましょう";
         this.game.activeStatue = this;
-        this.game.input.spacePressed = true;
     }
 
     presentRewards() {

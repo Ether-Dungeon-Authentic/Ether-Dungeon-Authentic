@@ -13,6 +13,12 @@ export class AetherCircuitManager {
 
         this.ownedChips = []; // All chips in collection
         this.maxCapacity = 20; // Initial base capacity
+
+        // Cache for performance
+        this._needsRefresh = true;
+        this._bonusesCache = null;
+        this._usedCapacityCache = null;
+
         this.updateCapacity();
     }
 
@@ -39,11 +45,20 @@ export class AetherCircuitManager {
         this.maxCapacity = base + storageBonus;
     }
 
+    invalidateCache() {
+        this._needsRefresh = true;
+        this._bonusesCache = null;
+        this._usedCapacityCache = null;
+    }
+
     /**
      * Recalculates which chips are connected to the core.
      * Starts BFS from core (2,2).
      */
     refreshConnections() {
+        if (!this._needsRefresh) return;
+        this._needsRefresh = false;
+
         // 1. Reset all state
         for (let y = 0; y < 5; y++) {
             for (let x = 0; x < 5; x++) {
@@ -72,6 +87,10 @@ export class AetherCircuitManager {
                 if (nx < 0 || nx >= 5 || ny < 0 || ny >= 5) continue;
                 const neighborChip = this.grid[ny][nx];
                 if (!neighborChip || neighborChip === 'core' || visited.has(`${nx},${ny}`)) continue;
+                
+                // Only consider deployed chips (or the core) for connections
+                const effectivelyDeployed = this.player.game.currentFloor === 0 || neighborChip.isDeployed;
+                if (!effectivelyDeployed) continue;
 
                 // Check if connection exists
                 const currentChip = this.grid[current.y][current.x];
@@ -147,6 +166,7 @@ export class AetherCircuitManager {
     }
 
     get usedCapacity() {
+        if (this._usedCapacityCache !== null) return this._usedCapacityCache;
         this.refreshConnections();
         let total = 0;
 
@@ -220,6 +240,7 @@ export class AetherCircuitManager {
                 }
             }
         }
+        this._usedCapacityCache = total;
         return total;
     }
 
@@ -228,6 +249,7 @@ export class AetherCircuitManager {
      * Returns true if successful, or an object { duplicatePos: {x, y} } if rejected due to duplication.
      */
     equipChip(chipInstance, x, y) {
+        this.invalidateCache();
         if (x < 0 || x >= 5 || y < 0 || y >= 5) return false;
         if (this.grid[y][x] === 'core') return false;
 
@@ -279,7 +301,9 @@ export class AetherCircuitManager {
         if (x >= 0 && x < 5 && y >= 0 && y < 5) {
             const chip = this.grid[y][x];
             if (chip && chip !== 'core') {
+                this.invalidateCache();
                 chip.isActive = false;
+                chip.isDeployed = false; // Undeploy when unequipped
                 chip.activeNodes = { up: 0, down: 0, left: 0, right: 0 };
                 this.grid[y][x] = null;
                 this.player.saveAetherData();
@@ -288,9 +312,73 @@ export class AetherCircuitManager {
     }
 
     /**
+     * Checks if a chip at the given coordinates can be deployed.
+     * It must be adjacent to the core or an already deployed chip.
+     */
+    canDeployChip(x, y) {
+        if (typeof x !== 'number' || typeof y !== 'number' || x < 0 || x >= 5 || y < 0 || y >= 5) return false;
+        const chip = this.grid[y][x];
+        if (!chip || chip === 'core' || chip.isDeployed) return false;
+
+        const neighbors = [
+            { nx: x, ny: y - 1, dir: 'up', opp: 'down' },
+            { nx: x, ny: y + 1, dir: 'down', opp: 'up' },
+            { nx: x - 1, ny: y, dir: 'left', opp: 'right' },
+            { nx: x + 1, ny: y, dir: 'right', opp: 'left' }
+        ];
+
+        // Ensure we check connection compatibility with the deployed neighbor
+        const isConnectionValid = (nodeA, nodeB) => {
+            if (nodeA === 'universal' && nodeB > 0) return true;
+            if (nodeB === 'universal' && nodeA > 0) return true;
+            if (nodeA === 'universal' && nodeB === 'universal') return true;
+            return nodeA > 0 && nodeA === nodeB;
+        };
+
+        for (const { nx, ny, dir, opp } of neighbors) {
+            if (nx < 0 || nx >= 5 || ny < 0 || ny >= 5) continue;
+            const neighbor = this.grid[ny][nx];
+
+            if (neighbor === 'core') {
+                if (chip.nodes[dir] > 0 || chip.nodes[dir] === 'universal') return true;
+            } else if (neighbor && neighbor.isDeployed) {
+                // To deploy from another valid chip, their nodes must actually match
+                if (isConnectionValid(chip.nodes[dir], neighbor.nodes[opp])) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Attempts to deploy a chip using Aether Resonance points.
+     */
+    deployChip(x, y) {
+        if (!this.canDeployChip(x, y)) return false;
+        
+        const chip = this.grid[y][x];
+        const cost = chip.getCurrentCost() * 10; // e.g., CONFIG.RESONANCE.COST_PER_NODE = 10; imported from config? Better use dynamic or hardcode for now. 
+        // We'll calculate it safely:
+        let trueCost = 50; // default baseline if undefined
+        if (chip.isSpecial) trueCost = 30; // Special chips are cheaper or free depending on design. Let's say 30.
+        else trueCost = chip.getConnectedNodeCount() * 10; // e.g., 3 nodes = 30 points
+
+        if (this.player.aetherResonance >= trueCost) {
+            this.player.aetherResonance -= trueCost;
+            chip.isDeployed = true;
+            this.invalidateCache();
+            this.player.saveAetherData();
+            return true;
+        }
+        return false;
+    }
+
+    /**
      * Recalculates all bonuses from active chips, providing both current and potential totals.
      */
     getDetailedBonuses() {
+        if (this._bonusesCache !== null) return this._bonusesCache;
         this.refreshConnections();
         const stats = {
             damageMult: { current: 0, potential: 0 },
@@ -409,6 +497,7 @@ export class AetherCircuitManager {
         if (stats.onHitDamageBuffCooldown.current === 999) stats.onHitDamageBuffCooldown.current = 10;
         if (stats.onHitDamageBuffCooldown.potential === 999) stats.onHitDamageBuffCooldown.potential = 10;
 
+        this._bonusesCache = stats;
         return stats;
     }
 
@@ -441,6 +530,7 @@ export class AetherCircuitManager {
                 }
             });
         }
+        this.invalidateCache();
     }
 
     serialize() {
@@ -469,6 +559,7 @@ export class ChipInstance {
         this.instanceId = instanceId || Math.random().toString(36).substr(2, 9);
         this.level = level;
         this.isIdentified = isIdentified;
+        this.isDeployed = false; // New: is it actively deployed in the current run?
 
         // Node data: { up: 0-3, down: 0-3, left: 0-3, right: 0-3 }
         this.nodes = { up: 0, down: 0, left: 0, right: 0 };
@@ -606,7 +697,8 @@ export class ChipInstance {
             level: this.level,
             instanceId: this.instanceId,
             isIdentified: this.isIdentified,
-            nodes: this.nodes
+            nodes: this.nodes,
+            isDeployed: this.isDeployed // Persist deployment state
         };
     }
 }

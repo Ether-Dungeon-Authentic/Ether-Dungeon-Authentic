@@ -4,23 +4,24 @@ import { SaveManager } from './SaveManager.js';
 import { skillsDB } from '../data/skills_db.js';
 import { chipsDB } from '../data/chips_db.js';
 import { AetherCircuitManager, ChipInstance } from './AetherCircuitManager.js';
+import { CONFIG } from './config.js';
 
 export class Player extends Entity {
     constructor(game, x, y) {
-        super(game, x, y, 20, 20, '#4488ff', 300);
-        this.baseMaxHp = 300;
-        this.speed = 260; // Increased by 30% from 200
+        super(game, x, y, 20, 20, '#4488ff', CONFIG.PLAYER.BASE_MAX_HP);
+        this.baseMaxHp = CONFIG.PLAYER.BASE_MAX_HP;
+        this.speed = CONFIG.PLAYER.BASE_SPEED; // Increased by 30% from 200
         this.facing = 'right';
         this.isDashing = false;
         this.isCasting = false; // Added flag
         this.dashVx = 0;
         this.dashVy = 0;
 
-        this.dashCooldown = 0.5;
+        this.dashCooldown = CONFIG.PLAYER.DASH_COOLDOWN;
         this.dashTimer = 0;
         this.canDash = true;
-        this.dashDuration = 0.1;
-        this.dashSpeed = 900;
+        this.dashDuration = CONFIG.PLAYER.DASH_DURATION;
+        this.dashSpeed = CONFIG.PLAYER.DASH_SPEED;
 
         this.inventory = [];
         this.equippedSkills = {
@@ -89,12 +90,13 @@ export class Player extends Entity {
         this.aetherShards = 0;   // Persistent Lab Material (for Upgrade/Appraisal)
         this.aetherFragments = 0; // Persistent Lab Material (for Upgrade/Appraisal)
         this.dungeonCoins = 0;   // Dungeon-only Currency (for Shop, resets every run)
+        this.aetherResonance = 0; // Run-only Currency (for deploying Circuit Chips)
 
         // Aether Rush System
         this.aetherGauge = 0;
         this.maxAetherGauge = 100;
         this.isAetherRush = false;
-        this.aetherRushDuration = 15.0;
+        this.aetherRushDuration = CONFIG.PLAYER.AETHER_RUSH_DURATION;
         this.aetherRushTimer = 0;
 
         this.bloodBlessings = [];
@@ -143,6 +145,7 @@ export class Player extends Entity {
         this.aetherShards = 9999;
         this.dungeonCoins = 9999;
         this.aetherFragments = 9999;
+        this.aetherResonance = 9999;
 
         // Clear existing inventory to avoid duplicates
         this.inventory = [];
@@ -308,8 +311,8 @@ export class Player extends Entity {
             // Acceleration Chip Bonus
             const maxAccelBonus = bonuses.accelerationScaling || 0;
             if (maxAccelBonus > 0 && this.accelerationTime > 0) {
-                // Reaches max bonus after 4 seconds of continuous movement
-                mult += (this.accelerationTime / 4.0) * maxAccelBonus;
+                // Reaches max bonus after N seconds of continuous movement
+                mult += (this.accelerationTime / CONFIG.PLAYER.ACCELERATION_MAX_TIME) * maxAccelBonus;
             }
         }
 
@@ -522,7 +525,7 @@ export class Player extends Entity {
         }
 
         if (moving) {
-            this.accelerationTime = Math.min(4.0, this.accelerationTime + dt);
+            this.accelerationTime = Math.min(CONFIG.PLAYER.ACCELERATION_MAX_TIME, this.accelerationTime + dt);
         } else {
             // Gradually decrease (approx 2.6s to empty from full)
             this.accelerationTime = Math.max(0, this.accelerationTime - dt * 1.5);
@@ -600,7 +603,7 @@ export class Player extends Entity {
         const maxAccelBonus = bonuses.accelerationScaling || 0;
         let accelBonus = 0;
         if (maxAccelBonus > 0 && this.accelerationTime > 0) {
-            accelBonus = (this.accelerationTime / 4.0) * maxAccelBonus;
+            accelBonus = (this.accelerationTime / CONFIG.PLAYER.ACCELERATION_MAX_TIME) * maxAccelBonus;
         }
 
         for (let key in this.equippedSkills) {
@@ -681,7 +684,7 @@ export class Player extends Entity {
                 else if (spriteKey === 'ue') baseDrawScale = 1.8 * 1.10; 
                 else if (spriteKey === 'sita') baseDrawScale = 1.8 * 0.9;
                 else if (spriteKey === 'idol_ue') baseDrawScale = 1.8 * 0.78; 
-                else if (spriteKey === 'idol_sita') baseDrawScale = 1.8 * 0.80; 
+                else if (spriteKey === 'idol_sita') baseDrawScale = 1.8 * 0.70; 
 
                 const drawWidth = this.width * baseDrawScale;
                 const drawHeight = drawWidth / ratio;
@@ -739,6 +742,14 @@ export class Player extends Entity {
         const skill = this.equippedSkills[slot];
         if (skill) {
             const ratio = Math.min(1.0, this.chargeTimer / this.maxChargeTime);
+            
+            // Check for onlyFullCharge requirement
+            if (skill.params.onlyFullCharge && ratio < 1.0) {
+                console.log(`Failed to fire ${skill.name}: Needs full charge (Current: ${ratio.toFixed(2)})`);
+                this.cancelCharge();
+                return;
+            }
+
             console.log(`Firing ${skill.name} with ratio ${ratio}`);
 
             // Prepare params
@@ -752,6 +763,9 @@ export class Player extends Entity {
             }
 
             // Pass the ratio to activate
+            const finalSlot = slot; // Keep ref
+            this.cancelCharge(); // Reset isCharging and isCasting first
+            
             skill.activate(this, this.game, extraParams);
 
             // Reset Aether Rush AFTER activation so behaviors see the flag
@@ -761,8 +775,6 @@ export class Player extends Entity {
                 this.endAetherRush();
             }
         }
-
-        this.cancelCharge();
     }
 
     useSkill(slot) {
@@ -841,7 +853,7 @@ export class Player extends Entity {
 
                 // Position relative to player
                 const px = this.player.x + this.player.width / 2;
-                const py = this.player.y - 40;
+                const py = this.player.y - 60;
 
                 ctx.save();
                 ctx.globalAlpha = alpha;
@@ -851,18 +863,20 @@ export class Player extends Entity {
                     const size = 24 * (1.0 + Math.sin(t * Math.PI) * 0.5); // Pop size
                     ctx.drawImage(this.image, px - size / 2, py - size / 2, size, size);
                     
-                    // Add "Sparkle" on appearance
+                    // Add "Sparkle" on appearance - REMOVED PER USER REQUEST
+                    /*
                     if (t < 0.1 && Math.random() < 0.5) {
                         this.player.game.spawnParticles(px, py, 2, '#fff');
                     }
+                    */
                 }
 
                 ctx.restore();
             }
         });
 
-        // Extra burst particles
-        this.game.spawnParticles(this.x + this.width / 2, this.y - 20, 5, '#fff');
+        // Extra burst particles - REMOVED PER USER REQUEST
+        // this.game.spawnParticles(this.x + this.width / 2, this.y - 20, 5, '#fff');
     }
 
     draw(ctx) {
