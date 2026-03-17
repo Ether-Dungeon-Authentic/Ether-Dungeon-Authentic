@@ -500,7 +500,9 @@ function drawMiniMap(ctx, game, screenWidth, screenHeight) {
     const player = game.player;
 
     // Mini-map configuration
-    const mapSize = 280; // Doubled from 140
+    // Scale relative to game.zoom (base size 140 at 800px width)
+    const baseMapSize = 140;
+    const mapSize = baseMapSize * game.zoom;
     const timerSize = 4; // Tile size in pixels (if fitted)
 
     // Calculate scale to fit in mapSize
@@ -511,15 +513,24 @@ function drawMiniMap(ctx, game, screenWidth, screenHeight) {
     const mmW = map.width * scale;
     const mmH = map.height * scale;
 
-    const mmX = screenWidth - mmW - 20; // 20px padding from right
-    const mmY = 20; // 20px padding from top
+    const padding = 20 * game.zoom;
+    const mmX = screenWidth - mmW - padding; // Scaled padding from right
+    const mmY = padding; // Scaled padding from top
+
+    // Force dirty if screen size significantly changed since last check
+    if (game._lastMMWidth !== screenWidth || game._lastMMHeight !== screenHeight) {
+        map.minimapDirty = true;
+        game._lastMMWidth = screenWidth;
+        game._lastMMHeight = screenHeight;
+    }
 
     // Background
+    const border = 5 * game.zoom;
     ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-    ctx.fillRect(mmX - 5, mmY - 5, mmW + 10, mmH + 10);
+    ctx.fillRect(mmX - border, mmY - border, mmW + border * 2, mmH + border * 2);
     ctx.strokeStyle = '#666';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(mmX - 5, mmY - 5, mmW + 10, mmH + 10);
+    ctx.lineWidth = Math.max(1, 1 * game.zoom);
+    ctx.strokeRect(mmX - border, mmY - border, mmW + border * 2, mmH + border * 2);
 
     // Initialize or Redraw Offscreen Canvas if dirty
     if (!game.minimapCanvas) {
