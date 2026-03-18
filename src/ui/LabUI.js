@@ -1399,7 +1399,7 @@ export class LabUI {
                     const fallback = document.createElement('span');
                     fallback.textContent = chip ? chip.data.name : '?';
                     fallback.style.fontSize = '9px';
-                    fallback.style.color = isActive ? '#00ffff' : '#666';
+                    fallback.style.color = isActive ? '#00ffff' : '#ccc';
                     wrap.insertBefore(fallback, img.nextSibling);
                 };
 
@@ -1454,7 +1454,7 @@ export class LabUI {
                 </div>
                 <div class="synergy-detail" style="margin-top: 8px; padding-top: 6px; border-top: 1px solid #222; max-height: 0; overflow: hidden; opacity: 0; transition: max-height 0.25s ease, opacity 0.2s ease;">
                     <div class="synergy-pills-container" style="display: flex; gap: 4px; flex-wrap: wrap;"></div>
-                    <div class="synergy-effect" style="font-size: 10px; color: #666; line-height: 1.6; margin-top: 6px;"></div>
+                    <div class="synergy-effect" style="font-size: 10px; color: #ccc; line-height: 1.6; margin-top: 6px;"></div>
                 </div>
             `;
 

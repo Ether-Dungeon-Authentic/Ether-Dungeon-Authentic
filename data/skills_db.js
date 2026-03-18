@@ -108,7 +108,7 @@ export const skillsDB = [
             height: 50,
             life: 0.15, // Slightly longer visible life
             pierce: 2,
-            statusEffect: 'slow',
+            statusEffect: 'freeze',
             statusChance: 0.3,
             statusDuration: 2.0,
             spriteSheet: 'assets/skills/vfx/ice_spike.png',
@@ -370,6 +370,9 @@ export const skillsDB = [
             spriteSheet: 'assets/skills/vfx/ice_spike.png',
             frames: 1,
             damageColor: '#00ffff', // Cyan (Ice)
+            statusEffect: 'freeze',
+            statusChance: 0.5,
+            statusDuration: 3.0,
             pierce: 999,
             aetherCharge: 1.25, // Calculated: 1.25 / (1 hit / 3.5s) = 0.35/s
             critChance: 0.20,      // 10% -> 20%
@@ -393,6 +396,9 @@ export const skillsDB = [
             tickInterval: 0.5, // Spill interval
             visualSpikeCount: 60, // Dense visual spikes
             damageColor: '#00ffff', // Cyan (Ice)
+            statusEffect: 'freeze',
+            statusChance: 0.3,
+            statusDuration: 2.0,
             aetherCharge: 0.5, // Ultimate (Normal Mode Gain)
             critChance: 0.25,      // 10% -> 25%
             critMultiplier: 1.5    // 2.0 -> 1.5

@@ -13,7 +13,8 @@ export const statusIcons = {
     sanguine: getCachedImage('assets/skills/icons/icon_sanguine.png'),
     voltbleed: getCachedImage('assets/skills/icons/icon_voltbleed.png'),
     frostpoison: getCachedImage('assets/skills/icons/icon_frostpoison.png'),
-    stormfire: getCachedImage('assets/skills/icons/icon_stormfire.png')
+    stormfire: getCachedImage('assets/skills/icons/icon_stormfire.png'),
+    freeze: getCachedImage('assets/skills/icons/icon_freeze.png')
 };
 
 export const STATUS_TYPES = {
@@ -59,6 +60,12 @@ export class StatusManager {
             this.effects.delete(STATUS_TYPES.WET);
             this.showStatusText('neutralized', '消滅！');
             return; // Fire evaporates water, consumes the fire shot too
+        }
+
+        if (type === STATUS_TYPES.FREEZE && this.effects.has(STATUS_TYPES.BURN)) {
+            this.effects.delete(STATUS_TYPES.BURN);
+            this.showStatusText('neutralized', '消火！');
+            return;
         }
 
         if (!this.effects.has(type)) {
@@ -362,6 +369,10 @@ export class StatusManager {
             multiplier *= m;
         }
 
+        if (this.effects.has(STATUS_TYPES.FREEZE)) {
+            multiplier = 0; // 完全停止
+        }
+
         return multiplier;
     }
 
@@ -403,6 +414,9 @@ export class StatusManager {
         } else if (type === STATUS_TYPES.SLOW) {
             text = `鈍足 ${value}`;
             color = '#00ffff';
+        } else if (type === STATUS_TYPES.FREEZE) {
+            text = `凍結 ${value}`;
+            color = '#88ccff';
         } else if (type === 'poison_tick') {
             text = value; // Like normal damage
             color = '#ffffff';

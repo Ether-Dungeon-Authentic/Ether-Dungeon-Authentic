@@ -27,6 +27,8 @@ export class MapRenderer {
     }
 
     draw(ctx, camera, player, debugMode = false) {
+        if (!this.map.tiles || this.map.tiles.length < this.map.height) return;
+
         const startX = Math.floor(camera.x / this.map.tileSize);
         const startY = Math.floor(camera.y / this.map.tileSize);
         const endX = startX + Math.ceil(camera.width / this.map.tileSize) + 1;
