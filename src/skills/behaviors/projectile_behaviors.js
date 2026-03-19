@@ -66,58 +66,6 @@ export const projectileBehaviors = {
         spawnY += height; // Absolute height offset (usually negative for "up")
 
         const proj = spawnProjectile(game, spawnX, spawnY, vx, vy, projParams);
-
-        // Homing Logic Injection
-        if (proj && params.homing) {
-            const homingRange = params.homingRange || 400;
-            const homingStrength = params.homingStrength || 0.1;
-            const originalUpdate = proj.update;
-
-            proj.target = null;
-            proj.update = function(dt) {
-                // Find target if none or dead
-                if (!this.target || this.target.markedForDeletion) {
-                    let minDist = homingRange;
-                    let nearest = null;
-                    game.enemies.forEach(e => {
-                        if (e.markedForDeletion || e.isPassive) return;
-                        const d = Math.hypot((e.x + e.width / 2) - (this.x + this.w / 2), (e.y + e.height / 2) - (this.y + this.h / 2));
-                        if (d < minDist) {
-                            minDist = d;
-                            nearest = e;
-                        }
-                    });
-                    this.target = nearest;
-                }
-
-                // If target exists, rotate velocity towards it
-                if (this.target) {
-                    const targetCX = this.target.x + this.target.width / 2;
-                    const targetCY = this.target.y + this.target.height / 2;
-                    const projCX = this.x + this.w / 2;
-                    const projCY = this.y + this.h / 2;
-                    
-                    const angleToTarget = Math.atan2(targetCY - projCY, targetCX - projCX);
-                    const currentAngle = Math.atan2(this.vy, this.vx);
-                    
-                    // Simple angular lerp
-                    let diff = angleToTarget - currentAngle;
-                    while (diff > Math.PI) diff -= Math.PI * 2;
-                    while (diff < -Math.PI) diff += Math.PI * 2;
-                    
-                    const newAngle = currentAngle + diff * homingStrength;
-                    const speed = Math.hypot(this.vx, this.vy);
-                    this.vx = Math.cos(newAngle) * speed;
-                    this.vy = Math.sin(newAngle) * speed;
-                    
-                    if (this.fixedOrientation) {
-                        this.rotation = newAngle;
-                    }
-                }
-
-                originalUpdate.call(this, dt);
-            };
-        }
     },
 
     'fan_projectile': (user, game, params) => {
@@ -1432,6 +1380,9 @@ export const projectileBehaviors = {
                         ...params,
                         vx: nvx, vy: nvy,
                         life: 0.5, // Fresh life for the hop
+                        homing: true,
+                        target: bestTarget,
+                        homingStrength: 0.2 // Slightly stronger homing for lightning feel
                     });
 
                     if (nextProj) {
@@ -2013,7 +1964,7 @@ export const projectileBehaviors = {
                             
                             // Hit Particles
                             // Use beam color instead of default orange
-                            game.spawnParticles(ex, ey, 3, '#ffff00');
+                            // game.spawnParticles(ex, ey, 3, '#ffff00'); // Removed square dots
                         }
                     });
 

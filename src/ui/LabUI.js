@@ -29,15 +29,25 @@ export class LabUI {
 
         const tabBtns = modal.querySelectorAll('.stage-tab-btn');
         tabBtns.forEach(btn => {
-            btn.onclick = () => {
-                tabBtns.forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
-                this.currentTab = btn.dataset.tab === 'upgrade' ? 'modify' : btn.dataset.tab;
-                this.selectedChip = null;
-                this.selectedSynthesisTarget = null;
-                this.selectedSynthesisMaterials = [];
-                this.render();
-            };
+            const pLevel = SaveManager.getSaveData().playerLevel || 1;
+            const lockedTabs = ['build', 'upgrade', 'synthesis', 'dismantle'];
+            if (lockedTabs.includes(btn.dataset.tab) && pLevel < 4) {
+                const labels = { 'build': 'ビルド', 'upgrade': '強化', 'synthesis': '合成', 'dismantle': '分解' };
+                btn.textContent = `🔒Lv4 ${labels[btn.dataset.tab] || ''}`;
+                btn.style.opacity = '0.5';
+                btn.style.cursor = 'not-allowed';
+                btn.onclick = (e) => { e.preventDefault(); e.stopPropagation(); };
+            } else {
+                btn.onclick = () => {
+                    tabBtns.forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    this.currentTab = btn.dataset.tab === 'upgrade' ? 'modify' : btn.dataset.tab;
+                    this.selectedChip = null;
+                    this.selectedSynthesisTarget = null;
+                    this.selectedSynthesisMaterials = [];
+                    this.render();
+                };
+            }
         });
 
         this.createGlobalTooltip();
@@ -100,7 +110,9 @@ export class LabUI {
             if (this.game) {
                 this.game.isHUDVisible = false; // hide gameplay HUD when circuit opens mid-run
             }
-            this.currentTab = 'build'; // Default
+            
+            const pLevel = SaveManager.getSaveData().playerLevel || 1;
+            this.currentTab = pLevel < 4 ? 'research' : 'build'; // Default
             this.selectedChip = null;
             
             // Hide specific tabs if we are in the dungeon
@@ -110,6 +122,12 @@ export class LabUI {
                     btn.style.display = 'none';
                 } else {
                     btn.style.display = '';
+                }
+                
+                // Initialize active state based on selected tab
+                btn.classList.remove('active');
+                if (btn.dataset.tab === (this.currentTab === 'modify' ? 'upgrade' : this.currentTab)) {
+                    btn.classList.add('active');
                 }
             });
 
@@ -427,11 +445,12 @@ export class LabUI {
         subTabHeader.style.borderBottom = '1px solid rgba(0, 255, 255, 0.2)';
         subTabHeader.style.paddingBottom = '4px';
 
+        const pLevel = SaveManager.getSaveData().playerLevel || 1;
         const activeFusions = circuit.getActiveFusions();
         const tabs = [
             { id: 'circuit', label: 'エーテル回路' },
             { id: 'status', label: 'ステータス' },
-            { id: 'synergy', label: activeFusions.length > 0 ? 'シナジー ●' : 'シナジー' }
+            { id: 'synergy', label: pLevel < 7 ? '🔒Lv7 シナジー' : (activeFusions.length > 0 ? 'シナジー ●' : 'シナジー') }
         ];
 
         tabs.forEach(tab => {
@@ -441,11 +460,18 @@ export class LabUI {
             btn.style.fontSize = '11px';
             btn.style.fontWeight = 'bold';
             btn.style.padding = '4px 12px';
-            btn.style.cursor = 'pointer';
+            btn.style.cursor = (tab.id === 'synergy' && pLevel < 7) ? 'not-allowed' : 'pointer';
             btn.style.color = this.buildSubTab === tab.id ? '#00ffff' : '#888';
+            if (tab.id === 'synergy' && pLevel < 7) {
+                btn.style.opacity = '0.5';
+            }
             btn.style.borderBottom = this.buildSubTab === tab.id ? '2px solid #00ffff' : 'none';
             btn.style.transition = 'all 0.2s';
-            btn.onclick = () => {
+            btn.onclick = (e) => {
+                if (tab.id === 'synergy' && pLevel < 7) {
+                    e.preventDefault();
+                    return;
+                }
                 this.buildSubTab = tab.id;
                 this.render();
             };

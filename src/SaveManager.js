@@ -52,6 +52,8 @@ export class SaveManager {
      */
     static createInitialData() {
         return {
+            playerLevel: 1,
+            playerExp: 0,
             unlockedSkills: [
                 'flame_fan', 'slash', // Normal
                 'fireball', 'thunder_burst', 'ice_spike', // Primary
@@ -142,6 +144,44 @@ export class SaveManager {
             return true;
         }
         return false;
+    }
+
+    /**
+     * 経験値を加算し、必要に応じてレベルアップ処理を行う
+     * @param {number} amount 獲得EXP
+     * @returns {Object} レベルアップ結果の情報
+     */
+    static addExp(amount) {
+        const data = this.getSaveData();
+        
+        // データが存在しない場合のフォールバック
+        if (data.playerLevel === undefined) data.playerLevel = 1;
+        if (data.playerExp === undefined) data.playerExp = 0;
+
+        const oldLevel = data.playerLevel;
+        data.playerExp += amount;
+
+        let isLevelUp = false;
+        let requiredExp = data.playerLevel * 100;
+
+        // 複数レベルアップに対応するループ
+        while (data.playerExp >= requiredExp) {
+            data.playerExp -= requiredExp;
+            data.playerLevel += 1;
+            isLevelUp = true;
+            requiredExp = data.playerLevel * 100;
+        }
+
+        this.saveData(data);
+
+        return {
+            gainedExp: amount,
+            isLevelUp: isLevelUp,
+            oldLevel: oldLevel,
+            newLevel: data.playerLevel,
+            currentExp: data.playerExp,
+            nextExp: requiredExp
+        };
     }
 
     /**

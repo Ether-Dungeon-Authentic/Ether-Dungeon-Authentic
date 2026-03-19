@@ -1490,7 +1490,7 @@ export const areaBehaviors = {
                     if (killCount > 0 && skillInstance) {
                         skillInstance.currentCooldown = 0;
                         skillInstance.stacks = skillInstance.maxStacks;
-                        game.spawnParticles(user.x + user.width / 2, user.y + user.height / 2, 15, '#ffff00');
+                        // game.spawnParticles(user.x + user.width / 2, user.y + user.height / 2, 15, '#ffff00');
                         console.log("Phoenix Dive Reset! Kills:", killCount);
                     }
                 }
@@ -1867,6 +1867,7 @@ export const areaBehaviors = {
         });
     },
 
+
     'volt_drive': (user, game, params) => {
         // 1. Set Player State
         user.voltDriveTimer = params.duration || 8;
@@ -2012,82 +2013,8 @@ export const areaBehaviors = {
                                 spawnThunderBurstImpact(game, tx, ty);
                             }
 
-                            // --- Multi-jump Chain Logic ---
-                            const baseChain = params.chainCount || 3;
-                            let chainCount = user.isAetherRush ? (baseChain + 4) : baseChain;
-                            let hitIds = new Set([nearest.id]);
+                            // Chaining Logic Removed as per User Request
 
-                            const triggerJump = (fromEnemy, remaining) => {
-                                if (remaining <= 0) return;
-
-                                let next = null;
-                                let minDist = Infinity;
-                                const fx = fromEnemy.x + fromEnemy.width / 2;
-                                const fy = fromEnemy.y + fromEnemy.height / 2;
-                                const cRange = range * 1.5; // Slightly more forgiving for chains
-
-                                game.enemies.forEach(e => {
-                                    if (e.markedForDeletion || hitIds.has(e.id)) return;
-                                    const ex = e.x + e.width / 2;
-                                    const ey = e.y + e.height / 2;
-                                    const d = Math.hypot(ex - fx, ey - fy);
-                                    if (d < cRange && d < minDist) {
-                                        minDist = d;
-                                        next = e;
-                                    }
-                                });
-
-                                if (next) {
-                                    hitIds.add(next.id);
-
-                                    const nx = next.x + next.width / 2;
-                                    const ny = next.y + next.height / 2;
-
-                                    // Calculate direction and speed for the "contagious" arc
-                                    const angle = Math.atan2(ny - fy, nx - fx);
-                                    const dist = Math.hypot(nx - fx, ny - fy);
-                                    const arcSpeed = 1000; // Slightly slower for better visibility
-                                    const duration = dist / arcSpeed;
-
-                                    // Spawn the moving electricity arc (visual projectile)
-                                    // spriteSheet is necessary for rendering in main.js
-                                    spawnProjectile(game, fx, fy, Math.cos(angle) * arcSpeed, Math.sin(angle) * arcSpeed, {
-                                        visual: true,
-                                        spriteSheet: 'assets/skills/vfx/lightning_part_01.png',
-                                        life: duration,
-                                        width: 60,
-                                        height: 20,
-                                        color: '#ffff00',
-                                        crackle: true,
-                                        crackleColor: '#ffff00',
-                                        noTrail: true,
-                                        fixedOrientation: true,
-                                        rotation: angle,
-                                        filter: 'sepia(1) saturate(10) hue-rotate(0deg) brightness(1.2)',
-                                        blendMode: 'lighter'
-                                    });
-
-                                    // Wait for the arc to reach the target before triggering the next step
-                                    setTimeout(() => {
-                                        if (next.markedForDeletion) return;
-
-                                        // Impact Visuals
-                                        spawnLightningBurst(game, nx, ny, {
-                                            burstCount: 4, burstSize: 30, burstSpeed: 100
-                                        });
-
-                                        // Damage Logic
-                                        next.takeDamage(damage * 0.7, '#ffff00', 0);
-
-                                        // Recursive Jump
-                                        triggerJump(next, remaining - 1);
-                                    }, duration * 1000);
-                                }
-                            };
-
-                            if (chainCount > 0) {
-                                triggerJump(nearest, chainCount);
-                            }
                         }, 60); // End of setTimeout
                     }
                 }

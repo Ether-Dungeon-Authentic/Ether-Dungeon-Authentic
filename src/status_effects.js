@@ -1,5 +1,5 @@
-
 import { getCachedImage } from './utils.js';
+import { SaveManager } from './SaveManager.js';
 
 export const statusIcons = {
     bleed: getCachedImage('assets/skills/icons/icon_bleed.png'),
@@ -108,6 +108,9 @@ export class StatusManager {
     }
 
     checkFusion(game) {
+        const pLevel = SaveManager.getSaveData().playerLevel || 1;
+        if (pLevel < 10) return; // Lv10未満の場合は複合状態異常をスキップ
+
         // --- Sanguine (Bleed + Burn) ---
         if (this.effects.has(STATUS_TYPES.BLEED) && this.effects.has(STATUS_TYPES.BURN)) {
             const bleedStacks = this.effects.get(STATUS_TYPES.BLEED).stacks;
@@ -320,7 +323,7 @@ export class StatusManager {
             if (chainDamage > 0) {
                 // Visual feedback at the source
                 if (Math.random() < 0.3) {
-                    game.spawnParticles(centerX, centerY, 5, '#ffff00');
+                    // game.spawnParticles(centerX, centerY, 5, '#ffff00'); // Removed square dots per user request
                 }
 
                 game.enemies.forEach(enemy => {
@@ -347,7 +350,7 @@ export class StatusManager {
                             maxLife: 0.15
                         });
 
-                        game.spawnParticles(enemy.x + enemy.width / 2, enemy.y + enemy.height / 2, 3, '#ffff00');
+                        // game.spawnParticles(enemy.x + enemy.width / 2, enemy.y + enemy.height / 2, 3, '#ffff00'); // Removed square dots per user request
                     }
                 });
             }

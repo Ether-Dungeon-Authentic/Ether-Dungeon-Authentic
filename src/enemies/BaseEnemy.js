@@ -242,42 +242,46 @@ export class Enemy extends Entity {
 
         this.statusManager.update(dt);
 
-        // --- Status Visual Effects (Particles) ---
-        if (this.game && this.game.spawnParticles) {
-            // FIRE (Burn) Effect: occasional orange/red particles
-            if (this.statusManager.effects.has(STATUS_TYPES.BURN)) {
-                if (Math.random() < 0.25) {
-                    const px = this.x + Math.random() * this.width;
-                    const py = this.y + Math.random() * this.height;
-                    this.game.spawnParticles(px, py, 1, '#ff6600', 0, -30);
-                }
-            }
-            // SHOCK Effect: small yellow sparks (using actual lightning assets)
-            if (this.statusManager.effects.has(STATUS_TYPES.SHOCK)) {
-                if (Math.random() < 0.1) {
-                    const px = this.x + Math.random() * this.width;
-                    const py = this.y + Math.random() * this.height;
-                    const partId = Math.floor(Math.random() * 10) + 1;
-                    const partStr = partId < 10 ? `0${partId}` : `${partId}`;
-                    
-                    spawnProjectile(this.game, px, py, 0, 0, {
-                        visual: true,
-                        spriteSheet: `assets/skills/vfx/lightning_part_${partStr}.png`,
-                        frames: 1,
-                        life: 0.15 + Math.random() * 0.1,
-                        width: 24 + Math.random() * 24,
-                        height: 24 + Math.random() * 24,
-                        rotation: Math.random() * Math.PI * 2,
-                        color: '#ffff00',
-                        filter: 'sepia(1) saturate(10) hue-rotate(0deg) brightness(1.2)',
-                        blendMode: 'lighter'
-                    });
-                }
+        this.updateStatusVisuals(dt);
+        super.update(dt);
+        this.checkPlayerCollision();
+    }
+
+    updateStatusVisuals(dt) {
+        if (!this.game || !this.game.spawnParticles) return;
+
+        // FIRE (Burn) Effect: occasional orange/red particles
+        if (this.statusManager.effects.has(STATUS_TYPES.BURN)) {
+            if (Math.random() < 0.25) {
+                const px = this.x + Math.random() * this.width;
+                const py = this.y + Math.random() * this.height;
+                this.game.spawnParticles(px, py, 1, '#ff6600', 0, -30);
             }
         }
 
-        super.update(dt);
-        this.checkPlayerCollision();
+        // SHOCK Effect: small yellow sparks (using actual lightning assets)
+        if (this.statusManager.effects.has(STATUS_TYPES.SHOCK)) {
+            // Increased probability from 0.1 to 0.25 for better visibility at low stacks
+            if (Math.random() < 0.25) {
+                const px = this.x + Math.random() * this.width;
+                const py = this.y + Math.random() * this.height;
+                const partId = Math.floor(Math.random() * 10) + 1;
+                const partStr = partId < 10 ? `0${partId}` : `${partId}`;
+                
+                spawnProjectile(this.game, px, py, 0, 0, {
+                    visual: true,
+                    spriteSheet: `assets/skills/vfx/lightning_part_${partStr}.png`,
+                    frames: 1,
+                    life: 0.2 + Math.random() * 0.1, // Increased life slightly
+                    width: 32 + Math.random() * 32, // Increased size slightly
+                    height: 32 + Math.random() * 32,
+                    rotation: Math.random() * Math.PI * 2,
+                    color: '#ffff00',
+                    filter: 'sepia(1) saturate(10) hue-rotate(0deg) brightness(1.2)',
+                    blendMode: 'lighter'
+                });
+            }
+        }
     }
 
     executeAttack() {
@@ -738,6 +742,7 @@ export class TrainingDummy extends Enemy {
     update(dt) {
         // Dummy doesn't follow player or move
         this.statusManager.update(dt);
+        this.updateStatusVisuals(dt);
         if (this.flashTimer > 0) this.flashTimer -= dt;
 
         // Force reset any movement/knockback

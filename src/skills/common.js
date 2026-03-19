@@ -150,6 +150,10 @@ export const spawnProjectile = (game, x, y, vx, vy, params) => {
         knockback: params.knockback || 0,
         hasAura: params.hasAura || false,
         isEnemy: params.isEnemy || false,
+        homing: params.homing || false,
+        homingRange: params.homingRange || 400,
+        homingStrength: params.homingStrength || 0.1,
+        target: params.target || null,
         update: function (dt) {
             // Adaptive Aspect Ratio (User request: use image ratio)
             if (this.image && this.image.complete && !this._ratioApplied && params.fixedOrientation) {
@@ -167,6 +171,47 @@ export const spawnProjectile = (game, x, y, vx, vy, params) => {
 
             this.vx += (this.ax || 0) * dt;
             this.vy += (this.ay || 0) * dt;
+
+            // Homing Logic
+            if (this.homing) {
+                if (!this.target || this.target.markedForDeletion) {
+                    let minDist = this.homingRange;
+                    let nearest = null;
+                    game.enemies.forEach(e => {
+                        if (e.markedForDeletion || e.isPassive) return;
+                        const d = Math.hypot((e.x + e.width / 2) - (this.x + this.w / 2), (e.y + e.height / 2) - (this.y + this.h / 2));
+                        if (d < minDist) {
+                            minDist = d;
+                            nearest = e;
+                        }
+                    });
+                    this.target = nearest;
+                }
+
+                if (this.target) {
+                    const targetCX = this.target.x + this.target.width / 2;
+                    const targetCY = this.target.y + this.target.height / 2;
+                    const projCX = this.x + this.w / 2;
+                    const projCY = this.y + this.h / 2;
+                    
+                    const angleToTarget = Math.atan2(targetCY - projCY, targetCX - projCX);
+                    const currentAngle = Math.atan2(this.vy, this.vx);
+                    
+                    let diff = angleToTarget - currentAngle;
+                    while (diff > Math.PI) diff -= Math.PI * 2;
+                    while (diff < -Math.PI) diff += Math.PI * 2;
+                    
+                    const newAngle = currentAngle + diff * this.homingStrength;
+                    const speed = Math.hypot(this.vx, this.vy);
+                    this.vx = Math.cos(newAngle) * speed;
+                    this.vy = Math.sin(newAngle) * speed;
+                    
+                    if (this.fixedOrientation) {
+                        this.rotation = newAngle;
+                    }
+                }
+            }
+
             this.x += this.vx * dt;
             this.y += this.vy * dt;
             if (!params.visual) this.life -= dt;
@@ -470,7 +515,7 @@ export const spawnProjectile = (game, x, y, vx, vy, params) => {
                                 this.timer -= this.interval;
                                 this.ticks--;
                                 this.target.takeDamage(this.damage, this.damageColor, this.aetherCharge);
-                                gameInstance.spawnParticles(this.target.x + this.target.width / 2, this.target.y + this.target.height / 2, 3, '#FFFF00');
+                                 // gameInstance.spawnParticles(this.target.x + this.target.width / 2, this.target.y + this.target.height / 2, 3, '#FFFF00');
                                 if (this.ticks <= 0) this.life = 0;
                             }
                         }
@@ -512,7 +557,7 @@ export const spawnBounceSparkImpact = (game, x, y, options = {}) => {
     for (let i = 0; i < burstCount; i++) {
         const partId = Math.floor(Math.random() * 10) + 1;
         const partStr = partId < 10 ? `0${partId}` : `${partId}`;
-        const spritePath = `assets/lightning_part_${partStr}.png`;
+        const spritePath = `assets/skills/vfx/lightning_part_${partStr}.png`;
 
         const angle = Math.random() * Math.PI * 2;
         const dist = Math.random() * burstSize;
@@ -575,7 +620,7 @@ export const spawnThunderBurstImpact = (game, x, y, options = {}) => {
     for (let i = 0; i < burstCount; i++) {
         const partId = Math.floor(Math.random() * 10) + 1;
         const partStr = partId < 10 ? `0${partId}` : `${partId}`;
-        const spritePath = `assets/lightning_part_${partStr}.png`;
+        const spritePath = `assets/skills/vfx/lightning_part_${partStr}.png`;
 
         const angle = Math.random() * Math.PI * 2;
         const s = burstSpeed + Math.random() * 100;

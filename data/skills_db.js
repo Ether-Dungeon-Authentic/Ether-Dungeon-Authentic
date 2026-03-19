@@ -647,14 +647,13 @@ export const skillsDB = [
         icon: 'assets/skills/icons/icon_volt_drive.png', // Placeholder
         cooldown: 20.0,
         behavior: 'volt_drive',
-        description: '雷光と化して6秒間、戦場を疾駆する奥義。移動速度が大幅に上昇し、ダッシュで敵を貫き、周囲に自動で雷撃を放つ。',
+        description: '雷光と化して6秒間、戦場を疾駆する奥義。移動速度が大幅に上昇し、ダッシュで敵を貫き、周囲に高速で雷撃を放つ。',
         params: {
             duration: 6.0,
             speedMult: 1.5,
-            autoLightningInterval: 0.6,
+            autoLightningInterval: 0.3,
             damage: 8,
             dashDamage: 15,
-            chainCount: 3,
             chainRange: 150,
             damageColor: '#ffff00',
             statusEffect: 'shock',
@@ -663,7 +662,7 @@ export const skillsDB = [
             critChance: 0.2,
             critMultiplier: 2.0
         },
-        aetherRushDesc: '効果時間が12秒に延長され、自動雷撃の間隔が短縮、さらに回避の無敵時間が延長される。'
+        aetherRushDesc: '効果時間が12秒に延長され、自動雷撃の間隔がさらに短縮、さらに回避の無敵時間が延長される。'
     },
     {
         id: 'starfall',

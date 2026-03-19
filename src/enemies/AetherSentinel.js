@@ -139,6 +139,7 @@ export class AetherSentinel extends Enemy {
 
         // Manual updates
         if (this.statusManager) this.statusManager.update(dt);
+        this.updateStatusVisuals(dt);
         if (this.flashTimer > 0) this.flashTimer -= dt;
 
         this.superUpdate(dt);

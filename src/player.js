@@ -480,7 +480,7 @@ export class Player extends Entity {
 
                             e.takeDamage(finalDmg, '#ffff00', 0, isCrit, kx, ky);
                             this.voltHitList.add(hitKey);
-                            this.game.spawnParticles(e.x + e.width / 2, e.y + e.height / 2, 5, '#ffff00');
+                            // game.spawnParticles(e.x + e.width / 2, e.y + e.height / 2, 5, '#ffff00'); // Removed square dots
                         }
                     }
                 }

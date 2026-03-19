@@ -1034,7 +1034,7 @@ class Game {
                     dummy.maxHp = 10000;
                     dummy.damage = 0; // Harmless
                     this.enemies.push(dummy);
-                    this.spawnParticles(ex, ey, 10, '#ffff00');
+                    // this.spawnParticles(ex, ey, 10, '#ffff00');
                 }
             }
         }
@@ -1244,19 +1244,25 @@ class Game {
         if (this.input.isDown('KeyC')) {
             if (!this.input.circuitPressed) {
                 this.input.circuitPressed = true;
-                if (this.currentFloor === 0) {
-                    const modal = document.getElementById('lab-modal');
-                    if (modal && modal.style.display === 'flex') {
-                        LabUI.close();
-                    } else {
-                        LabUI.open();
-                    }
+                const pLevel = SaveManager.getSaveData().playerLevel || 1;
+                
+                if (pLevel < 4) {
+                    this.logToScreen("エーテル回路は Lv4 で解放されます");
                 } else {
-                    const modal = document.getElementById('dungeon-circuit-modal');
-                    if (modal && modal.style.display === 'flex') {
-                        DungeonCircuitUI.close();
+                    if (this.currentFloor === 0) {
+                        const modal = document.getElementById('lab-modal');
+                        if (modal && modal.style.display === 'flex') {
+                            LabUI.close();
+                        } else {
+                            LabUI.open();
+                        }
                     } else {
-                        DungeonCircuitUI.open();
+                        const modal = document.getElementById('dungeon-circuit-modal');
+                        if (modal && modal.style.display === 'flex') {
+                            DungeonCircuitUI.close();
+                        } else {
+                            DungeonCircuitUI.open();
+                        }
                     }
                 }
             }
@@ -1331,6 +1337,14 @@ class Game {
                     console.log("[Game] Saving Aether data upon Game Over...");
                     this.player.saveAetherData();
                 }
+                
+                // --- EXPの算出と保存 ---
+                const killCount = this.player.killCount || 0;
+                const floorCount = this.currentFloor || 1;
+                this.runResultExp = (floorCount * 20) + (killCount * 2);
+                this.levelUpInfo = SaveManager.addExp(this.runResultExp);
+                console.log(`[Game] Gained EXP: ${this.runResultExp}`, this.levelUpInfo);
+                
                 // Update local high score
                 const isNewRecord = SaveManager.updateHighScore(this.score);
                 if (isNewRecord) {

@@ -47,6 +47,7 @@ export class SkeletonArcher extends Enemy {
         if (this.flashTimer > 0) {
             this.flashTimer -= dt;
         }
+        this.updateStatusVisuals(dt);
 
         if (this.isTelegraphing) {
             this.telegraphTimer -= dt;

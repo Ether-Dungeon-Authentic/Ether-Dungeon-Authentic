@@ -448,6 +448,7 @@ export class AetherPrime extends Boss {
         }
 
         this.statusManager.update(dt);
+        this.updateStatusVisuals(dt);
         this.superUpdate(dt);
     }
 

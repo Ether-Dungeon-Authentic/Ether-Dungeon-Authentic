@@ -32,6 +32,7 @@ export class Bat extends Enemy {
         if (this.flashTimer > 0) {
             this.flashTimer -= dt;
         }
+        this.updateStatusVisuals(dt);
 
         const distToPlayer = Math.sqrt((this.game.player.x - this.x) ** 2 + (this.game.player.y - this.y) ** 2);
 

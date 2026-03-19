@@ -1,4 +1,5 @@
 import { LabUI } from './LabUI.js';
+import { SaveManager } from '../SaveManager.js';
 
 export class DungeonCircuitUI {
     static buildSubTab = 'circuit';
@@ -64,9 +65,10 @@ export class DungeonCircuitUI {
         }
 
         header.innerHTML = '';
+        const pLevel = SaveManager.getSaveData().playerLevel || 1;
         const tabs = [
             { id: 'circuit', label: '回路' },
-            { id: 'synergy', label: 'シナジー' }
+            { id: 'synergy', label: pLevel < 7 ? '🔒Lv7 シナジー' : 'シナジー' }
         ];
 
         tabs.forEach(tab => {
@@ -74,11 +76,18 @@ export class DungeonCircuitUI {
             btn.className = `subtab-btn ${this.buildSubTab === tab.id ? 'active' : ''}`;
             btn.textContent = tab.label;
             btn.style.fontSize = '11px';
-            btn.style.cursor = 'pointer';
+            btn.style.cursor = (tab.id === 'synergy' && pLevel < 7) ? 'not-allowed' : 'pointer';
             btn.style.color = this.buildSubTab === tab.id ? '#00ffff' : '#888';
+            if (tab.id === 'synergy' && pLevel < 7) {
+                btn.style.opacity = '0.5';
+            }
             btn.style.padding = '4px 12px';
             btn.style.borderBottom = this.buildSubTab === tab.id ? '2px solid #00ffff' : 'none';
-            btn.onclick = () => {
+            btn.onclick = (e) => {
+                if (tab.id === 'synergy' && pLevel < 7) {
+                    e.preventDefault();
+                    return;
+                }
                 this.buildSubTab = tab.id;
                 this.render();
             };

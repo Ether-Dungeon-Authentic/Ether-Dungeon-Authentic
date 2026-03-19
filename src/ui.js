@@ -146,9 +146,56 @@ export function drawUI(ctx, game, width, height) {
         }
         ctx.shadowBlur = 0;
 
+        // --- EXP & Level Display ---
+        if (game.levelUpInfo) {
+            const info = game.levelUpInfo;
+            const baseY = height / 2 + 90;
+            
+            // 獲得EXP
+            ctx.fillStyle = '#00ffff';
+            ctx.font = '12px "Press Start 2P", cursive';
+            ctx.fillText(`+${game.runResultExp} EXP`, width / 2, baseY);
+
+            // プレイヤーレベル
+            ctx.fillStyle = 'white';
+            ctx.font = '14px "Press Start 2P", cursive';
+            ctx.fillText(`Lv ${info.newLevel}`, width / 2, baseY + 25);
+
+            // 経験値バーの描画
+            const barWidth = 200;
+            const barHeight = 10;
+            const barX = width / 2 - barWidth / 2;
+            const barY = baseY + 40;
+            
+            // 背景
+            ctx.fillStyle = '#333';
+            ctx.fillRect(barX, barY, barWidth, barHeight);
+            
+            // 中身
+            const fillRatio = info.currentExp / info.nextExp;
+            ctx.fillStyle = '#00ccff';
+            ctx.fillRect(barX, barY, barWidth * fillRatio, barHeight);
+            
+            // 枠線
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(barX, barY, barWidth, barHeight);
+
+            // レベルアップ時のテキスト表示
+            if (info.isLevelUp) {
+                const pulse = (Math.sin(Date.now() / 150) + 1) / 2;
+                ctx.fillStyle = `rgba(255, 215, 0, ${0.5 + pulse * 0.5})`;
+                ctx.font = 'bold 16px "Press Start 2P", cursive';
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = '#ffd700';
+                ctx.fillText("LEVEL UP!", width / 2, baseY + 75);
+                ctx.shadowBlur = 0;
+            }
+        }
+
         ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
         ctx.font = '12px "Press Start 2P", cursive';
-        ctx.fillText("Press [SPACE] to Return to Title", width / 2, height / 2 + 120);
+        ctx.fillText("Press [SPACE] to Return to Title", width / 2, height / 2 + 190);
 
         ctx.textAlign = 'left'; // Reset for other UI elements
         return;
